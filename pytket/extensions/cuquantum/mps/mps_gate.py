@@ -12,13 +12,12 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import cupy as cp
-import numpy as np
+import cupy as cp  # type: ignore
+import numpy as np  # type: ignore
+import cuquantum as cq  # type: ignore
+import cuquantum.cutensornet as cutn  # type: ignore
 
-import cuquantum as cq
-import cuquantum.cutensornet as cutn
-from pytket.circuit import Op
-
+from pytket.circuit import Op  # type: ignore
 from .mps import Tensor, MPS
 
 
@@ -35,7 +34,7 @@ class MPSxGate(MPS):
             the fidelities after each contraction.
     """
 
-    def apply_1q_gate(self, position: int, gate: Op):
+    def apply_1q_gate(self, position: int, gate: Op) -> None:
         """Apply the 1-qubit gate to the MPS. This does not increase the
         dimension of any bond.
 
@@ -72,7 +71,7 @@ class MPSxGate(MPS):
         self.tensors[position].data = new_tensor
         self.tensors[position].bonds = virtual_bonds + [new_bond]
 
-    def apply_2q_gate(self, positions: tuple[int, int], gate: Op):
+    def apply_2q_gate(self, positions: tuple[int, int], gate: Op) -> None:
         """Apply the 2-qubit gate to the MPS. If doing so increases the
         virtual bond dimension beyond ``chi``; truncation is automatically
         applied. The MPS is converted to canonical form before truncating.
@@ -215,7 +214,7 @@ class MPSxGate(MPS):
             discarded_weight.ctypes.data,
             discarded_weight.itemsize,
         )
-        self.fidelity *= 1 - float(discarded_weight)
+        self.fidelity *= 1.0 - float(discarded_weight)
 
         # Destroy descriptors
         cutn.destroy_tensor_descriptor(T_desc)
@@ -228,7 +227,7 @@ class MPSxGate(MPS):
         # to the entries of l_pos and r_pos in self.tensors
         assert self.tensors[l_pos] is L and self.tensors[r_pos] is R
 
-    def apply_postselection(self, position: int):
+    def apply_postselection(self, position: int) -> None:
         """Apply a postselection of state 0 to the chosen tensor.
         Postselection of any other state can be applied by preceding this
         with the appropriate gates.
