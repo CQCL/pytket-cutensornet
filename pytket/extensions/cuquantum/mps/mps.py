@@ -308,13 +308,22 @@ class MPS:
                 "where appropriate."
             )
 
-        # Create the interleaved representation used by cuQuantum
-        interleaved_rep = []
-        for tensor in self.tensors:
-            interleaved_rep.append(tensor.data)
-            interleaved_rep.append(tensor.bonds)
-        # Contract it using cuQuantum
-        result = cq.contract(*interleaved_rep)
+        # The MPS will be contracted from left to right, storing the
+        # ``partial_result`` tensor.
+        partial_result = self.tensors[0].data.flatten()  # Shape now (2,)
+        # Contract all tensors in the middle
+        for pos in range(1, len(self)-1):
+            partial_result = cq.contract(
+                partial_result, [pos],
+                self.tensors[pos].data, self.tensors[pos].bonds,
+                [pos+1]  # The only open bond is the right one of tensors[pos]
+            )
+        # Finally, contract the last tensor
+        result = cq.contract(
+            partial_result, [len(self)-1],
+            self.tensors[-1].data, self.tensors[-1].bonds,
+            []  # No open bonds remain; this is just a scalar
+        )
 
         return complex(result)
 
@@ -343,27 +352,29 @@ class MPS:
                     f"Physical bond dimension at position {i} do not match."
                 )
 
-        # Create the interleaved representation used by cuQuantum
-        interleaved_rep = []
-        for pos, tensor in enumerate(self.tensors):
-            # Rename physical bond so that self and mps match
-            upd_bonds = self.get_virtual_bonds(pos) + [len(self)+pos]
-            # Append to the interleaved representation
-            interleaved_rep.append(tensor.data)
-            interleaved_rep.append(upd_bonds)
-        for pos, tensor in enumerate(mps.tensors):
-            # Change the sign of the virtual bonds so that there's no clash
-            # with those from self.
-            upd_bonds = [
-                -vb_id for vb_id in self.get_virtual_bonds(pos)
-            ] + [len(self)+pos]
-            # Append to the interleaved representation
-            interleaved_rep.append(tensor.data.conj())
-            interleaved_rep.append(upd_bonds)
+        # The two MPS will be contracted from left to right, storing the
+        # ``partial_result`` tensor.
+        partial_result = cq.contract(
+            self.tensors[0].data.conj(), [-1, 0],
+            mps.tensors[0].data, [1, 0],
+            [-1, 1]
+        )
+        # Contract all tensors in the middle
+        for pos in range(1, len(self)-1):
+            partial_result = cq.contract(
+                partial_result, [-pos, pos],
+                self.tensors[pos].data.conj(), [-pos, -(pos+1), 0],
+                mps.tensors[pos].data, [pos, pos+1, 0],
+                [-(pos+1), pos+1]
+            )
+        # Finally, contract the last tensor
+        result = cq.contract(
+            partial_result, [-(len(self)-1), len(self)-1],
+            self.tensors[-1].data.conj(), [-(len(self)-1), 0],
+            mps.tensors[-1].data, [len(self)-1, 0],
+            []  # No open bonds remain; this is just a scalar
+        )
 
-        # Contract it using cuQuantum
-        result = cq.contract(*interleaved_rep)
-        print(result)
         return complex(result)
 
     def canonicalise(self, l_pos: int, r_pos: int):
