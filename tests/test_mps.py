@@ -1,17 +1,17 @@
-import cuquantum as cq
-import cupy as cp
-import numpy as np
+import cuquantum as cq  # type: ignore
+import cupy as cp  # type: ignore
+import numpy as np  # type: ignore
 
-from pytket.circuit import Op, OpType, Circuit
+from pytket.circuit import Op, OpType, Circuit  # type: ignore
 from pytket.extensions.cuquantum.mps import MPSxGate, Tensor
 
 
-def test_init():
+def test_init() -> None:
     with MPSxGate(n_tensors=5, chi=8) as mps:
         assert mps.is_valid()
 
 
-def test_trivial_postselect():
+def test_trivial_postselect() -> None:
     with MPSxGate(n_tensors=5, chi=8) as mps:
         for i in range(len(mps)):
             mps.apply_postselection(i)
@@ -20,7 +20,7 @@ def test_trivial_postselect():
         assert mps.contract() == 1
 
 
-def test_1q_gates():
+def test_1q_gates() -> None:
     n_qubits = 5
     circ = Circuit(n_qubits)
     circ.H(0)
@@ -54,7 +54,7 @@ def test_1q_gates():
             assert np.isclose(mps.contract(), unitary[b][0])
 
 
-def test_canonicalise():
+def test_canonicalise() -> None:
     np.random.seed(1)
 
     with MPSxGate(n_tensors=5, chi=4) as mps:
@@ -121,7 +121,7 @@ def test_canonicalise():
                         assert np.isclose(result[i][j], 0)
 
 
-def test_line_circ_exact():
+def test_line_circ_exact() -> None:
     # Simulate a circuit with only nearest neighbour interactions
     np.random.seed(1)
     n_qubits = 5
@@ -178,7 +178,7 @@ def test_line_circ_exact():
             assert mps.fidelity == 1
 
 
-def test_line_circ_approx():
+def test_line_circ_approx() -> None:
     # Simulate a circuit with only nearest neighbour interactions
     np.random.seed(1)
     n_qubits = 30
@@ -220,7 +220,7 @@ def test_line_circ_approx():
         assert np.isclose(mps.fidelity, 0.00013, atol=1e-6)
 
 
-def test_vdot():
+def test_vdot() -> None:
     np.random.seed(1)
     n_qubits = 5
     layers = 30

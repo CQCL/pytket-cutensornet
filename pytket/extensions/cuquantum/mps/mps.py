@@ -11,14 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from __future__ import annotations
+from __future__ import annotations  # type: ignore
+from typing import Any
 
-import cupy as cp
-import numpy as np
+import cupy as cp  # type: ignore
+import numpy as np  # type: ignore
+import cuquantum as cq  # type: ignore
+import cuquantum.cutensornet as cutn  # type: ignore
 
-import cuquantum as cq
-import cuquantum.cutensornet as cutn
-from pytket.circuit import Op
+from pytket.circuit import Op  # type: ignore
 
 # An alias so that `intptr_t` from CuQuantum's API (which is not available in
 # base python) has some meaningful type name.
@@ -71,7 +72,7 @@ class Tensor:
         elif self.data.dtype == np.complex128:
             cq_dtype = cq.cudaDataType.CUDA_C_64F
 
-        return cutn.create_tensor_descriptor(
+        return cutn.create_tensor_descriptor(  # type: ignore
             handle=libhandle,
             n_modes=len(self.data.shape),
             extents=self.data.shape,
@@ -87,7 +88,7 @@ class Tensor:
         Returns:
             List of strides. Strides are in CuPy format (#bytes).
         """
-        return self.data.strides
+        return self.data.strides  # type: ignore
 
     def get_cuquantum_strides(self) -> list[int]:
         """Return a list of the strides for each of the bonds; in the same
@@ -110,7 +111,7 @@ class Tensor:
         """
         if bond not in self.bonds:
             raise RuntimeError(f"Bond {bond} not in tensor with bonds: {self.bonds}.")
-        return self.data.shape[self.bonds.index(bond)]
+        return int(self.data.shape[self.bonds.index(bond)])
 
     def copy(self) -> Tensor:
         """
@@ -167,11 +168,11 @@ class MPS:
             raise Exception(f"Value of float_precision must be in {allowed_precisions}")
 
         if float_precision == "float32":  # Single precision
-            self._real_t = np.float32
-            self._complex_t = np.complex64
+            self._real_t = np.float32  # type: ignore
+            self._complex_t = np.complex64  # type: ignore
         elif float_precision == "float64":  # Double precision
-            self._real_t = np.float64
-            self._complex_t = np.complex128
+            self._real_t = np.float64  # type: ignore
+            self._complex_t = np.complex128  # type: ignore
 
         #################################################
         # Create CuTensorNet library and memory handles #
@@ -196,10 +197,10 @@ class MPS:
             )
 
         # A device memory handler lets CuTensorNet manage its own GPU memory
-        def malloc(size, stream):
+        def malloc(size, stream):  # type: ignore
             return cp.cuda.runtime.mallocAsync(size, stream)
 
-        def free(ptr, size, stream):
+        def free(ptr, size, stream):  # type: ignore
             cp.cuda.runtime.freeAsync(ptr, stream)
 
         memhandle = (malloc, free, "memory_handler")
@@ -210,7 +211,7 @@ class MPS:
         #######################################
 
         self.chi = chi
-        self.fidelity = 1
+        self.fidelity = 1.0
 
         if n_tensors == -1:  # Special input to avoid initialisation
             return None
@@ -372,7 +373,7 @@ class MPS:
 
         return complex(result)
 
-    def canonicalise(self, l_pos: int, r_pos: int):
+    def canonicalise(self, l_pos: int, r_pos: int) -> None:
         """Apply the necessary gauge transformations so that all MPS tensors
         to the left of position ``l_pos`` are in left orthogonal form and
         all MPS tensors to the right of ``r_pos`` in right orthogonal form.
@@ -388,7 +389,7 @@ class MPS:
         for pos in reversed(range(r_pos + 1, len(self))):
             self.canonicalise_tensor(pos, form="right")
 
-    def canonicalise_tensor(self, pos: int, form: str):
+    def canonicalise_tensor(self, pos: int, form: str) -> None:
         """Apply the necessary gauge transformations so that the tensor at
         position ``pos`` in the MPS has is in the orthogonal form dictated by
         ``form``.
@@ -429,9 +430,9 @@ class MPS:
                 )
             new_dim = min(p_dim, v_dims[0])
             Q_bonds = [-1, p_bond]
-            Q_shape = (new_dim, p_dim)
+            Q_shape = [new_dim, p_dim]
             R_bonds = [-1, v_bonds[0]]
-            R_shape = (new_dim, v_dims[0])
+            R_shape = [new_dim, v_dims[0]]
 
         elif pos == len(self) - 1:
             if form == "left":
@@ -440,23 +441,23 @@ class MPS:
                 )
             new_dim = min(p_dim, v_dims[0])
             Q_bonds = [-1, p_bond]
-            Q_shape = (new_dim, p_dim)
+            Q_shape = [new_dim, p_dim]
             R_bonds = [v_bonds[0], -1]
-            R_shape = (v_dims[0], new_dim)
+            R_shape = [v_dims[0], new_dim]
 
         else:
             if form == "left":
                 new_dim = min(v_dims[0] * p_dim, v_dims[1])
                 Q_bonds = [v_bonds[0], -1, p_bond]
-                Q_shape = (v_dims[0], new_dim, p_dim)
+                Q_shape = [v_dims[0], new_dim, p_dim]
                 R_bonds = [-1, v_bonds[1]]
-                R_shape = (new_dim, v_dims[1])
+                R_shape = [new_dim, v_dims[1]]
             elif form == "right":
                 new_dim = min(v_dims[1] * p_dim, v_dims[0])
                 Q_bonds = [-1, v_bonds[1], p_bond]
-                Q_shape = (new_dim, v_dims[1], p_dim)
+                Q_shape = [new_dim, v_dims[1], p_dim]
                 R_bonds = [v_bonds[0], -1]
-                R_shape = (v_dims[0], new_dim)
+                R_shape = [v_dims[0], new_dim]
 
         # Create template for the Q and R tensors
         Q_d = cp.empty(Q_shape, dtype=self._complex_t)
@@ -507,7 +508,7 @@ class MPS:
         cutn.destroy_tensor_descriptor(Q_desc)
         cutn.destroy_tensor_descriptor(R_desc)
 
-    def get_virtual_bonds(self, position: int) -> [Bond]:
+    def get_virtual_bonds(self, position: int) -> list[Bond]:
         """Return the unique identifiers of the virtual bonds
         of the tensor ``tensors[position]``.
 
@@ -532,7 +533,7 @@ class MPS:
         assert all(vb in self.tensors[position].bonds for vb in v_bonds)
         return v_bonds
 
-    def get_virtual_dimensions(self, position: int) -> [int]:
+    def get_virtual_dimensions(self, position: int) -> list[int]:
         """Return the dimension of the virtual bonds of the tensor
         ``tensors[position]``.
 
@@ -601,38 +602,38 @@ class MPS:
         """
         return len(self.tensors)
 
-    def __del__(self):
+    def __del__(self) -> None:
         cutn.destroy(self._libhandle)
 
     def __enter__(self) -> MPS:
         return self
 
-    def __exit__(self, exc_type, exc_value, exc_tb):
+    def __exit__(self, exc_type: Any, exc_value: Any, exc_tb: Any) -> None:
         del self
 
     def _new_bond_id(self) -> Bond:
         self._largest_bond_id += 1
         return self._largest_bond_id
 
-    def apply_1q_gate(self, position: int, gate: Op):
+    def apply_1q_gate(self, position: int, gate: Op) -> None:
         raise NotImplementedError(
             "MPS is a base class with no contraction algorithm implemented."
             + " You must use a subclass of MPS, such as MPSxGate or MPSxMPO."
         )
 
-    def apply_2q_gate(self, positions: tuple[int, int], gate: Op):
+    def apply_2q_gate(self, positions: tuple[int, int], gate: Op) -> None:
         raise NotImplementedError(
             "MPS is a base class with no contraction algorithm implemented."
             + " You must use a subclass of MPS, such as MPSxGate or MPSxMPO."
         )
 
-    def apply_postselection(self, position: int):
+    def apply_postselection(self, position: int) -> None:
         raise NotImplementedError(
             "MPS is a base class with no contraction algorithm implemented."
             + " You must use a subclass of MPS, such as MPSxGate or MPSxMPO."
         )
 
-    def flush(self):
+    def flush(self) -> None:
         raise NotImplementedError(
             "Only implemented for MPS methods that use lazy contraction."
         )
