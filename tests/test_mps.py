@@ -1,8 +1,9 @@
-from pytket.circuit import Op, OpType, Circuit
-from pytket.extensions.cuquantum.mps import MPSxGate, Tensor
 import cuquantum as cq
 import cupy as cp
 import numpy as np
+
+from pytket.circuit import Op, OpType, Circuit
+from pytket.extensions.cuquantum.mps import MPSxGate, Tensor
 
 
 def test_init():
