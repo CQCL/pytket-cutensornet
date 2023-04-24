@@ -4,6 +4,7 @@ import cuquantum as cq
 import cupy as cp
 import numpy as np
 
+
 def test_init():
     with MPSxGate(n_tensors=5, chi=8) as mps:
         assert mps.is_valid()
@@ -28,7 +29,7 @@ def test_1q_gates():
     circ.TK1(0.6, 0.5, 0.7, 4)
     unitary = circ.get_unitary()
 
-    qubit_pos = {q : i for i, q in enumerate(circ.qubits)}
+    qubit_pos = {q: i for i, q in enumerate(circ.qubits)}
 
     # Check that all of the amplitudes are correct
     for b in range(2**n_qubits):
@@ -42,7 +43,7 @@ def test_1q_gates():
             # Postselect <b|
             bitstring = format(b, f"0{n_qubits}b")
             for i in range(n_qubits):
-                if bitstring[i] == '1':
+                if bitstring[i] == "1":
                     mps.apply_1q_gate(i, Op.create(OpType.X))
             for i in range(len(mps)):
                 mps.apply_postselection(i)  # The X above make it <b|
@@ -59,29 +60,27 @@ def test_canonicalise():
         # Fill up the tensors with random entries
 
         # Leftmost tensor
-        T_d = cp.empty(shape=(4,2), dtype=mps._complex_t)
+        T_d = cp.empty(shape=(4, 2), dtype=mps._complex_t)
         for i0 in range(T_d.shape[0]):
             for i1 in range(T_d.shape[1]):
-                T_d[i0][i1] = np.random.rand() + 1j*np.random.rand()
+                T_d[i0][i1] = np.random.rand() + 1j * np.random.rand()
         mps.tensors[0] = Tensor(T_d, bonds=[1, len(mps)])
 
         # Middle tensors
-        for pos in range(1,len(mps)-1):
-            T_d = cp.empty(shape=(4,4,2), dtype=mps._complex_t)
+        for pos in range(1, len(mps) - 1):
+            T_d = cp.empty(shape=(4, 4, 2), dtype=mps._complex_t)
             for i0 in range(T_d.shape[0]):
                 for i1 in range(T_d.shape[1]):
                     for i2 in range(T_d.shape[2]):
-                        T_d[i0][i1][i2] = (
-                            np.random.rand() + 1j*np.random.rand()
-                        )
-            mps.tensors[pos] = Tensor(T_d, bonds=[pos, pos+1, pos+len(mps)])
+                        T_d[i0][i1][i2] = np.random.rand() + 1j * np.random.rand()
+            mps.tensors[pos] = Tensor(T_d, bonds=[pos, pos + 1, pos + len(mps)])
 
         # Rightmost tensor
-        T_d = cp.empty(shape=(4,2), dtype=mps._complex_t)
+        T_d = cp.empty(shape=(4, 2), dtype=mps._complex_t)
         for i0 in range(T_d.shape[0]):
             for i1 in range(T_d.shape[1]):
-                T_d[i0][i1] = np.random.rand() + 1j*np.random.rand()
-        mps.tensors[len(mps)-1] = Tensor(T_d, bonds=[len(mps)-1, 2*len(mps)-1])
+                T_d[i0][i1] = np.random.rand() + 1j * np.random.rand()
+        mps.tensors[len(mps) - 1] = Tensor(T_d, bonds=[len(mps) - 1, 2 * len(mps) - 1])
 
         with mps.copy() as mps_copy:
             # Calculate the norm of the MPS
@@ -111,11 +110,7 @@ def test_canonicalise():
                 std_bonds[0] = -1
                 conj_bonds[0] = -2
 
-            result = cq.contract(
-                T_d, std_bonds,
-                T_d.conj(), conj_bonds,
-                [-1, -2]
-            )
+            result = cq.contract(T_d, std_bonds, T_d.conj(), conj_bonds, [-1, -2])
 
             for i in range(result.shape[0]):
                 for j in range(result.shape[1]):
@@ -134,7 +129,6 @@ def test_line_circ_exact():
     c = Circuit(n_qubits)
 
     for i in range(layers):
-
         # Layer of TK1 gates
         for q in range(n_qubits):
             c.TK1(np.random.rand(), np.random.rand(), np.random.rand(), q)
@@ -142,8 +136,7 @@ def test_line_circ_exact():
         # Layer of CX gates
         offset = np.mod(i, 2)  # Even layers connect (q0,q1), odd (q1,q2)
         qubit_pairs = [
-            [c.qubits[i], c.qubits[i + 1]]
-            for i in range(offset, n_qubits - 1, 2)
+            [c.qubits[i], c.qubits[i + 1]] for i in range(offset, n_qubits - 1, 2)
         ]
         # Direction of each CX gate is random
         for pair in qubit_pairs:
@@ -153,7 +146,7 @@ def test_line_circ_exact():
             c.CX(pair[0], pair[1])
 
     unitary = c.get_unitary()
-    qubit_pos = {q : i for i, q in enumerate(c.qubits)}
+    qubit_pos = {q: i for i, q in enumerate(c.qubits)}
 
     # EXACT CONTRACTION (chi=4 is enough for n_qubits=5)
     # Check that all of the amplitudes are correct
@@ -167,13 +160,13 @@ def test_line_circ_exact():
                 else:
                     q0 = qubit_pos[g.qubits[0]]
                     q1 = qubit_pos[g.qubits[1]]
-                    mps.apply_2q_gate((q0,q1), g.op)
+                    mps.apply_2q_gate((q0, q1), g.op)
             assert mps.is_valid()
 
             # Postselect <b|
             bitstring = format(b, f"0{n_qubits}b")
             for i in range(n_qubits):
-                if bitstring[i] == '1':
+                if bitstring[i] == "1":
                     mps.apply_1q_gate(i, Op.create(OpType.X))
             for i in range(len(mps)):
                 mps.apply_postselection(i)  # The X above make it <b|
@@ -193,7 +186,6 @@ def test_line_circ_approx():
     c = Circuit(n_qubits)
 
     for i in range(layers):
-
         # Layer of TK1 gates
         for q in range(n_qubits):
             c.TK1(np.random.rand(), np.random.rand(), np.random.rand(), q)
@@ -201,8 +193,7 @@ def test_line_circ_approx():
         # Layer of CX gates
         offset = np.mod(i, 2)  # Even layers connect (q0,q1), odd (q1,q2)
         qubit_pairs = [
-            [c.qubits[i], c.qubits[i + 1]]
-            for i in range(offset, n_qubits - 1, 2)
+            [c.qubits[i], c.qubits[i + 1]] for i in range(offset, n_qubits - 1, 2)
         ]
         # Direction of each CX gate is random
         for pair in qubit_pairs:
@@ -211,7 +202,7 @@ def test_line_circ_approx():
         for pair in qubit_pairs:
             c.CX(pair[0], pair[1])
 
-    qubit_pos = {q : i for i, q in enumerate(c.qubits)}
+    qubit_pos = {q: i for i, q in enumerate(c.qubits)}
 
     # APPROXIMATE CONTRACTION (chi=8 is insufficient for exact)
     with MPSxGate(n_tensors=n_qubits, chi=8) as mps:
@@ -223,7 +214,7 @@ def test_line_circ_approx():
             else:
                 q0 = qubit_pos[g.qubits[0]]
                 q1 = qubit_pos[g.qubits[1]]
-                mps.apply_2q_gate((q0,q1), g.op)
+                mps.apply_2q_gate((q0, q1), g.op)
         assert mps.is_valid()
         assert np.isclose(mps.fidelity, 0.00013, atol=1e-6)
 
@@ -236,7 +227,6 @@ def test_vdot():
     c = Circuit(n_qubits)
 
     for i in range(layers):
-
         # Layer of TK1 gates
         for q in range(n_qubits):
             c.TK1(np.random.rand(), np.random.rand(), np.random.rand(), q)
@@ -244,8 +234,7 @@ def test_vdot():
         # Layer of CX gates
         offset = np.mod(i, 2)  # Even layers connect (q0,q1), odd (q1,q2)
         qubit_pairs = [
-            [c.qubits[i], c.qubits[i + 1]]
-            for i in range(offset, n_qubits - 1, 2)
+            [c.qubits[i], c.qubits[i + 1]] for i in range(offset, n_qubits - 1, 2)
         ]
         # Direction of each CX gate is random
         for pair in qubit_pairs:
@@ -254,7 +243,7 @@ def test_vdot():
         for pair in qubit_pairs:
             c.CX(pair[0], pair[1])
 
-    qubit_pos = {q : i for i, q in enumerate(c.qubits)}
+    qubit_pos = {q: i for i, q in enumerate(c.qubits)}
 
     with MPSxGate(n_tensors=n_qubits, chi=4) as mps:
         # Apply each of the gates
@@ -265,7 +254,7 @@ def test_vdot():
             else:
                 q0 = qubit_pos[g.qubits[0]]
                 q1 = qubit_pos[g.qubits[1]]
-                mps.apply_2q_gate((q0,q1), g.op)
+                mps.apply_2q_gate((q0, q1), g.op)
         assert mps.is_valid()
 
         with mps.copy() as mps_copy:

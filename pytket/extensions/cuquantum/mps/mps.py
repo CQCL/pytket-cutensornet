@@ -27,6 +27,7 @@ Handle = int
 # of the MPS.
 Bond = int
 
+
 class Tensor:
     """Class for the management of tensors via CuPy and cuQuantum.
     It abstracts away some of the low-level API of cuQuantum.
@@ -76,7 +77,7 @@ class Tensor:
             extents=self.data.shape,
             strides=self.get_cuquantum_strides(),
             modes=self.bonds,
-            data_type=cq_dtype
+            data_type=cq_dtype,
         )
 
     def get_cupy_strides(self) -> list[int]:
@@ -108,9 +109,7 @@ class Tensor:
             The dimension of the bond.
         """
         if bond not in self.bonds:
-            raise RuntimeError(
-                f"Bond {bond} not in tensor with bonds: {self.bonds}."
-            )
+            raise RuntimeError(f"Bond {bond} not in tensor with bonds: {self.bonds}.")
         return self.data.shape[self.bonds.index(bond)]
 
     def copy(self) -> Tensor:
@@ -119,6 +118,7 @@ class Tensor:
             A deep copy of the Tensor.
         """
         return Tensor(self.data.copy(), self.bonds.copy())
+
 
 class MPS:
     """Parent class for state-based simulation using Matrix Product State
@@ -140,11 +140,7 @@ class MPS:
     #   always going to be the largest bond ID of the bond list of a tensor.
     #   The ID of the physical bonds will change as we contract gates/MPO
     #   into the MPS, but the ID of the virtual bonds will remain unchanged.
-    def __init__(self,
-        n_tensors: int,
-        chi: int,
-        float_precision: str='float64'
-    ):
+    def __init__(self, n_tensors: int, chi: int, float_precision: str = "float64"):
         """Initialise an MPS on the computational state 0.
 
         Note:
@@ -166,16 +162,14 @@ class MPS:
         if chi < 2:
             raise Exception("The max virtual bond dim (chi) must be >= 2.")
 
-        allowed_precisions = ['float32', 'float64']
+        allowed_precisions = ["float32", "float64"]
         if float_precision not in allowed_precisions:
-            raise Exception(
-                f"Value of float_precision must be in {allowed_precisions}"
-            )
+            raise Exception(f"Value of float_precision must be in {allowed_precisions}")
 
-        if float_precision == 'float32':  # Single precision
+        if float_precision == "float32":  # Single precision
             self._real_t = np.float32
             self._complex_t = np.complex64
-        elif float_precision == 'float64':  # Double precision
+        elif float_precision == "float64":  # Double precision
             self._real_t = np.float64
             self._complex_t = np.complex128
 
@@ -188,17 +182,17 @@ class MPS:
 
         if cp.cuda.runtime.runtimeGetVersion() < 11020:
             raise RuntimeError("Requires CUDA 11.2+.")
-        if not dev.attributes['MemoryPoolsSupported']:
+        if not dev.attributes["MemoryPoolsSupported"]:
             raise RuntimeError("Device does not support CUDA Memory pools")
 
         # Avoid shrinking the pool
         mempool = cp.cuda.runtime.deviceGetDefaultMemPool(dev.id)
-        if int(cp.__version__.split('.')[0]) >= 10:
+        if int(cp.__version__.split(".")[0]) >= 10:
             # this API is exposed since CuPy v10
             cp.cuda.runtime.memPoolSetAttribute(
                 mempool,
                 cp.cuda.runtime.cudaMemPoolAttrReleaseThreshold,
-                0xffffffffffffffff  # = UINT64_MAX
+                0xFFFFFFFFFFFFFFFF,  # = UINT64_MAX
             )
 
         # A device memory handler lets CuTensorNet manage its own GPU memory
@@ -238,18 +232,18 @@ class MPS:
 
         # Append each of the tensors in between
         m_shape = (1, 1, 2)  # Two virtual bonds (dim=1) and one physical
-        for i in range(1, n_tensors-1):
+        for i in range(1, n_tensors - 1):
             m_tensor = cp.empty(m_shape, dtype=self._complex_t)
             # Initialise the tensor to ket 0
             m_tensor[0][0][0] = 1
             m_tensor[0][0][1] = 0
-            self.tensors.append(Tensor(m_tensor, [i, i+1, i+n_tensors]))
+            self.tensors.append(Tensor(m_tensor, [i, i + 1, i + n_tensors]))
 
         # Append the rightmost tensor
-        self.tensors.append(Tensor(r_tensor, [n_tensors-1, 2*n_tensors-1]))
+        self.tensors.append(Tensor(r_tensor, [n_tensors - 1, 2 * n_tensors - 1]))
 
         # An internal counter of the Bond IDs already used
-        self._largest_bond_id = 2*n_tensors - 1
+        self._largest_bond_id = 2 * n_tensors - 1
 
     def is_valid(self) -> bool:
         """Verify that the MPS does not exceed the dimension limit (chi) of
@@ -263,13 +257,9 @@ class MPS:
             all(dim <= self.chi for dim in self.get_virtual_dimensions(pos))
             for pos in range(len(self))
         )
-        phys_ok = all(
-            self.get_physical_dimension(pos) <= 2
-            for pos in range(len(self))
-        )
+        phys_ok = all(self.get_physical_dimension(pos) <= 2 for pos in range(len(self)))
         shape_ok = all(
-            len(tensor.data.shape) == len(tensor.bonds)
-            and len(tensor.bonds) <= 3
+            len(tensor.data.shape) == len(tensor.bonds) and len(tensor.bonds) <= 3
             for tensor in self.tensors
         )
 
@@ -277,13 +267,13 @@ class MPS:
         # Check the leftmost tensor
         v_bonds_ok = v_bonds_ok and self.get_virtual_bonds(0)[0] == 1
         # Check the middle tensors
-        for i in range(1, len(self)-1):
+        for i in range(1, len(self) - 1):
             v_bonds_ok = v_bonds_ok and (
-                self.get_virtual_bonds(i)[0] == i and
-                self.get_virtual_bonds(i)[1] == i+1
+                self.get_virtual_bonds(i)[0] == i
+                and self.get_virtual_bonds(i)[1] == i + 1
             )
         # Check the rightmost tensor
-        i = len(self)-1
+        i = len(self) - 1
         v_bonds_ok = v_bonds_ok and self.get_virtual_bonds(i)[0] == i
 
         return chi_ok and phys_ok and v_bonds_ok
@@ -298,31 +288,32 @@ class MPS:
         Returns:
             The scalar result.
         """
-        if not all(
-            self.get_physical_dimension(pos) == 1
-            for pos in range(len(self))
-        ):
+        if not all(self.get_physical_dimension(pos) == 1 for pos in range(len(self))):
             raise RuntimeError(
-                "The MPS still has some open physical bonds, so it cannot" +
-                " be contracted to a scalar. Use ``apply_postselection``" +
-                "where appropriate."
+                "The MPS still has some open physical bonds, so it cannot"
+                + " be contracted to a scalar. Use ``apply_postselection``"
+                + "where appropriate."
             )
 
         # The MPS will be contracted from left to right, storing the
         # ``partial_result`` tensor.
         partial_result = self.tensors[0].data.flatten()  # Shape now (2,)
         # Contract all tensors in the middle
-        for pos in range(1, len(self)-1):
+        for pos in range(1, len(self) - 1):
             partial_result = cq.contract(
-                partial_result, [pos],
-                self.tensors[pos].data, self.tensors[pos].bonds,
-                [pos+1]  # The only open bond is the right one of tensors[pos]
+                partial_result,
+                [pos],
+                self.tensors[pos].data,
+                self.tensors[pos].bonds,
+                [pos + 1],  # The only open bond is the right one of tensors[pos]
             )
         # Finally, contract the last tensor
         result = cq.contract(
-            partial_result, [len(self)-1],
-            self.tensors[-1].data, self.tensors[-1].bonds,
-            []  # No open bonds remain; this is just a scalar
+            partial_result,
+            [len(self) - 1],
+            self.tensors[-1].data,
+            self.tensors[-1].bonds,
+            [],  # No open bonds remain; this is just a scalar
         )
 
         return complex(result)
@@ -355,24 +346,28 @@ class MPS:
         # The two MPS will be contracted from left to right, storing the
         # ``partial_result`` tensor.
         partial_result = cq.contract(
-            self.tensors[0].data.conj(), [-1, 0],
-            mps.tensors[0].data, [1, 0],
-            [-1, 1]
+            self.tensors[0].data.conj(), [-1, 0], mps.tensors[0].data, [1, 0], [-1, 1]
         )
         # Contract all tensors in the middle
-        for pos in range(1, len(self)-1):
+        for pos in range(1, len(self) - 1):
             partial_result = cq.contract(
-                partial_result, [-pos, pos],
-                self.tensors[pos].data.conj(), [-pos, -(pos+1), 0],
-                mps.tensors[pos].data, [pos, pos+1, 0],
-                [-(pos+1), pos+1]
+                partial_result,
+                [-pos, pos],
+                self.tensors[pos].data.conj(),
+                [-pos, -(pos + 1), 0],
+                mps.tensors[pos].data,
+                [pos, pos + 1, 0],
+                [-(pos + 1), pos + 1],
             )
         # Finally, contract the last tensor
         result = cq.contract(
-            partial_result, [-(len(self)-1), len(self)-1],
-            self.tensors[-1].data.conj(), [-(len(self)-1), 0],
-            mps.tensors[-1].data, [len(self)-1, 0],
-            []  # No open bonds remain; this is just a scalar
+            partial_result,
+            [-(len(self) - 1), len(self) - 1],
+            self.tensors[-1].data.conj(),
+            [-(len(self) - 1), 0],
+            mps.tensors[-1].data,
+            [len(self) - 1, 0],
+            [],  # No open bonds remain; this is just a scalar
         )
 
         return complex(result)
@@ -389,9 +384,9 @@ class MPS:
             canonicalised.
         """
         for pos in range(l_pos):
-            self.canonicalise_tensor(pos, form='left')
-        for pos in reversed(range(r_pos+1, len(self))):
-            self.canonicalise_tensor(pos, form='right')
+            self.canonicalise_tensor(pos, form="left")
+        for pos in reversed(range(r_pos + 1, len(self))):
+            self.canonicalise_tensor(pos, form="right")
 
     def canonicalise_tensor(self, pos: int, form: str):
         """Apply the necessary gauge transformations so that the tensor at
@@ -403,13 +398,13 @@ class MPS:
             form: Either ``'left'`` or ``'right'``.
         """
 
-        if form == 'left':
-            next_pos = pos+1
-            gauge_bond = pos+1
+        if form == "left":
+            next_pos = pos + 1
+            gauge_bond = pos + 1
             gauge_T_index = 0
             gauge_Q_index = -2
-        elif form == 'right':
-            next_pos = pos-1
+        elif form == "right":
+            next_pos = pos - 1
             gauge_bond = pos
             gauge_T_index = -2
             gauge_Q_index = 0
@@ -428,7 +423,7 @@ class MPS:
 
         # Decide the shape of the Q and R tensors
         if pos == 0:
-            if form == 'right':
+            if form == "right":
                 raise RuntimeError(
                     "The leftmost tensor cannot be in right orthogonal form."
                 )
@@ -438,8 +433,8 @@ class MPS:
             R_bonds = [-1, v_bonds[0]]
             R_shape = (new_dim, v_dims[0])
 
-        elif pos == len(self)-1:
-            if form == 'left':
+        elif pos == len(self) - 1:
+            if form == "left":
                 raise RuntimeError(
                     "The rightmost tensor cannot be in left orthogonal form."
                 )
@@ -450,14 +445,14 @@ class MPS:
             R_shape = (v_dims[0], new_dim)
 
         else:
-            if form == 'left':
-                new_dim = min(v_dims[0]*p_dim, v_dims[1])
+            if form == "left":
+                new_dim = min(v_dims[0] * p_dim, v_dims[1])
                 Q_bonds = [v_bonds[0], -1, p_bond]
                 Q_shape = (v_dims[0], new_dim, p_dim)
                 R_bonds = [-1, v_bonds[1]]
                 R_shape = (new_dim, v_dims[1])
-            elif form == 'right':
-                new_dim = min(v_dims[1]*p_dim, v_dims[0])
+            elif form == "right":
+                new_dim = min(v_dims[1] * p_dim, v_dims[0])
                 Q_bonds = [-1, v_bonds[1], p_bond]
                 Q_shape = (new_dim, v_dims[1], p_dim)
                 R_bonds = [v_bonds[0], -1]
@@ -477,10 +472,14 @@ class MPS:
         # Apply QR decomposition
         cutn.tensor_qr(
             self._libhandle,
-            T_desc, T_d.data.ptr,
-            Q_desc, Q_d.data.ptr,
-            R_desc, R_d.data.ptr,
-            0, self._stream.ptr  # 0 means let cuQuantum manage mem itself
+            T_desc,
+            T_d.data.ptr,
+            Q_desc,
+            Q_d.data.ptr,
+            R_desc,
+            R_d.data.ptr,
+            0,
+            self._stream.ptr,  # 0 means let cuQuantum manage mem itself
         )
         self._stream.synchronize()
 
@@ -488,9 +487,11 @@ class MPS:
         Tnext_bonds = list(self.tensors[next_pos].bonds)
         Tnext_bonds[gauge_T_index] = -1
         Tnext_d = cq.contract(
-            R_d, R.bonds,
-            self.tensors[next_pos].data, self.tensors[next_pos].bonds,
-            Tnext_bonds
+            R_d,
+            R.bonds,
+            self.tensors[next_pos].data,
+            self.tensors[next_pos].bonds,
+            Tnext_bonds,
         )
         # Reassign virtual bond ID
         Tnext_bonds[gauge_T_index] = gauge_bond
@@ -522,11 +523,11 @@ class MPS:
         if position < 0 or position >= len(self):
             raise Exception(f"Position {position} is out of bounds.")
         elif position == 0:
-            v_bonds = [position+1]
-        elif position == len(self)-1:
+            v_bonds = [position + 1]
+        elif position == len(self) - 1:
             v_bonds = [position]
         else:
-            v_bonds = [position, position+1]
+            v_bonds = [position, position + 1]
 
         assert all(vb in self.tensors[position].bonds for vb in v_bonds)
         return v_bonds
@@ -575,9 +576,7 @@ class MPS:
         Returns:
             The dimension of the physical bond.
         """
-        return self.tensors[position].get_dimension_of(
-            self.get_physical_bond(position)
-        )
+        return self.tensors[position].get_dimension_of(self.get_physical_bond(position))
 
     def copy(self) -> MPS:
         """
@@ -617,20 +616,20 @@ class MPS:
 
     def apply_1q_gate(self, position: int, gate: Op):
         raise NotImplementedError(
-            "MPS is a base class with no contraction algorithm implemented." +
-            " You must use a subclass of MPS, such as MPSxGate or MPSxMPO."
+            "MPS is a base class with no contraction algorithm implemented."
+            + " You must use a subclass of MPS, such as MPSxGate or MPSxMPO."
         )
 
-    def apply_2q_gate(self, positions: tuple[int,int], gate: Op):
+    def apply_2q_gate(self, positions: tuple[int, int], gate: Op):
         raise NotImplementedError(
-            "MPS is a base class with no contraction algorithm implemented." +
-            " You must use a subclass of MPS, such as MPSxGate or MPSxMPO."
+            "MPS is a base class with no contraction algorithm implemented."
+            + " You must use a subclass of MPS, such as MPSxGate or MPSxMPO."
         )
 
     def apply_postselection(self, position: int):
         raise NotImplementedError(
-            "MPS is a base class with no contraction algorithm implemented." +
-            " You must use a subclass of MPS, such as MPSxGate or MPSxMPO."
+            "MPS is a base class with no contraction algorithm implemented."
+            + " You must use a subclass of MPS, such as MPSxGate or MPSxMPO."
         )
 
     def flush(self):
