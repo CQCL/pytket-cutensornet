@@ -1,0 +1,42 @@
+name: Build and test
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+  push:
+    branches:
+      - develop
+      - 'wheel/**'
+      - 'runci/**'
+  release:
+    types:
+      - created
+      - edited
+  schedule:
+    # 04:00 every Tuesday morning
+    - cron: '0 4 * * 2'
+
+jobs:
+  cuquantum-checks:
+    name: cuQuantum - Build and test module
+    strategy:
+      matrix:
+        os: ['ubuntu-22.04', 'macos-12', 'windows-2022']
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: '0'
+    - run: git fetch --depth=1 origin +refs/tags/*:refs/tags/* +refs/heads/*:refs/remotes/origin/*
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    - name: Build and test including remote checks (3.9) mypy
+      shell: bash
+      if:  (matrix.os == 'macos-12') && (github.event_name == 'push' || (github.event_name == 'pull_request' &&  github.event.pull_request.head.repo.full_name == github.repository) || github.event_name == 'release' || github.event_name == 'schedule' )
+      run: |
+        chmod +x ./.github/workflows/build-test
+        ./.github/workflows/build-test mypy
