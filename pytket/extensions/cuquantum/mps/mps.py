@@ -276,7 +276,7 @@ class MPS:
         i = len(self) - 1
         v_bonds_ok = v_bonds_ok and self.get_virtual_bonds(i)[0] == i
 
-        return chi_ok and phys_ok and v_bonds_ok
+        return chi_ok and phys_ok and shape_ok and v_bonds_ok
 
     def contract(self) -> complex:
         """Fully contract the MPS and return the scalar result.

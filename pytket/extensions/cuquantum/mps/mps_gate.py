@@ -19,7 +19,7 @@ import cuquantum as cq
 import cuquantum.cutensornet as cutn
 from pytket.circuit import Op
 
-from .mps import Handle, Bond, Tensor, MPS
+from .mps import Tensor, MPS
 
 
 class MPSxGate(MPS):
