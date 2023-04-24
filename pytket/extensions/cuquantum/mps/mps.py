@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from __future__ import annotations
 
 import cupy as cp
 import numpy as np
@@ -112,6 +113,12 @@ class Tensor:
             )
         return self.data.shape[self.bonds.index(bond)]
 
+    def copy(self) -> Tensor:
+        """
+        Returns:
+            A deep copy of the Tensor.
+        """
+        return Tensor(self.data.copy(), self.bonds.copy())
 
 class MPS:
     """Parent class for state-based simulation using Matrix Product State
@@ -154,7 +161,7 @@ class MPS:
                 Each complex number is represented using two of these real numbers.
                 Default is 'float64'.
         """
-        if n_tensors < 2:
+        if n_tensors < 2 and n_tensors != -1:
             raise Exception("The n_tensors of the MPS must be >= 2.")
         if chi < 2:
             raise Exception("The max virtual bond dim (chi) must be >= 2.")
@@ -211,6 +218,9 @@ class MPS:
         self.chi = chi
         self.fidelity = 1
 
+        if n_tensors == -1:  # Special input to avoid initialisation
+            return None
+
         # Create the first and last tensors (these have one fewer bond)
         lr_shape = (1, 2)  # Initial virtual bond dim is 1; physical is 2
         l_tensor = cp.empty(lr_shape, dtype=self._complex_t)
@@ -257,6 +267,11 @@ class MPS:
             self.get_physical_dimension(pos) <= 2
             for pos in range(len(self))
         )
+        shape_ok = all(
+            len(tensor.data.shape) == len(tensor.bonds)
+            and len(tensor.bonds) <= 3
+            for tensor in self.tensors
+        )
 
         v_bonds_ok = True
         # Check the leftmost tensor
@@ -280,9 +295,6 @@ class MPS:
             Can only be applied on an MPS whose physical bonds all have
             dimension 1. If this is not the case, an exception is raised.
 
-            This method updates ``self.tensors``, becoming a singleton list
-            containing a 0-rank tensor with the result.
-
         Returns:
             The scalar result.
         """
@@ -296,27 +308,62 @@ class MPS:
                 "where appropriate."
             )
 
-        # The MPS will be contracted from left to right, storing the
-        # ``partial_result`` tensor.
-        partial_result = self.tensors[0].data.flatten()  # Shape now (2,)
-        # Contract all tensors in the middle
-        for pos in range(1, len(self)-1):
-            partial_result = cq.contract(
-                partial_result, [pos],
-                self.tensors[pos].data, self.tensors[pos].bonds,
-                [pos+1]  # The only open bond is the right one of tensors[pos]
-            )
-        # Finally, contract the last tensor
-        result = cq.contract(
-            partial_result, [len(self)-1],
-            self.tensors[-1].data, self.tensors[-1].bonds,
-            []  # No open bonds remain; this is just a scalar
-        )
+        # Create the interleaved representation used by cuQuantum
+        interleaved_rep = []
+        for tensor in self.tensors:
+            interleaved_rep.append(tensor.data)
+            interleaved_rep.append(tensor.bonds)
+        # Contract it using cuQuantum
+        result = cq.contract(*interleaved_rep)
 
-        # During contraction, the contents of ``self.tensors`` might have
-        # changed. For safety reasons, we update the list accordingly.
-        self.tensors = [Tensor(result, [])]
+        return complex(result)
 
+    def vdot(self, mps: MPS) -> complex:
+        """Obtain the inner product of the two MPS.
+
+        Note:
+            If any of the MPS uses a lazy implementation, remember to call
+            ``self.flush()`` and ``mps.flush()`` before ``self.vdot(mps)``
+            so that all pending operations are taken into account.
+
+        Args:
+            mps: The other MPS to compare against.
+
+        Return:
+            The resulting complex number.
+
+        Raise:
+            RuntimeError: If number of tensors or dimensions do not match.
+        """
+        if len(self) != len(mps):
+            raise RuntimeError("Number of tensors do not match.")
+        for i in range(len(self)):
+            if self.get_physical_dimension(i) != mps.get_physical_dimension(i):
+                raise RuntimeError(
+                    f"Physical bond dimension at position {i} do not match."
+                )
+
+        # Create the interleaved representation used by cuQuantum
+        interleaved_rep = []
+        for pos, tensor in enumerate(self.tensors):
+            # Rename physical bond so that self and mps match
+            upd_bonds = self.get_virtual_bonds(pos) + [len(self)+pos]
+            # Append to the interleaved representation
+            interleaved_rep.append(tensor.data)
+            interleaved_rep.append(upd_bonds)
+        for pos, tensor in enumerate(mps.tensors):
+            # Change the sign of the virtual bonds so that there's no clash
+            # with those from self.
+            upd_bonds = [
+                -vb_id for vb_id in self.get_virtual_bonds(pos)
+            ] + [len(self)+pos]
+            # Append to the interleaved representation
+            interleaved_rep.append(tensor.data.conj())
+            interleaved_rep.append(upd_bonds)
+
+        # Contract it using cuQuantum
+        result = cq.contract(*interleaved_rep)
+        print(result)
         return complex(result)
 
     def canonicalise(self, l_pos: int, r_pos: int):
@@ -521,6 +568,22 @@ class MPS:
             self.get_physical_bond(position)
         )
 
+    def copy(self) -> MPS:
+        """
+        Returns:
+            A deep copy of the MPS
+        """
+        # Create object without initialising to |0> state
+        new_mps = MPS(n_tensors=-1, chi=self.chi)
+        # Copy all data
+        new_mps.fidelity = self.fidelity
+        new_mps.tensors = [t.copy() for t in self.tensors]
+        new_mps._largest_bond_id = self._largest_bond_id
+        new_mps._complex_t = self._complex_t
+        new_mps._real_t = self._real_t
+
+        return new_mps
+
     def __len__(self) -> int:
         """
         Returns:
@@ -528,11 +591,14 @@ class MPS:
         """
         return len(self.tensors)
 
-    def __enter__(self):
+    def __del__(self):
+        cutn.destroy(self._libhandle)
+
+    def __enter__(self) -> MPS:
         return self
 
     def __exit__(self, exc_type, exc_value, exc_tb):
-        cutn.destroy(self._libhandle)
+        del self
 
     def _new_bond_id(self) -> Bond:
         self._largest_bond_id += 1
@@ -554,4 +620,9 @@ class MPS:
         raise NotImplementedError(
             "MPS is a base class with no contraction algorithm implemented." +
             " You must use a subclass of MPS, such as MPSxGate or MPSxMPO."
+        )
+
+    def flush(self):
+        raise NotImplementedError(
+            "Only implemented for MPS methods that use lazy contraction."
         )
