@@ -30,8 +30,10 @@ class MPSxGate(MPS):
         tensors (list[Tensor]): A list of tensors in the MPS; tensors[0] is
             the leftmost and tensors[len(self)-1] is the rightmost; tensors[i]
             and tensors[i+1] are connected in the MPS via a bond.
-        fidelity (float): An estimate of the fidelity, obtained by multiplying
-            the fidelities after each contraction.
+        fidelity (float):  A lower bound of the fidelity, obtained by multiplying
+            the fidelities after each contraction. The fidelity of a contraction
+            corresponds to |<psi|phi>|^2 where |psi> and |phi> are the states
+            before and after truncation (assuming both are normalised).
     """
 
     def apply_1q_gate(self, position: int, gate: Op) -> None:
@@ -240,6 +242,17 @@ class MPSxGate(MPS):
             discarded_weight.ctypes.data,
             discarded_weight.itemsize,
         )
+        # discarded_weight is calculated within cuTensorNet as:
+        #                             sum([s**2 for s in S'])
+        #     discarded_weight = 1 - -------------------------
+        #                             sum([s**2 for s in S])
+        # where S is the list of original singular values and S' is the set of
+        # singular values that remain after truncation (before normalisation).
+        # It can be shown that the fidelity |<psi|phi>|^2 (for |phi> and |psi>
+        # unit vectors before and after truncation) is equal to 1 - disc_weight.
+        #
+        # We multiply the fidelity of the current step to the overall fidelity
+        # to keep track of a lower bound for the fidelity.
         self.fidelity *= 1.0 - float(discarded_weight)
 
         # Destroy descriptors
