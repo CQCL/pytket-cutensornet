@@ -85,7 +85,7 @@ def test_canonicalise() -> None:
 
         with mps.copy() as mps_copy:
             # Calculate the norm of the MPS
-            abs_sq = mps.vdot(mps_copy)
+            norm_sq = mps.vdot(mps_copy)
 
             # Canonicalise around center_pos
             center_pos = 2
@@ -93,7 +93,7 @@ def test_canonicalise() -> None:
 
             # Check that canonicalisation did not change the vector
             overlap = mps.vdot(mps_copy)
-            assert np.isclose(overlap, abs_sq)
+            assert np.isclose(overlap, norm_sq)
 
         # Check that the corresponding tensors are in orthogonal form
         for pos in range(len(mps)):
@@ -219,6 +219,9 @@ def test_line_circ_approx() -> None:
         assert mps.is_valid()
         assert np.isclose(mps.fidelity, 0.00013, atol=1e-6)
 
+        # Check that that the state has norm 1
+        assert np.isclose(mps.vdot(mps), 1.0)
+
 
 def test_vdot() -> None:
     np.random.seed(1)
@@ -258,5 +261,5 @@ def test_vdot() -> None:
                 mps.apply_2q_gate((q0, q1), g.op)
         assert mps.is_valid()
 
-        with mps.copy() as mps_copy:
-            assert np.isclose(mps.vdot(mps_copy), 1.0)
+        # Check that the norm is 1
+        assert np.isclose(mps.vdot(mps), 1.0)

@@ -320,7 +320,9 @@ class MPS:
         return complex(result)
 
     def vdot(self, mps: MPS) -> complex:
-        """Obtain the inner product of the two MPS.
+        """Obtain the inner product of the two MPS. It can be used to
+        compute the norm of an MPS as ``mps.vdot(mps)``. The tensors
+        within the MPS are not affected.
 
         Note:
             If any of the MPS uses a lazy implementation, remember to call
