@@ -103,7 +103,10 @@ class MPSxGate(MPS):
                 self.get_virtual_dimensions(l_pos)[0],
                 self.get_virtual_dimensions(r_pos)[1],
             )
-        if new_dim > self.chi:  # Truncation will be required
+
+        # Truncation will be required if new_dim is larger than chi
+        truncating = new_dim > self.chi
+        if truncating:
             new_dim = self.chi
             # If truncation required, convert to canonical form before
             # contracting. Avoids the need to apply gauge transformations
@@ -171,17 +174,40 @@ class MPSxGate(MPS):
         # Configure SVD parameters
         svd_config = cutn.create_tensor_svd_config(self._libhandle)
 
-        config_dtype = cutn.tensor_svd_config_get_attribute_dtype(
-            cutn.TensorSVDConfigAttribute.S_PARTITION
-        )
-        config_value = np.array([cutn.TensorSVDPartition.UV_EQUAL], dtype=config_dtype)
-        cutn.tensor_svd_config_set_attribute(
-            self._libhandle,
-            svd_config,
-            cutn.TensorSVDConfigAttribute.S_PARTITION,
-            config_value.ctypes.data,
-            config_value.dtype.itemsize,
-        )
+        svd_config_attributes = [
+            # Contract the rank-1 tensor of singular values (S) directly
+            # into U and V. UV_EQUAL refers to applying U = U*sqrt(S) and
+            # similarly for V. Here, U and V are L and R respectively.
+            (
+                cutn.TensorSVDConfigAttribute.S_PARTITION,
+                cutn.TensorSVDPartition.UV_EQUAL,
+            ),
+        ]
+
+        if truncating:
+            # Renormalise after truncation. Thanks to using canonical form of
+            # the MPS and the fact that the original state is a unit vector,
+            # we know that the L2 norm of the singular values (i.e. sum of its
+            # squares) must be equal to 1. We ask cuTensorNet to renormalise
+            # the truncated S so that this is satisfied after truncation, thus
+            # making sure the resulting state is normalised.
+            svd_config_attributes.append(
+                (
+                    cutn.TensorSVDConfigAttribute.S_NORMALIZATION,
+                    cutn.TensorSVDNormalization.L2,
+                )
+            )
+
+        for attr, value in svd_config_attributes:
+            attr_dtype = cutn.tensor_svd_config_get_attribute_dtype(attr)
+            value = np.array([value], dtype=attr_dtype)
+            cutn.tensor_svd_config_set_attribute(
+                self._libhandle,
+                svd_config,
+                attr,
+                value.ctypes.data,
+                value.dtype.itemsize,
+            )
         # Create SVDInfo to record truncation information
         svd_info = cutn.create_tensor_svd_info(self._libhandle)
 
