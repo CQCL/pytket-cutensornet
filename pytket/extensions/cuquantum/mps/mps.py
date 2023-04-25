@@ -130,8 +130,10 @@ class MPS:
         tensors (list[Tensor]): A list of tensors in the MPS; tensors[0] is
             the leftmost and tensors[len(self)-1] is the rightmost; tensors[i]
             and tensors[i+1] are connected in the MPS via a bond.
-        fidelity (float): An estimate of the fidelity, obtained by multiplying
-            the fidelities after each contraction.
+        fidelity (float): A lower bound of the fidelity, obtained by multiplying
+            the fidelities after each contraction. The fidelity of a contraction
+            corresponds to |<psi|phi>|^2 where |psi> and |phi> are the states
+            before and after truncation (assuming both are normalised).
     """
 
     # Some (non-doc) comments on how bond identifiers are numbered:
