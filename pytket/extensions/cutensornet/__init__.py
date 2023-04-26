@@ -23,4 +23,7 @@ from .tensor_network_convert import (
     PauliOperatorTensorNetwork,
     ExpectationValueTensorNetwork,
     tk_to_tensor_network,
+    measure_qubits_state,
 )
+
+from .utils import circuit_statevector_postselect
