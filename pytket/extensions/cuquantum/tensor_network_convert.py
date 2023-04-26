@@ -24,7 +24,7 @@ import numpy as np
 from numpy.typing import NDArray
 from pytket.utils import Graph
 from pytket.pauli import QubitPauliString  # type: ignore
-from pytket.circuit import Circuit
+from pytket.circuit import Circuit, Qubit
 from pytket.utils import permute_rows_cols_in_unitary
 
 
@@ -465,6 +465,54 @@ class TensorNetwork:
         tn_concatenated.extend(self.cuquantum_interleaved)
         self._logger.debug(f"Overlap input list: \n{tn_concatenated}")
         return tn_concatenated
+
+
+def _measure_qubit_state(
+    ket: TensorNetwork, qubit_id: Qubit, bit_value: int, loglevel=logging.INFO
+):
+    """Measures a qubit in a tensor network. by appending a measurement gate to the tensor network.
+    The measurment gate is applied via appending a tensor cap of the form:  0: [1, 0] or 1: [0, 1] to the interleaved einsum input.
+    Therefor removing one of the open indices of the tensor network.
+
+    Args:
+        ket: a TensorNetwork object representing a quantum state.
+        qubit_id: a qubit id.
+        bit_value: a bit value to be assigned to the measured qubit.
+        loglevel: logging level.
+
+    Returns:
+        A TensorNetwork object representing a quantum state after the measurement with a modified interleaved notation containing the extra measurement tensor.
+    """
+
+    cap = {
+        0: np.array([1, 0], dtype="complex128"),
+        1: np.array([0, 1], dtype="complex128"),
+    }
+
+    sticky_ind = ket._qubit_sticky_ind_map[qubit_id]
+    ket._cuquantum_interleaved.extend([cap[bit_value], [sticky_ind]])
+    return ket
+
+
+def measure_qubits_state(
+    ket: TensorNetwork, measurement_dict: dict[Qubit, int], loglevel=logging.INFO
+):
+    """Measures a list of qubits in a tensor network. by appending a measurement gate to the tensor network.
+    The measurment gate is applied via appending a tensor cap of the form:  0: [1, 0] or 1: [0, 1] to the interleaved einsum input.
+    Therefor removing the open indices of the tensor network corresponding to the measured qubits.
+
+    Args:
+        ket: a TensorNetwork object representing a quantum state.
+        measurement_dict: a dictionary of qubit ids and their corresponding bit values to be assigned to the measured qubits.
+        loglevel: logging level.
+
+    Returns:
+        A TensorNetwork object representing a quantum state after the measurement with a modified interleaved notation containing the extra measurement tensors.
+    """
+
+    for qubit_id, bit_value in measurement_dict.items():
+        ket = _measure_qubit_state(ket, qubit_id, bit_value, loglevel)
+    return ket
 
 
 class PauliOperatorTensorNetwork:
