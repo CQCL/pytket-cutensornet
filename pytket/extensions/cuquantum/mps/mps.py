@@ -326,11 +326,6 @@ class MPS:
         compute the norm of an MPS as ``mps.vdot(mps)``. The tensors
         within the MPS are not affected.
 
-        Note:
-            If any of the MPS uses a lazy implementation, remember to call
-            ``self.flush()`` and ``mps.flush()`` before ``self.vdot(mps)``
-            so that all pending operations are taken into account.
-
         Args:
             mps: The other MPS to compare against.
 
@@ -635,9 +630,4 @@ class MPS:
         raise NotImplementedError(
             "MPS is a base class with no contraction algorithm implemented."
             + " You must use a subclass of MPS, such as MPSxGate or MPSxMPO."
-        )
-
-    def flush(self) -> None:
-        raise NotImplementedError(
-            "Only implemented for MPS methods that use lazy contraction."
         )
