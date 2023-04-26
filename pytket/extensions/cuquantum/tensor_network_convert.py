@@ -83,6 +83,9 @@ class TensorNetwork:
             self._node_tensor_indices, self.sticky_indices = self._get_tn_indices(
                 self._network
             )
+        self._qubit_sticky_ind_map = {
+            q: i for i, q in zip(self.sticky_indices, circuit.qubits)
+        }
         self._cuquantum_interleaved = self._make_interleaved()
 
     @property
@@ -465,8 +468,6 @@ class TensorNetwork:
 
 
 class PauliOperatorTensorNetwork:
-    """Handles a tensor network representing a Pauli operator string."""
-
     PAULI = {
         "X": np.array([[0, 1], [1, 0]], dtype="complex128"),
         "Y": np.array([[0, -1j], [1j, 0]], dtype="complex128"),
@@ -475,33 +476,19 @@ class PauliOperatorTensorNetwork:
     }
 
     def __init__(
-        self, paulis: QubitPauliString, ket: TensorNetwork, loglevel: int = logging.INFO
+        self, paulis: QubitPauliString, ket: TensorNetwork, loglevel=logging.INFO
     ) -> None:
-        """Constructs a tensor network representing a Pauli operator string.
-
-        Contains a single layer of unitaries, corresponding to the provided Pauli string
-        operators and identity matrices.
-
-        Takes a circuit tensor network as input and uses its "sticky" indices to assign
-        indices to the unitaries in the network - the "incoming" indices have negative
-        sign and "outgoing" - positive sign.
-
-        Args:
-            paulis: Pauli operators string.
-            ket: Tensor network object representing a certain circuit.
-            loglevel: Logger verbosity level.
-        """
         self._logger = set_logger("PauliOperatorTensorNetwork", loglevel)
         self._pauli_tensors = [self.PAULI[pauli.name] for pauli in paulis.map.values()]
         self._logger.debug(f"Pauli tensors: {self._pauli_tensors}")
-        qubit_ids = [qubit.to_list()[1][0] + 1 for qubit in paulis.map.keys()]
+        qubit_ids = [ket._qubit_sticky_ind_map[qubit] for qubit in paulis.map.keys()]
         qubit_to_pauli = {
             qubit: pauli_tensor
             for (qubit, pauli_tensor) in zip(qubit_ids, self._pauli_tensors)
         }
         self._logger.debug(f"qubit to Pauli mapping: {qubit_to_pauli}")
         self._cuquantum_interleaved = [
-            f(x)  # type: ignore
+            f(x)
             for x in ket.sticky_indices
             for f in (
                 lambda x: qubit_to_pauli[x] if (x in qubit_ids) else self.PAULI["I"],
@@ -511,8 +498,7 @@ class PauliOperatorTensorNetwork:
         self._logger.debug(f"Pauli TN: {self.cuquantum_interleaved}")
 
     @property
-    def cuquantum_interleaved(self) -> list:
-        """Returns an interleaved format of the circuit tensor network."""
+    def cuquantum_interleaved(self):
         return self._cuquantum_interleaved
 
 
