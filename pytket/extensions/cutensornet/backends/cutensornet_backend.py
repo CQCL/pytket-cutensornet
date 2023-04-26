@@ -103,6 +103,7 @@ class CuTensorNetBackend(Backend):
                     OpType.Ry,
                     OpType.Rz,
                     OpType.ZZMax,
+                    OpType.SWAP,
                 }
             ),
         ]
@@ -253,6 +254,8 @@ class CuTensorNetBackend(Backend):
         if valid_check:
             self._check_all_circuits([state_circuit])
 
+        state_circuit.replace_implicit_wire_swaps()
+
         expectation = 0
 
         ket_network = TensorNetwork(state_circuit)
@@ -308,3 +311,55 @@ class CuTensorNetBackend(Backend):
         overlap_net_interleaved = ket_net.vdot(TensorNetwork(circuit_bra))
         overlap: float = cq.contract(*overlap_net_interleaved)
         return overlap
+
+    def get_operator_expectation_value_postselect(
+        self,
+        state_circuit: Circuit,
+        operator: QubitPauliOperator,
+        post_selection: dict[Qubit, int],
+        valid_check: bool = True,
+    ) -> float:
+        """Calculates expectation value of an operator using
+        cuTensorNet contraction where the is a post selection on an ancilla register.
+
+        Args:
+            state_circuit: Circuit representing state.
+            operator: Operator which expectation value is to be calculated.
+            valid_check: Whether to perform circuit validity check.
+            post_selection: Dictionary of qubits to post select where the key is
+                qubit and the value is bit outcome.
+
+        Returns:
+            Expectation value.
+        """
+        if valid_check:
+            self._check_all_circuits([state_circuit])
+
+        post_select_qubits = list(post_selection.keys())
+        if set(post_select_qubits).issubset(operator.all_qubits):
+            raise ValueError(
+                "Post selection qubit must not be a not be a subset of operator qubits"
+            )
+
+        ket_network = TensorNetwork(state_circuit)
+        bra_network = ket_network.dagger()
+        ket_network = measure_qubits_state(ket_network, post_selection)
+        bra_network = measure_qubits_state(
+            bra_network, post_selection
+        )  # This needed because dagger does not work with post selection
+
+        expectation = 0
+
+        for qos, coeff in operator._dict.items():
+            expectation_value_network = ExpectationValueTensorNetwork(
+                bra_network, qos, ket_network
+            )
+            if isinstance(coeff, Expr):
+                numeric_coeff = complex(coeff.evalf())  # type: ignore
+            else:
+                numeric_coeff = complex(coeff)
+            expectation_term = numeric_coeff * cq.contract(
+                *expectation_value_network.cuquantum_interleaved
+            )
+            expectation += expectation_term
+        return expectation.real

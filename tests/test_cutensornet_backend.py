@@ -1,10 +1,9 @@
 import numpy as np
 import pytest
-from pytket.circuit import Circuit, BasisOrder, Unitary1qBox, OpType  # type: ignore
+from pytket.circuit import Circuit, BasisOrder, Unitary1qBox, OpType, Qubit  # type: ignore
 from pytket.passes import CliffordSimp  # type: ignore
 from pytket.pauli import QubitPauliString, Pauli  # type: ignore
 from pytket.utils.operators import QubitPauliOperator
-from pytket import Qubit  # type: ignore
 from pytket.extensions.cutensornet.backends import CuTensorNetBackend
 
 
@@ -109,10 +108,13 @@ def test_expectation_value() -> None:
         pytest.lazy_fixture("q2_lcu3"),  # type: ignore
         pytest.lazy_fixture("q3_v0cx02"),  # type: ignore
         pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
+        pytest.lazy_fixture("q3_pauli_gadget0"),  # type: ignore
+        pytest.lazy_fixture("q3_pauli_gadget1"),  # type: ignore
         pytest.lazy_fixture("q4_lcu1"),  # type: ignore
     ],
 )
 def test_compile_convert_statevec_overlap(circuit: Circuit) -> None:
+    circuit.flatten_registers()
     b = CuTensorNetBackend()
     c = b.get_compiled_circuit(circuit)
     h = b.process_circuit(c)
@@ -121,3 +123,42 @@ def test_compile_convert_statevec_overlap(circuit: Circuit) -> None:
     )
     ovl = b.get_circuit_overlap(c)
     assert ovl == pytest.approx(1.0)
+
+
+@pytest.mark.parametrize(
+    "circuit",
+    [
+        pytest.lazy_fixture("q2_x0"),  # type: ignore
+        pytest.lazy_fixture("q2_x1"),  # type: ignore
+        pytest.lazy_fixture("q2_v0"),  # type: ignore
+        pytest.lazy_fixture("q2_x0cx01"),  # type: ignore
+        pytest.lazy_fixture("q2_x1cx10x1"),  # type: ignore
+        pytest.lazy_fixture("q2_x0cx01cx10"),  # type: ignore
+        pytest.lazy_fixture("q2_v0cx01cx10"),  # type: ignore
+        pytest.lazy_fixture("q2_hadamard_test"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu1"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu2"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu3"),  # type: ignore
+        pytest.lazy_fixture("q3_v0cx02"),  # type: ignore
+        pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
+        pytest.lazy_fixture("q3_pauli_gadget0"),  # type: ignore
+        pytest.lazy_fixture("q3_pauli_gadget1"),  # type: ignore
+        pytest.lazy_fixture("q3_hadamard_test4"),  # type: ignore
+        pytest.lazy_fixture("q3_hadamard_test5"),  # type: ignore
+        pytest.lazy_fixture("q4_lcu1"),  # type: ignore
+    ],
+)
+def test_expectation_value_2(circuit):
+    circuit.flatten_registers()
+    op = QubitPauliOperator(
+        {
+            QubitPauliString({Qubit(0): Pauli.X, Qubit(1): Pauli.Y}): 0.3,
+        }
+    )
+    b = CuTensorNetBackend()
+    c = b.get_compiled_circuit(circuit)
+    circ_expval = b.get_operator_expectation_value(c, op)
+    sv = np.array([c.get_statevector()]).T
+    op_mat = op.to_sparse_matrix(c.n_qubits).todense()
+    sv_expval = (sv.conj().T @ op_mat @ sv)[0, 0].real
+    np.testing.assert_allclose(circ_expval, sv_expval, atol=1e-10, rtol=1e-10)
