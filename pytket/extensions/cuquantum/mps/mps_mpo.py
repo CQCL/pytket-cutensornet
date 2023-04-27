@@ -21,9 +21,10 @@ from pytket.circuit import Op  # type: ignore
 from .mps import Tensor, MPS
 
 
-class MPSxGate(MPS):
+class MPSxMPO(MPS):
     """Class for state-based simulation using an Matrix Product State (MPS)
-    representation, with gate-by-gate contraction.
+    representation with MPS-MPO contraction, using a DMRG-like approach
+    following the approach described in: https://arxiv.org/abs/2207.05612.
 
         Attributes:
         chi (int): The maximum allowed dimension of a virtual bond.
@@ -35,6 +36,29 @@ class MPSxGate(MPS):
             corresponds to |<psi|phi>|^2 where |psi> and |phi> are the states
             before and after truncation (assuming both are normalised).
     """
+
+    def __init__(self, n_tensors: int, chi: int, float_precision: str = "float64"):
+        # Use the same docstring as in MPS.
+        super().__init__(n_tensors, chi, float_precision)
+
+        # Initialise the MPO data structure. This will keep a list of the gates
+        # batched for application to the MPS; all of them will be applied at
+        # once when deemed appropriate or when calling .flush(), removing them
+        # from here. The gates are kept in a list of lists.
+        #
+        # One list per MPS position, containing all the tensors of the gates
+        # acting on the corresponding position. These lists are originall empty.
+        # The last element of each list corresponds to the last gate applied.
+        #
+        # Each of the tensors will have four bonds ordered as follows:
+        # [input, left, right, output]
+        self._mpo: list[list[Tensor]] = [[]]*n_tensors
+
+        # Initialise the MPS that we will use as first approximation of the
+        # variational algorithm.
+        self._aux_mps = MPSxGate(n_tensors, chi, float_precision)
+
+        self._mpo_bond_counter = 0
 
     def apply_1q_gate(self, position: int, gate: Op) -> None:
         """Apply the 1-qubit gate to the MPS. This does not increase the
@@ -51,26 +75,35 @@ class MPSxGate(MPS):
                 + " bond dimension of 2."
             )
 
+        # Apply the gate to the MPS with eager approximation
+        _aux_mps.apply_1q_gate(self, position, gate)
+
         # Load the gate's unitary to the GPU memory
         gate_tensor = cp.empty(shape=(2, 2), dtype=self._complex_t)
         gate_tensor.set(gate.get_unitary(), self._stream)
 
+        # Identify the tensor to contract the gate with
+        if self._mpo[position]:  # Not empty
+            last_tensor = self._mpo[position][-1]
+        else:  # Use the MPS tensor
+            last_tensor = self.tensors[position]
+
         # Identify the ID of the bonds involved
-        virtual_bonds = self.get_virtual_bonds(position)
-        physical_bond = self.get_physical_bond(position)
-        new_bond = -1  # Temporary ID for new physical bond
+        open_bond = last_tensor.bonds[-1]
+        other_bonds = last_tensor.bonds[:-1]
+        new_bond = -1  # Temporary ID for new open bond
 
         # Contract
         new_tensor = cq.contract(
             gate_tensor,
-            [new_bond, physical_bond],
-            self.tensors[position].data,
-            self.tensors[position].bonds,
-            virtual_bonds + [new_bond],
+            [new_bond, open_bond],
+            last_tensor.data,
+            last_tensor.bonds,
+            other_bonds + [new_bond],
         )
 
-        # Update ``self.tensors``
-        self.tensors[position].data = new_tensor
+        # Update the tensor; do so "in place" in the MPS-MPO data structures
+        last_tensor.data = new_tensor
 
     def apply_2q_gate(self, positions: tuple[int, int], gate: Op) -> None:
         """Apply the 2-qubit gate to the MPS. If doing so increases the
@@ -96,23 +129,8 @@ class MPSxGate(MPS):
         l_pos = min(positions)
         r_pos = max(positions)
 
-        # Figure out the new dimension of the shared virtual bond
-        if l_pos == 0 or r_pos == len(self) - 1:
-            new_dim = 2
-        else:
-            new_dim = 2 * min(
-                self.get_virtual_dimensions(l_pos)[0],
-                self.get_virtual_dimensions(r_pos)[1],
-            )
-
-        # Truncation will be required if new_dim is larger than chi
-        truncating = new_dim > self.chi
-        if truncating:
-            new_dim = self.chi
-            # If truncation required, convert to canonical form before
-            # contracting. Avoids the need to apply gauge transformations
-            # to the larger tensor resulting from the contraction.
-            self.canonicalise(l_pos, r_pos)
+        # Apply the gate to the MPS with eager approximation
+        _aux_mps.apply_2q_gate(self, positions, gate)
 
         # Load the gate's unitary to the GPU memory
         gate_tensor = cp.empty(shape=(4, 4), dtype=self._complex_t)
@@ -124,54 +142,32 @@ class MPSxGate(MPS):
         # Assign bond IDs
         left_p_bond = self.get_physical_bond(l_pos)
         right_p_bond = self.get_physical_bond(r_pos)
-        left_new_bond = -2  # Temporary ID for left physical bond
-        right_new_bond = -1    # Temporary ID for right physical bond
+        left_new_p_bond = self._new_bond_id()
+        right_new_p_bond = self._new_bond_id()
+        new_v_bond = self._new_bond_id()
+        left_dummy_bond = self._new_bond_id()
+        right_dummy_bond = self._new_bond_id()
 
+        # Create the tensor object for the gate
         if l_pos == positions[0]:
-            gate_bonds = [left_new_bond, right_new_bond, left_p_bond, right_p_bond]
+            gate_bonds = [left_new_bond, right_new_p_bond, left_p_bond, right_p_bond]
         else:  # Implicit swap
-            gate_bonds = [right_new_bond, left_new_bond, right_p_bond, left_p_bond]
+            gate_bonds = [right_new_bond, left_new_p_bond, right_p_bond, left_p_bond]
+        G = Tensor(gate_tensor, gate_bonds)
 
-        T_bonds = [
-            v_bond
-            for v_bond in self.get_virtual_bonds(l_pos) + self.get_virtual_bonds(r_pos)
-            if v_bond != r_pos  # The bond between the left and right tensors
-        ] + [left_new_bond, right_new_bond]
-
-        # Contract
-        T_d = cq.contract(
-            gate_tensor,
-            gate_bonds,
-            self.tensors[l_pos].data,
-            self.tensors[l_pos].bonds,
-            self.tensors[r_pos].data,
-            self.tensors[r_pos].bonds,
-            T_bonds,
+        # Template of tensors that will store the SVD decomposition of the gate tensor
+        L = Tensor(
+            cp.empty(shape=(2,1,4,2), dtype=self._complex_t),
+            [left_p_bond, left_dummy_bond, new_v_bond, left_new_p_bond],
         )
-        # Reassign auxiliar bond ID
-        T_bonds[-2] = left_p_bond
-        T_bonds[-1] = right_p_bond
-        # Create tensor object
-        T = Tensor(T_d, T_bonds)
-
-        # Get the template of the MPS tensors involved
-        L = self.tensors[l_pos]
-        l_shape = list(L.data.shape)
-        R = self.tensors[r_pos]
-        r_shape = list(R.data.shape)
-
-        if new_dim != r_shape[0]:
-            # We need to change the shape of the tensors
-            l_shape[-2] = new_dim
-            L.data = cp.empty(l_shape, dtype=self._complex_t)
-            r_shape[0] = new_dim
-            R.data = cp.empty(r_shape, dtype=self._complex_t)
-
-        # Reserve space for the tensor of singular values
-        S_d = cp.empty(new_dim, dtype=self._real_t)
+        R = Tensor(
+            cp.empty(shape=(2,4,1,2), dtype=self._complex_t),
+            [right_p_bond, new_v_bond, right_dummy_bond, right_new_p_bond],
+        )
+        S_d = cp.empty(4, dtype=self._real_t)
 
         # Create tensor descriptors
-        T_desc = T.get_tensor_descriptor(self._libhandle)
+        G_desc = G.get_tensor_descriptor(self._libhandle)
         L_desc = L.get_tensor_descriptor(self._libhandle)
         R_desc = R.get_tensor_descriptor(self._libhandle)
 
@@ -188,20 +184,6 @@ class MPSxGate(MPS):
             ),
         ]
 
-        if truncating:
-            # Renormalise after truncation. Thanks to using canonical form of
-            # the MPS and the fact that the original state is a unit vector,
-            # we know that the L2 norm of the singular values (i.e. sum of its
-            # squares) must be equal to 1. We ask cuTensorNet to renormalise
-            # the truncated S so that this is satisfied after truncation, thus
-            # making sure the resulting state is normalised.
-            svd_config_attributes.append(
-                (
-                    cutn.TensorSVDConfigAttribute.S_NORMALIZATION,
-                    cutn.TensorSVDNormalization.L2,
-                )
-            )
-
         for attr, value in svd_config_attributes:
             attr_dtype = cutn.tensor_svd_config_get_attribute_dtype(attr)
             value = np.array([value], dtype=attr_dtype)
@@ -212,14 +194,13 @@ class MPSxGate(MPS):
                 value.ctypes.data,
                 value.dtype.itemsize,
             )
-        # Create SVDInfo to record truncation information
         svd_info = cutn.create_tensor_svd_info(self._libhandle)
 
-        # Apply SVD decomposition; truncation will be applied if needed
+        # Apply SVD decomposition; no truncation takes place
         cutn.tensor_svd(
             self._libhandle,
-            T_desc,
-            T.data.data.ptr,
+            G_desc,
+            G.data.data.ptr,
             L_desc,
             L.data.data.ptr,
             S_d.data.ptr,
@@ -231,31 +212,9 @@ class MPSxGate(MPS):
             self._stream.ptr,
         )
         self._stream.synchronize()
-
-        # Get an error estimate
-        discarded_weight_dtype = cutn.tensor_svd_info_get_attribute_dtype(
-            cutn.TensorSVDInfoAttribute.DISCARDED_WEIGHT
-        )
-        discarded_weight = np.empty(1, dtype=discarded_weight_dtype)
-        cutn.tensor_svd_info_get_attribute(
-            self._libhandle,
-            svd_info,
-            cutn.TensorSVDInfoAttribute.DISCARDED_WEIGHT,
-            discarded_weight.ctypes.data,
-            discarded_weight.itemsize,
-        )
-        # discarded_weight is calculated within cuTensorNet as:
-        #                             sum([s**2 for s in S'])
-        #     discarded_weight = 1 - -------------------------
-        #                             sum([s**2 for s in S])
-        # where S is the list of original singular values and S' is the set of
-        # singular values that remain after truncation (before normalisation).
-        # It can be shown that the fidelity |<psi|phi>|^2 (for |phi> and |psi>
-        # unit vectors before and after truncation) is equal to 1 - disc_weight.
-        #
-        # We multiply the fidelity of the current step to the overall fidelity
-        # to keep track of a lower bound for the fidelity.
-        self.fidelity *= 1.0 - float(discarded_weight)
+        # TODO: these could be precomputed for all OpTypes and stored in a dictionary
+        #   so that we only copy from it rather than apply SVD each time. However,
+        #   gates with parameters such as ZZPhase might be a challenge.
 
         # Destroy handles
         cutn.destroy_tensor_descriptor(T_desc)
@@ -264,9 +223,15 @@ class MPSxGate(MPS):
         cutn.destroy_tensor_svd_config(svd_config)
         cutn.destroy_tensor_svd_info(svd_info)
 
-        # The L and R tensors have already been updated and these correspond
-        # to the entries of l_pos and r_pos in self.tensors
-        assert self.tensors[l_pos] is L and self.tensors[r_pos] is R
+        # Store L and R
+        self._mpo[l_pos].append(L)
+        self._mpo[r_pos].append(R)
+
+        # Check whether the MPO is large enough to flush it
+        if any(4*len(self._mpo[pos]) > self.chi for pos in [l_pos, r_pos]):
+            self._flush()
+        # TODO: it'd be good to classify gates that can be SVD'd with virtual dimension
+        #   2 and those which require dimension 4.
 
     def apply_postselection(self, position: int) -> None:
         """Apply a postselection of state 0 to the chosen tensor.
@@ -285,24 +250,82 @@ class MPSxGate(MPS):
                 + " bond dimension of 2."
             )
 
+        # Apply the gate to the MPS with eager approximation
+        _aux_mps.apply_postselection(self, position)
+
         # Create the tensor of the |0> postselection
         post_tensor = cp.empty(shape=(1, 2), dtype=self._complex_t)
         post_tensor[0][0] = 1
         post_tensor[0][1] = 0
 
+        # Identify the tensor to contract with
+        if self._mpo[position]:  # Not empty
+            last_tensor = self._mpo[position][-1]
+        else:  # Use the MPS tensor
+            last_tensor = self.tensors[position]
+
         # Identify the ID of the bonds involved
-        virtual_bonds = self.get_virtual_bonds(position)
-        physical_bond = self.get_physical_bond(position)
-        new_bond = -1  # Temporary ID for new physical bond
+        open_bond = last_tensor.bonds[-1]
+        other_bonds = last_tensor.bonds[:-1]
+        new_bond = -1  # Temporary ID for new open bond
 
         # Contract
         new_tensor = cq.contract(
             post_tensor,
-            [new_bond, physical_bond],
-            self.tensors[position].data,
-            self.tensors[position].bonds,
-            virtual_bonds + [new_bond],
+            [new_bond, open_bond],
+            last_tensor.data,
+            last_tensor.bonds,
+            other_bonds + [new_bond],
         )
 
-        # Update ``self.tensors``
-        self.tensors[position].data = new_tensor
+        # Update the tensor; do so "in place" in the MPS-MPO data structures
+        last_tensor.data = new_tensor
+
+    def get_physical_bond(self, position: int) -> Bond:
+        """Return the unique identifier of the physical bond at ``position``.
+
+        Args
+            position: A position in the MPS.
+
+        Returns:
+            The identifier of the physical bond.
+        """
+        if position < 0 or position >= len(self):
+            raise Exception(f"Position {position} is out of bounds.")
+
+        # Identify the tensor last tensor in the MPO
+        if self._mpo[position]:  # Not empty
+            last_tensor = self._mpo[position][-1]
+        else:  # Use the MPS tensor
+            last_tensor = self.tensors[position]
+
+        # By construction, the open bond is the last one
+        return last_tensor.bonds[-1]
+
+    def get_physical_dimension(self, position: int) -> int:
+        """Return the dimension of the physical bond at ``position``.
+
+        Args:
+            position: A position in the MPS.
+
+        Returns:
+            The dimension of the physical bond.
+        """
+
+        # Identify the tensor last tensor in the MPO
+        if self._mpo[position]:  # Not empty
+            last_tensor = self._mpo[position][-1]
+        else:  # Use the MPS tensor
+            last_tensor = self.tensors[position]
+
+        # By construction, the open bond is the last one
+        return last_tensor.data.shape[-1]
+
+    def _flush(self) -> None:
+        """
+        """
+        raise NotImplementedError()
+
+    def _new_bond_id(self) -> Bond:
+        self._mpo_bond_counter += 1
+        return 2*len(self) + self._mpo_bond_counter

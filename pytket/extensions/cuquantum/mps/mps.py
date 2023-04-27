@@ -137,12 +137,9 @@ class MPS:
     """
 
     # Some (non-doc) comments on how bond identifiers are numbered:
-    # - The left virtual bond of the tensor `i` of the MPS has ID `i`
-    # - The right virtual bond of the tensor `i` of the MPS has ID `i+1`
-    # - Every physical bond will have an ID >= len(tensors), so it is
-    #   always going to be the largest bond ID of the bond list of a tensor.
-    #   The ID of the physical bonds will change as we contract gates/MPO
-    #   into the MPS, but the ID of the virtual bonds will remain unchanged.
+    # - The left virtual bond of the tensor `i` of the MPS has ID `i`.
+    # - The right virtual bond of the tensor `i` of the MPS has ID `i+1`.
+    # - The physical bond of the tensor `i` has ID `i+len(tensors)`.
     def __init__(self, n_tensors: int, chi: int, float_precision: str = "float64"):
         """Initialise an MPS on the computational state 0.
 
@@ -245,9 +242,6 @@ class MPS:
         # Append the rightmost tensor
         self.tensors.append(Tensor(r_tensor, [n_tensors - 1, 2 * n_tensors - 1]))
 
-        # An internal counter of the Bond IDs already used
-        self._largest_bond_id = 2 * n_tensors - 1
-
     def is_valid(self) -> bool:
         """Verify that the MPS does not exceed the dimension limit (chi) of
         the virtual bonds, that physical bonds have dimension <=2 and that
@@ -256,6 +250,8 @@ class MPS:
         Returns:
             False if a violation was detected.
         """
+        self._flush()
+
         chi_ok = all(
             all(dim <= self.chi for dim in self.get_virtual_dimensions(pos))
             for pos in range(len(self))
@@ -297,6 +293,7 @@ class MPS:
                 + " be contracted to a scalar. Use ``apply_postselection``"
                 + "where appropriate."
             )
+        self._flush()
 
         # The MPS will be contracted from left to right, storing the
         # ``partial_result`` tensor.
@@ -342,6 +339,8 @@ class MPS:
                 raise RuntimeError(
                     f"Physical bond dimension at position {i} do not match."
                 )
+        self._flush()
+        mps._flush()
 
         # The two MPS will be contracted from left to right, storing the
         # ``partial_result`` tensor.
@@ -381,7 +380,7 @@ class MPS:
             l_pos: The position of the leftmost tensor that is not to be
                 canonicalised.
             r_pos: The position of the rightmost tensor that is not to be
-            canonicalised.
+                canonicalised.
         """
         for pos in range(l_pos):
             self.canonicalise_tensor(pos, form="left")
@@ -583,12 +582,13 @@ class MPS:
         Returns:
             A deep copy of the MPS
         """
+        self._flush()
+
         # Create object without initialising to |0> state
         new_mps = MPS(n_tensors=-1, chi=self.chi)
         # Copy all data
         new_mps.fidelity = self.fidelity
         new_mps.tensors = [t.copy() for t in self.tensors]
-        new_mps._largest_bond_id = self._largest_bond_id
         new_mps._complex_t = self._complex_t
         new_mps._real_t = self._real_t
 
@@ -610,10 +610,6 @@ class MPS:
     def __exit__(self, exc_type: Any, exc_value: Any, exc_tb: Any) -> None:
         del self
 
-    def _new_bond_id(self) -> Bond:
-        self._largest_bond_id += 1
-        return self._largest_bond_id
-
     def apply_1q_gate(self, position: int, gate: Op) -> None:
         raise NotImplementedError(
             "MPS is a base class with no contraction algorithm implemented."
@@ -631,3 +627,9 @@ class MPS:
             "MPS is a base class with no contraction algorithm implemented."
             + " You must use a subclass of MPS, such as MPSxGate or MPSxMPO."
         )
+
+    def _flush(self) -> None:
+        # Does nothing in the general MPS case; but children classes with batched
+        # gate contraction will redefine this method so that the last batch of
+        # gates is applied.
+        return None
