@@ -244,7 +244,7 @@ class MPS:
 
     def is_valid(self) -> bool:
         """Verify that the MPS does not exceed the dimension limit (chi) of
-        the virtual bonds, that physical bonds have dimension <=2 and that
+        the virtual bonds, that physical bonds have dimension 2 and that
         the virtual bonds are connected in a line.
 
         Returns:
@@ -256,7 +256,7 @@ class MPS:
             all(dim <= self.chi for dim in self.get_virtual_dimensions(pos))
             for pos in range(len(self))
         )
-        phys_ok = all(self.get_physical_dimension(pos) <= 2 for pos in range(len(self)))
+        phys_ok = all(self.get_physical_dimension(pos) == 2 for pos in range(len(self)))
         shape_ok = all(
             len(tensor.data.shape) == len(tensor.bonds) and len(tensor.bonds) <= 3
             for tensor in self.tensors
@@ -276,47 +276,6 @@ class MPS:
         v_bonds_ok = v_bonds_ok and self.get_virtual_bonds(i)[0] == i
 
         return chi_ok and phys_ok and shape_ok and v_bonds_ok
-
-    def contract(self) -> complex:
-        """Fully contract the MPS and return the scalar result.
-
-        Note:
-            Can only be applied on an MPS whose physical bonds all have
-            dimension 1. If this is not the case, an exception is raised.
-
-        Returns:
-            The scalar result.
-        """
-        if not all(self.get_physical_dimension(pos) == 1 for pos in range(len(self))):
-            raise RuntimeError(
-                "The MPS still has some open physical bonds, so it cannot"
-                + " be contracted to a scalar. Use ``apply_postselection``"
-                + "where appropriate."
-            )
-        self._flush()
-
-        # The MPS will be contracted from left to right, storing the
-        # ``partial_result`` tensor.
-        partial_result = self.tensors[0].data.flatten()  # Shape now (2,)
-        # Contract all tensors in the middle
-        for pos in range(1, len(self) - 1):
-            partial_result = cq.contract(
-                partial_result,
-                [pos],
-                self.tensors[pos].data,
-                self.tensors[pos].bonds,
-                [pos + 1],  # The only open bond is the right one of tensors[pos]
-            )
-        # Finally, contract the last tensor
-        result = cq.contract(
-            partial_result,
-            [len(self) - 1],
-            self.tensors[-1].data,
-            self.tensors[-1].bonds,
-            [],  # No open bonds remain; this is just a scalar
-        )
-
-        return complex(result)
 
     def vdot(self, mps: MPS) -> complex:
         """Obtain the inner product of the two MPS. It can be used to
@@ -617,12 +576,6 @@ class MPS:
         )
 
     def apply_2q_gate(self, positions: tuple[int, int], gate: Op) -> None:
-        raise NotImplementedError(
-            "MPS is a base class with no contraction algorithm implemented."
-            + " You must use a subclass of MPS, such as MPSxGate or MPSxMPO."
-        )
-
-    def apply_postselection(self, position: int) -> None:
         raise NotImplementedError(
             "MPS is a base class with no contraction algorithm implemented."
             + " You must use a subclass of MPS, such as MPSxGate or MPSxMPO."

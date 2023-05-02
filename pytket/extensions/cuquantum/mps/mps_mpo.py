@@ -260,13 +260,6 @@ class MPSxMPO(MPS):
         self._mpo[l_pos].append(L)
         self._mpo[r_pos].append(R)
 
-    def apply_postselection(self, position: int) -> None:
-        raise NotImplementedError(
-            "When using MPSxMPO, single qubit postselection is not supported. "
-            + "Please, use vdot() instead."
-        )
-        # TODO: I think we should remove apply_postselection from MPS altogether.
-
     def get_physical_bond(self, position: int) -> Bond:
         """Return the unique identifier of the physical bond at ``position``.
 
