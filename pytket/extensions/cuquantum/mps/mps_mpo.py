@@ -261,52 +261,11 @@ class MPSxMPO(MPS):
         self._mpo[r_pos].append(R)
 
     def apply_postselection(self, position: int) -> None:
-        """Apply a postselection of state 0 to the chosen tensor.
-        Postselection of any other state can be applied by preceding this
-        with the appropriate gates.
-        The resulting physical bond of the tensor at ``position`` has
-        dimension 1.
-
-        Args:
-            position: The position of the MPS tensor that this gate
-                is applied to.
-        """
-        if self.get_physical_dimension(position) != 2:
-            raise RuntimeError(
-                "Postselection can only be applied to tensors with physical"
-                + " bond dimension of 2."
-            )
-
-        # Apply the gate to the MPS with eager approximation
-        self._aux_mps.apply_postselection(position)
-
-        # Create the tensor of the |0> postselection
-        post_tensor = cp.empty(shape=(1, 2), dtype=self._complex_t)
-        post_tensor[0][0] = 1
-        post_tensor[0][1] = 0
-
-        # Identify the tensor to contract with
-        if self._mpo[position]:  # Not empty
-            last_tensor = self._mpo[position][-1]
-        else:  # Use the MPS tensor
-            last_tensor = self.tensors[position]
-
-        # Identify the ID of the bonds involved
-        open_bond = last_tensor.bonds[-1]
-        other_bonds = last_tensor.bonds[:-1]
-        new_bond = -1  # Temporary ID for new open bond
-
-        # Contract
-        new_tensor = cq.contract(
-            post_tensor,
-            [new_bond, open_bond],
-            last_tensor.data,
-            last_tensor.bonds,
-            other_bonds + [new_bond],
+        raise NotImplementedError(
+            "When using MPSxMPO, single qubit postselection is not supported. "
+            + "Please, use vdot() instead."
         )
-
-        # Update the tensor; do so "in place" in the MPS-MPO data structures
-        last_tensor.data = new_tensor
+        # TODO: I think we should remove apply_postselection from MPS altogether.
 
     def get_physical_bond(self, position: int) -> Bond:
         """Return the unique identifier of the physical bond at ``position``.
