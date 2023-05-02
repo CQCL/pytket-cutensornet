@@ -125,7 +125,7 @@ class MPSxGate(MPS):
         left_p_bond = self.get_physical_bond(l_pos)
         right_p_bond = self.get_physical_bond(r_pos)
         left_new_bond = -2  # Temporary ID for left physical bond
-        right_new_bond = -1    # Temporary ID for right physical bond
+        right_new_bond = -1  # Temporary ID for right physical bond
 
         if l_pos == positions[0]:
             gate_bonds = [left_new_bond, right_new_bond, left_p_bond, right_p_bond]
