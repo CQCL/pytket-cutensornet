@@ -12,15 +12,17 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Optional
+
 import cupy as cp  # type: ignore
 import numpy as np  # type: ignore
 import cuquantum as cq  # type: ignore
 import cuquantum.cutensornet as cutn  # type: ignore
 
 from pytket.circuit import Op  # type: ignore
-from .mps import Tensor, MPS
+from .mps import Tensor, Bond, MPS
+from .mps_gate import MPSxGate
 
-from typing import Optional
 
 class MPSxMPO(MPS):
     """Class for state-based simulation using an Matrix Product State (MPS)
@@ -38,7 +40,9 @@ class MPSxMPO(MPS):
             before and after truncation (assuming both are normalised).
     """
 
-    def __init__(self, n_tensors: int, chi: int, k: int = 2, float_precision: str = "float64"):
+    def __init__(
+        self, n_tensors: int, chi: int, k: int = 2, float_precision: str = "float64"
+    ):
         """Initialise an MPS on the computational state 0.
 
         Note:
@@ -72,7 +76,7 @@ class MPSxMPO(MPS):
         #
         # Each of the tensors will have four bonds ordered as follows:
         # [input, left, right, output]
-        self._mpo: list[list[Tensor]] = [[]]*n_tensors
+        self._mpo: list[list[Tensor]] = [[]] * n_tensors
 
         # Initialise the MPS that we will use as first approximation of the
         # variational algorithm.
@@ -97,7 +101,7 @@ class MPSxMPO(MPS):
             )
 
         # Apply the gate to the MPS with eager approximation
-        _aux_mps.apply_1q_gate(self, position, gate)
+        self._aux_mps.apply_1q_gate(position, gate)
 
         # Load the gate's unitary to the GPU memory
         gate_tensor = cp.empty(shape=(2, 2), dtype=self._complex_t)
@@ -151,11 +155,11 @@ class MPSxMPO(MPS):
         r_pos = max(positions)
 
         # Check whether the MPO is large enough to flush it
-        if any(len(self._mpo[pos]) >= self.K for pos in [l_pos, r_pos]):
+        if any(len(self._mpo[pos]) >= self.k for pos in [l_pos, r_pos]):
             self._flush()
 
         # Apply the gate to the MPS with eager approximation
-        _aux_mps.apply_2q_gate(self, positions, gate)
+        self._aux_mps.apply_2q_gate(positions, gate)
 
         # Load the gate's unitary to the GPU memory
         gate_tensor = cp.empty(shape=(4, 4), dtype=self._complex_t)
@@ -175,18 +179,18 @@ class MPSxMPO(MPS):
 
         # Create the tensor object for the gate
         if l_pos == positions[0]:
-            gate_bonds = [left_new_bond, right_new_p_bond, left_p_bond, right_p_bond]
+            gate_bonds = [left_new_p_bond, right_new_p_bond, left_p_bond, right_p_bond]
         else:  # Implicit swap
-            gate_bonds = [right_new_bond, left_new_p_bond, right_p_bond, left_p_bond]
+            gate_bonds = [right_new_p_bond, left_new_p_bond, right_p_bond, left_p_bond]
         G = Tensor(gate_tensor, gate_bonds)
 
         # Template of tensors that will store the SVD decomposition of the gate tensor
         L = Tensor(
-            cp.empty(shape=(2,1,4,2), dtype=self._complex_t),
+            cp.empty(shape=(2, 1, 4, 2), dtype=self._complex_t),
             [left_p_bond, left_dummy_bond, new_v_bond, left_new_p_bond],
         )
         R = Tensor(
-            cp.empty(shape=(2,4,1,2), dtype=self._complex_t),
+            cp.empty(shape=(2, 4, 1, 2), dtype=self._complex_t),
             [right_p_bond, new_v_bond, right_dummy_bond, right_new_p_bond],
         )
         S_d = cp.empty(4, dtype=self._real_t)
@@ -244,7 +248,7 @@ class MPSxMPO(MPS):
         #   2 and those which require dimension 4.
 
         # Destroy handles
-        cutn.destroy_tensor_descriptor(T_desc)
+        cutn.destroy_tensor_descriptor(G_desc)
         cutn.destroy_tensor_descriptor(L_desc)
         cutn.destroy_tensor_descriptor(R_desc)
         cutn.destroy_tensor_svd_config(svd_config)
@@ -272,7 +276,7 @@ class MPSxMPO(MPS):
             )
 
         # Apply the gate to the MPS with eager approximation
-        _aux_mps.apply_postselection(self, position)
+        self._aux_mps.apply_postselection(position)
 
         # Create the tensor of the |0> postselection
         post_tensor = cp.empty(shape=(1, 2), dtype=self._complex_t)
@@ -340,7 +344,7 @@ class MPSxMPO(MPS):
             last_tensor = self.tensors[position]
 
         # By construction, the open bond is the last one
-        return last_tensor.data.shape[-1]
+        return int(last_tensor.data.shape[-1])
 
     def _flush(self) -> None:
         """Apply all batched operations within ``self._mpo`` to the MPS.
@@ -348,8 +352,8 @@ class MPSxMPO(MPS):
         converges. Based on https://arxiv.org/abs/2207.05612.
         """
 
-        l_cached_tensors = []
-        r_cached_tensors = []
+        l_cached_tensors: list[Tensor] = []
+        r_cached_tensors: list[Tensor] = []
 
         def update_sweep_cache(pos: int, direction: str) -> None:
             """Given a position in the MPS and a sweeping direction ('left'
@@ -358,14 +362,14 @@ class MPSxMPO(MPS):
             Update the cache accordingly. Applies canonicalisation on the vMPS
             tensor before contracting.
             """
-            if direction not in ['left', 'right']:
+            if direction not in ["left", "right"]:
                 raise RuntimeError("Unrecognised sweeping direction.")
 
             # Canonicalise the tensor at ``pos``
-            if direction == 'left':
-                self._aux_mps.canonicalise_tensor(pos, form='right')
-            elif direction == 'right':
-                self._aux_mps.canonicalise_tensor(pos, form='left')
+            if direction == "left":
+                self._aux_mps.canonicalise_tensor(pos, form="right")
+            elif direction == "right":
+                self._aux_mps.canonicalise_tensor(pos, form="left")
 
             # Get the interleaved representation
             interleaved_rep = [
@@ -385,17 +389,17 @@ class MPSxMPO(MPS):
             interleaved_rep[-1][-1] = -self._aux_mps.get_physical_bond(pos)
 
             # Also contract the previous (cached) tensor during the sweep
-            if direction == 'left':
-                if pos != len(self)-1:  # Otherwise, there is nothing cached yet
+            if direction == "left":
+                if pos != len(self) - 1:  # Otherwise, there is nothing cached yet
                     interleaved_rep.append(r_cached_tensors[-1].data)
                     interleaved_rep.append(r_cached_tensors[-1].bonds)
-            elif direction == 'right':
+            elif direction == "right":
                 if pos != 0:  # Otherwise, there is nothing cached yet
                     interleaved_rep.append(l_cached_tensors[-1].data)
                     interleaved_rep.append(l_cached_tensors[-1].bonds)
 
             # Figure out the ID of the bonds of the contracted tensor
-            if direction == 'left':
+            if direction == "left":
                 # Take the left virtual bond of both of the MPS
                 T_bonds = [
                     -self._aux_mps.get_virtual_bonds(pos)[0],
@@ -404,7 +408,7 @@ class MPSxMPO(MPS):
                 # Take the left bond of each of the MPO tensors
                 for mpo_tensor in self._mpo[pos]:
                     T_bonds.append(mpo_tensor.bonds[1])
-            elif direction == 'right':
+            elif direction == "right":
                 # Take the right virtual bond of both of the MPS
                 T_bonds = [
                     -self._aux_mps.get_virtual_bonds(pos)[-1],
@@ -421,15 +425,13 @@ class MPSxMPO(MPS):
                 cq.contract(interleaved_rep),
                 T_bonds,
             )
-            if direction == 'left':
+            if direction == "left":
                 r_cached_tensors.append(T)
-            elif direction == 'right':
+            elif direction == "right":
                 l_cached_tensors.append(T)
 
         def update_variational_tensor(
-            pos: int,
-            left_tensor: Optional[Tensor],
-            right_tensor: Optional[Tensor]
+            pos: int, left_tensor: Optional[Tensor], right_tensor: Optional[Tensor]
         ) -> float:
             """Update the tensor at ``pos`` of the variational MPS using ``left_tensor``
             (and ``right_tensor``) which is meant to contain the contraction of all
@@ -462,25 +464,16 @@ class MPSxMPO(MPS):
             interleaved_rep.append(F_bonds)
 
             # Contract and store tensor
-            F = Tensor(
-                cq.contract(interleaved_rep),
-                self._aux_mps.tensors[pos].bonds
-            )
+            F = Tensor(cq.contract(interleaved_rep), self._aux_mps.tensors[pos].bonds)
 
             # Get the fidelity
-            optim_fidelity = cq.contract(
-                F.data.conj(),
-                F.bonds,
-                F.data,
-                F.bonds,
-                []
-            )
+            optim_fidelity = cq.contract(F.data.conj(), F.bonds, F.data, F.bonds, [])
 
             # Normalise F and update the variational MPS
             F.data = F.data / np.sqrt(optim_fidelity)
             self._aux_mps.tensors[pos] = F
 
-            return optim_fidelity
+            return float(optim_fidelity)
 
         ##################################
         # Variational sweeping algorithm #
@@ -488,8 +481,8 @@ class MPSxMPO(MPS):
 
         # Begin by doing a sweep towards the left that does not update
         # the variational tensors, but simply loads up the ``r_cached_tensors``
-        for pos in reversed(range(1,len(self))):
-            update_sweep_cache(pos, direction='left')
+        for pos in reversed(range(1, len(self))):
+            update_sweep_cache(pos, direction="left")
 
         prev_fidelity = -1.0  # Dummy value
         sweep_fidelity = 0.0  # Dummy value
@@ -501,43 +494,41 @@ class MPSxMPO(MPS):
             raise RuntimeError(f"Unsupported precision {self._real_t}")
 
         # Repeat sweeps until the fidelity converges
-        sweep_direction = 'right'
+        sweep_direction = "right"
         while not np.isclose(prev_fidelity, sweep_fidelity, atol=tolerance):
             prev_fidelity = sweep_fidelity
 
-            if sweep_direction == 'right':
+            if sweep_direction == "right":
                 update_variational_tensor(
-                    pos=0,
-                    left_tensor=None,
-                    right_tensor=r_cached_tensors.pop()
+                    pos=0, left_tensor=None, right_tensor=r_cached_tensors.pop()
                 )
-                update_sweep_cache(pos=0, direction='right')
+                update_sweep_cache(pos=0, direction="right")
 
-                for pos in range(1, len(self)-1):
+                for pos in range(1, len(self) - 1):
                     sweep_fidelity = update_variational_tensor(
                         pos=pos,
                         left_tensor=l_cached_tensors[-1],
-                        right_tensor=r_cached_tensors.pop()
+                        right_tensor=r_cached_tensors.pop(),
                     )
-                    update_sweep_cache(pos, direction='right')
+                    update_sweep_cache(pos, direction="right")
                 # The last variational tensor is not updated;
                 # it'll be the first in the next sweep
 
-            elif sweep_direction == 'left':
+            elif sweep_direction == "left":
                 update_variational_tensor(
-                    pos=len(self)-1,
+                    pos=len(self) - 1,
                     left_tensor=l_cached_tensors.pop(),
-                    right_tensor=None
+                    right_tensor=None,
                 )
-                update_sweep_cache(pos=len(self)-1, direction='left')
+                update_sweep_cache(pos=len(self) - 1, direction="left")
 
-                for pos in reversed(range(1, len(self)-1)):
+                for pos in reversed(range(1, len(self) - 1)):
                     sweep_fidelity = update_variational_tensor(
                         pos=pos,
                         left_tensor=l_cached_tensors.pop(),
-                        right_tensor=r_cached_tensors[-1]
+                        right_tensor=r_cached_tensors[-1],
                     )
-                    update_sweep_cache(pos, direction='left')
+                    update_sweep_cache(pos, direction="left")
                 # The last variational tensor is not updated;
                 # it'll be the first in the next sweep
 
@@ -554,4 +545,4 @@ class MPSxMPO(MPS):
 
     def _new_bond_id(self) -> Bond:
         self._mpo_bond_counter += 1
-        return 2*len(self) + self._mpo_bond_counter
+        return 2 * len(self) + self._mpo_bond_counter
