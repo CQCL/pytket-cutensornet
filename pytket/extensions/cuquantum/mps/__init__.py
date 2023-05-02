@@ -23,3 +23,7 @@ from .mps import (
 from .mps_gate import (
     MPSxGate,
 )
+
+from .mps_mpo import (
+    MPSxMPO,
+)
