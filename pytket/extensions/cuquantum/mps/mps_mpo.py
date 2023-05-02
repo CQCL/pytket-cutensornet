@@ -20,6 +20,7 @@ import cuquantum.cutensornet as cutn  # type: ignore
 from pytket.circuit import Op  # type: ignore
 from .mps import Tensor, MPS
 
+from typing import Optional
 
 class MPSxMPO(MPS):
     """Class for state-based simulation using an Matrix Product State (MPS)
@@ -37,13 +38,32 @@ class MPSxMPO(MPS):
             before and after truncation (assuming both are normalised).
     """
 
-    def __init__(self, n_tensors: int, chi: int, float_precision: str = "float64"):
-        # Use the same docstring as in MPS.
+    def __init__(self, n_tensors: int, chi: int, k: int = 2, float_precision: str = "float64"):
+        """Initialise an MPS on the computational state 0.
+
+        Note:
+            Use as ``with MPSxMPO(..) as mps:`` so that cuQuantum
+            handles are automatically destroyed at the end of execution.
+
+        Args:
+            n_tensors: The number of tensors in the MPS.
+            chi: The maximum value the dimension of the virtual bonds
+                is allowed to take. Higher implies better approximation but
+                more computational resources.
+            k: The maximum number of layers the MPO is allowed to have before
+                being contracted. Increasing this might increase fidelity, but
+                it will also increase resource requirements exponentially.
+                Default value is 2.
+            float_precision: Either 'float32' for single precision (32 bits per
+                real number) or 'float64' for double precision (64 bits per real).
+                Each complex number is represented using two of these real numbers.
+                Default is 'float64'.
+        """
         super().__init__(n_tensors, chi, float_precision)
 
         # Initialise the MPO data structure. This will keep a list of the gates
         # batched for application to the MPS; all of them will be applied at
-        # once when deemed appropriate or when calling .flush(), removing them
+        # once when deemed appropriate or when calling ._flush(), removing them
         # from here. The gates are kept in a list of lists.
         #
         # One list per MPS position, containing all the tensors of the gates
@@ -58,6 +78,7 @@ class MPSxMPO(MPS):
         # variational algorithm.
         self._aux_mps = MPSxGate(n_tensors, chi, float_precision)
 
+        self.k = k
         self._mpo_bond_counter = 0
 
     def apply_1q_gate(self, position: int, gate: Op) -> None:
@@ -128,6 +149,10 @@ class MPSxMPO(MPS):
             raise Exception("Gates must be applied to contiguous positions!")
         l_pos = min(positions)
         r_pos = max(positions)
+
+        # Check whether the MPO is large enough to flush it
+        if any(len(self._mpo[pos]) >= self.K for pos in [l_pos, r_pos]):
+            self._flush()
 
         # Apply the gate to the MPS with eager approximation
         _aux_mps.apply_2q_gate(self, positions, gate)
@@ -215,6 +240,8 @@ class MPSxMPO(MPS):
         # TODO: these could be precomputed for all OpTypes and stored in a dictionary
         #   so that we only copy from it rather than apply SVD each time. However,
         #   gates with parameters such as ZZPhase might be a challenge.
+        # TODO: it'd be good to classify gates that can be SVD'd with virtual dimension
+        #   2 and those which require dimension 4.
 
         # Destroy handles
         cutn.destroy_tensor_descriptor(T_desc)
@@ -226,12 +253,6 @@ class MPSxMPO(MPS):
         # Store L and R
         self._mpo[l_pos].append(L)
         self._mpo[r_pos].append(R)
-
-        # Check whether the MPO is large enough to flush it
-        if any(4*len(self._mpo[pos]) > self.chi for pos in [l_pos, r_pos]):
-            self._flush()
-        # TODO: it'd be good to classify gates that can be SVD'd with virtual dimension
-        #   2 and those which require dimension 4.
 
     def apply_postselection(self, position: int) -> None:
         """Apply a postselection of state 0 to the chosen tensor.
@@ -322,9 +343,214 @@ class MPSxMPO(MPS):
         return last_tensor.data.shape[-1]
 
     def _flush(self) -> None:
+        """Apply all batched operations within ``self._mpo`` to the MPS.
+        The method applies variational optimisation of the MPS until it
+        converges. Based on https://arxiv.org/abs/2207.05612.
         """
-        """
-        raise NotImplementedError()
+
+        l_cached_tensors = []
+        r_cached_tensors = []
+
+        def update_sweep_cache(pos: int, direction: str) -> None:
+            """Given a position in the MPS and a sweeping direction ('left'
+            or 'right'), calculate the tensor of the partial contraction
+            of all MPS-MPO-vMPS* columns from ``pos`` towards ``direction``.
+            Update the cache accordingly. Applies canonicalisation on the vMPS
+            tensor before contracting.
+            """
+            if direction not in ['left', 'right']:
+                raise RuntimeError("Unrecognised sweeping direction.")
+
+            # Canonicalise the tensor at ``pos``
+            if direction == 'left':
+                self._aux_mps.canonicalise_tensor(pos, form='right')
+            elif direction == 'right':
+                self._aux_mps.canonicalise_tensor(pos, form='left')
+
+            # Get the interleaved representation
+            interleaved_rep = [
+                # The (conjugated) tensor of the variational MPS
+                self._aux_mps.tensors[pos].data.conj(),
+                [-b for b in self._aux_mps.tensors[pos].bonds],
+                # The tensor of the MPS
+                self.tensors[pos].data,
+                self.tensors[pos].bonds,
+            ]
+            for mpo_tensor in self._mpo[pos]:
+                # The MPO tensors at this position
+                interleaved_rep.append(mpo_tensor.data)
+                interleaved_rep.append(mpo_tensor.bonds)
+            # The output bond of the last tensor must connect to the physical
+            # bond of the corresponding ``self._aux_mps`` tensor
+            interleaved_rep[-1][-1] = -self._aux_mps.get_physical_bond(pos)
+
+            # Also contract the previous (cached) tensor during the sweep
+            if direction == 'left':
+                if pos != len(self)-1:  # Otherwise, there is nothing cached yet
+                    interleaved_rep.append(r_cached_tensors[-1].data)
+                    interleaved_rep.append(r_cached_tensors[-1].bonds)
+            elif direction == 'right':
+                if pos != 0:  # Otherwise, there is nothing cached yet
+                    interleaved_rep.append(l_cached_tensors[-1].data)
+                    interleaved_rep.append(l_cached_tensors[-1].bonds)
+
+            # Figure out the ID of the bonds of the contracted tensor
+            if direction == 'left':
+                # Take the left virtual bond of both of the MPS
+                T_bonds = [
+                    -self._aux_mps.get_virtual_bonds(pos)[0],
+                    self.get_virtual_bonds(pos)[0],
+                ]
+                # Take the left bond of each of the MPO tensors
+                for mpo_tensor in self._mpo[pos]:
+                    T_bonds.append(mpo_tensor.bonds[1])
+            elif direction == 'right':
+                # Take the right virtual bond of both of the MPS
+                T_bonds = [
+                    -self._aux_mps.get_virtual_bonds(pos)[-1],
+                    self.get_virtual_bonds(pos)[-1],
+                ]
+                # Take the right bond of each of the MPO tensors
+                for mpo_tensor in self._mpo[pos]:
+                    T_bonds.append(mpo_tensor.bonds[2])
+            # Append the bond IDs of the resulting tensor to the interleaved_rep
+            interleaved_rep.append(T_bonds)
+
+            # Contract and store
+            T = Tensor(
+                cq.contract(interleaved_rep),
+                T_bonds,
+            )
+            if direction == 'left':
+                r_cached_tensors.append(T)
+            elif direction == 'right':
+                l_cached_tensors.append(T)
+
+        def update_variational_tensor(
+            pos: int,
+            left_tensor: Optional[Tensor],
+            right_tensor: Optional[Tensor]
+        ) -> float:
+            """Update the tensor at ``pos`` of the variational MPS using ``left_tensor``
+            (and ``right_tensor``) which is meant to contain the contraction of all
+            the left (and right) columns of the MPS-MPO-vMPS* network from ``pos``.
+            Contract these with the MPS-MPO column at ``pos``.
+            Return the current fidelity of this sweep.
+            """
+            interleaved_rep = [
+                # The tensor of the MPS
+                self.tensors[pos].data,
+                self.tensors[pos].bonds,
+            ]
+            # The MPO tensors at position ``pos``
+            for mpo_tensor in self._mpo[pos]:
+                interleaved_rep.append(mpo_tensor.data)
+                interleaved_rep.append(mpo_tensor.bonds)
+            # The output bond of the last tensor must connect to the physical
+            # bond of the corresponding ``self._aux_mps`` tensor
+            interleaved_rep[-1][-1] = -self._aux_mps.get_physical_bond(pos)
+
+            if left_tensor is not None:
+                interleaved_rep.append(left_tensor.data)
+                interleaved_rep.append(left_tensor.bonds)
+            if right_tensor is not None:
+                interleaved_rep.append(right_tensor.data)
+                interleaved_rep.append(right_tensor.bonds)
+
+            # Append the bond IDs of the resulting tensor
+            F_bonds = [-b for b in self._aux_mps.tensors[pos].bonds]
+            interleaved_rep.append(F_bonds)
+
+            # Contract and store tensor
+            F = Tensor(
+                cq.contract(interleaved_rep),
+                self._aux_mps.tensors[pos].bonds
+            )
+
+            # Get the fidelity
+            optim_fidelity = cq.contract(
+                F.data.conj(),
+                F.bonds,
+                F.data,
+                F.bonds,
+                []
+            )
+
+            # Normalise F and update the variational MPS
+            F.data = F.data / np.sqrt(optim_fidelity)
+            self._aux_mps.tensors[pos] = F
+
+            return optim_fidelity
+
+        ##################################
+        # Variational sweeping algorithm #
+        ##################################
+
+        # Begin by doing a sweep towards the left that does not update
+        # the variational tensors, but simply loads up the ``r_cached_tensors``
+        for pos in reversed(range(1,len(self))):
+            update_sweep_cache(pos, direction='left')
+
+        prev_fidelity = -1.0  # Dummy value
+        sweep_fidelity = 0.0  # Dummy value
+        if self._real_t is np.float32:
+            tolerance = 1e-4
+        elif self._real_t is np.float64:
+            tolerance = 1e-13
+        else:
+            raise RuntimeError(f"Unsupported precision {self._real_t}")
+
+        # Repeat sweeps until the fidelity converges
+        sweep_direction = 'right'
+        while not np.isclose(prev_fidelity, sweep_fidelity, atol=tolerance):
+            prev_fidelity = sweep_fidelity
+
+            if sweep_direction == 'right':
+                update_variational_tensor(
+                    pos=0,
+                    left_tensor=None,
+                    right_tensor=r_cached_tensors.pop()
+                )
+                update_sweep_cache(pos=0, direction='right')
+
+                for pos in range(1, len(self)-1):
+                    sweep_fidelity = update_variational_tensor(
+                        pos=pos,
+                        left_tensor=l_cached_tensors[-1],
+                        right_tensor=r_cached_tensors.pop()
+                    )
+                    update_sweep_cache(pos, direction='right')
+                # The last variational tensor is not updated;
+                # it'll be the first in the next sweep
+
+            elif sweep_direction == 'left':
+                update_variational_tensor(
+                    pos=len(self)-1,
+                    left_tensor=l_cached_tensors.pop(),
+                    right_tensor=None
+                )
+                update_sweep_cache(pos=len(self)-1, direction='left')
+
+                for pos in reversed(range(1, len(self)-1)):
+                    sweep_fidelity = update_variational_tensor(
+                        pos=pos,
+                        left_tensor=l_cached_tensors.pop(),
+                        right_tensor=r_cached_tensors[-1]
+                    )
+                    update_sweep_cache(pos, direction='left')
+                # The last variational tensor is not updated;
+                # it'll be the first in the next sweep
+
+        # Clear out the MPO
+        self._mpo = [[]] * len(self)
+        self._mpo_bond_counter = 0
+
+        # Update the MPS tensors
+        self.tensors = [t.copy() for t in self._aux_mps.tensors]
+
+        # Update the fidelity estimate
+        self.fidelity *= sweep_fidelity
+        self._aux_mps.fidelity = self.fidelity
 
     def _new_bond_id(self) -> Bond:
         self._mpo_bond_counter += 1
