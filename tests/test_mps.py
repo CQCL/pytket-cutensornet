@@ -42,45 +42,43 @@ def test_1q_gates() -> None:
 
     qubit_pos = {q: i for i, q in enumerate(circ.qubits)}
 
-    # Check that all of the amplitudes are correct
-    for b in range(2**n_qubits):
-        with MPSxGate(n_tensors=n_qubits, chi=2) as mps:
-            # Apply each of the single qubit gates
-            for g in circ.get_commands():
-                q = g.qubits[0]
-                mps.apply_1q_gate(qubit_pos[q], g.op)
-            assert mps.is_valid()
+    with MPSxGate(n_tensors=n_qubits, chi=2) as mps:
+        # Apply each of the single qubit gates
+        for g in circ.get_commands():
+            q = g.qubits[0]
+            mps.apply_1q_gate(qubit_pos[q], g.op)
+        assert mps.is_valid()
 
-            # Postselect <b|
-            bitstring = format(b, f"0{n_qubits}b")
-            for i in range(n_qubits):
-                if bitstring[i] == "1":
-                    mps.apply_1q_gate(i, Op.create(OpType.X))
-            for i in range(len(mps)):
-                mps.apply_postselection(i)  # The X above make it <b|
-            assert mps.is_valid()
+        # Check that all of the amplitudes are correct
+        for b in range(2**n_qubits):
+            with MPSxGate(n_tensors=n_qubits, chi=2) as b_mps:
+                bitstring = format(b, f"0{n_qubits}b")
+                for i in range(n_qubits):
+                    if bitstring[i] == "1":
+                        b_mps.apply_1q_gate(i, Op.create(OpType.X))
+                assert b_mps.is_valid()
 
-            # Check the amplitude
-            assert np.isclose(mps.contract(), unitary[b][0])
+                # Check the amplitude
+                assert np.isclose(mps.vdot(b_mps), unitary[b][0])
 
-        with MPSxMPO(n_tensors=n_qubits, chi=2) as mps:
-            # Apply each of the single qubit gates
-            for g in circ.get_commands():
-                q = g.qubits[0]
-                mps.apply_1q_gate(qubit_pos[q], g.op)
-            assert mps.is_valid()
+    with MPSxMPO(n_tensors=n_qubits, chi=2) as mps:
+        # Apply each of the single qubit gates
+        for g in circ.get_commands():
+            q = g.qubits[0]
+            mps.apply_1q_gate(qubit_pos[q], g.op)
+        assert mps.is_valid()
 
-            # Postselect <b|
-            bitstring = format(b, f"0{n_qubits}b")
-            for i in range(n_qubits):
-                if bitstring[i] == "1":
-                    mps.apply_1q_gate(i, Op.create(OpType.X))
-            for i in range(len(mps)):
-                mps.apply_postselection(i)  # The X above make it <b|
-            assert mps.is_valid()
+        # Check that all of the amplitudes are correct
+        for b in range(2**n_qubits):
+            with MPSxMPO(n_tensors=n_qubits, chi=2) as b_mps:
+                bitstring = format(b, f"0{n_qubits}b")
+                for i in range(n_qubits):
+                    if bitstring[i] == "1":
+                        b_mps.apply_1q_gate(i, Op.create(OpType.X))
+                assert b_mps.is_valid()
 
-            # Check the amplitude
-            assert np.isclose(mps.contract(), unitary[b][0])
+                # Check the amplitude
+                assert np.isclose(mps.vdot(b_mps), unitary[b][0])
 
 
 def test_canonicalise() -> None:
