@@ -3,16 +3,26 @@ import cupy as cp  # type: ignore
 import numpy as np  # type: ignore
 
 from pytket.circuit import Op, OpType, Circuit  # type: ignore
-from pytket.extensions.cuquantum.mps import MPSxGate, Tensor
+from pytket.extensions.cuquantum.mps import Tensor, MPSxGate, MPSxMPO
 
 
 def test_init() -> None:
     with MPSxGate(n_tensors=5, chi=8) as mps:
         assert mps.is_valid()
 
+    with MPSxMPO(n_tensors=5, chi=8) as mps:
+        assert mps.is_valid()
+
 
 def test_trivial_postselect() -> None:
     with MPSxGate(n_tensors=5, chi=8) as mps:
+        for i in range(len(mps)):
+            mps.apply_postselection(i)
+        assert mps.is_valid()
+
+        assert mps.contract() == 1
+
+    with MPSxMPO(n_tensors=5, chi=8) as mps:
         for i in range(len(mps)):
             mps.apply_postselection(i)
         assert mps.is_valid()
@@ -35,6 +45,25 @@ def test_1q_gates() -> None:
     # Check that all of the amplitudes are correct
     for b in range(2**n_qubits):
         with MPSxGate(n_tensors=n_qubits, chi=2) as mps:
+            # Apply each of the single qubit gates
+            for g in circ.get_commands():
+                q = g.qubits[0]
+                mps.apply_1q_gate(qubit_pos[q], g.op)
+            assert mps.is_valid()
+
+            # Postselect <b|
+            bitstring = format(b, f"0{n_qubits}b")
+            for i in range(n_qubits):
+                if bitstring[i] == "1":
+                    mps.apply_1q_gate(i, Op.create(OpType.X))
+            for i in range(len(mps)):
+                mps.apply_postselection(i)  # The X above make it <b|
+            assert mps.is_valid()
+
+            # Check the amplitude
+            assert np.isclose(mps.contract(), unitary[b][0])
+
+        with MPOxGate(n_tensors=n_qubits, chi=2) as mps:
             # Apply each of the single qubit gates
             for g in circ.get_commands():
                 q = g.qubits[0]
@@ -207,6 +236,23 @@ def test_line_circ_approx() -> None:
 
     # APPROXIMATE CONTRACTION (chi=8 is insufficient for exact)
     with MPSxGate(n_tensors=n_qubits, chi=8) as mps:
+        # Apply each of the gates
+        for g in c.get_commands():
+            if len(g.qubits) == 1:
+                q = g.qubits[0]
+                mps.apply_1q_gate(qubit_pos[q], g.op)
+            else:
+                q0 = qubit_pos[g.qubits[0]]
+                q1 = qubit_pos[g.qubits[1]]
+                mps.apply_2q_gate((q0, q1), g.op)
+        assert mps.is_valid()
+        assert np.isclose(mps.fidelity, 0.00013, atol=1e-6)
+
+        # Check that that the state has norm 1
+        assert np.isclose(mps.vdot(mps), 1.0)
+
+    # APPROXIMATE CONTRACTION (chi=8 is insufficient for exact)
+    with MPSxMPO(n_tensors=n_qubits, chi=8) as mps:
         # Apply each of the gates
         for g in c.get_commands():
             if len(g.qubits) == 1:
