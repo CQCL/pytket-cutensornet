@@ -158,6 +158,8 @@ class MPSxMPO(MPS):
         if any(len(self._mpo[pos]) >= self.k for pos in [l_pos, r_pos]):
             self._flush()
 
+        # TODO: I should try and do some kind of BFS for the gates.
+
         # Apply the gate to the MPS with eager approximation
         self._aux_mps.apply_2q_gate(positions, gate)
 
