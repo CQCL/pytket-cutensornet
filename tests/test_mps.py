@@ -63,7 +63,7 @@ def test_1q_gates() -> None:
             # Check the amplitude
             assert np.isclose(mps.contract(), unitary[b][0])
 
-        with MPOxGate(n_tensors=n_qubits, chi=2) as mps:
+        with MPSxMPO(n_tensors=n_qubits, chi=2) as mps:
             # Apply each of the single qubit gates
             for g in circ.get_commands():
                 q = g.qubits[0]
