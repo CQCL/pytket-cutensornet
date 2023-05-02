@@ -424,7 +424,7 @@ class MPSxMPO(MPS):
 
             # Contract and store
             T = Tensor(
-                cq.contract(interleaved_rep),
+                cq.contract(*interleaved_rep),
                 T_bonds,
             )
             if direction == "left":
@@ -466,16 +466,20 @@ class MPSxMPO(MPS):
             interleaved_rep.append(F_bonds)
 
             # Contract and store tensor
-            F = Tensor(cq.contract(interleaved_rep), self._aux_mps.tensors[pos].bonds)
+            F = Tensor(cq.contract(*interleaved_rep), self._aux_mps.tensors[pos].bonds)
 
             # Get the fidelity
-            optim_fidelity = cq.contract(F.data.conj(), F.bonds, F.data, F.bonds, [])
+            optim_fidelity = complex(
+                cq.contract(F.data.conj(), F.bonds, F.data, F.bonds, [])
+            )
+            assert np.isclose(optim_fidelity.imag, 0.0)
+            optim_fidelity = float(optim_fidelity.real)
 
             # Normalise F and update the variational MPS
             F.data = F.data / np.sqrt(optim_fidelity)
             self._aux_mps.tensors[pos] = F
 
-            return float(optim_fidelity)
+            return optim_fidelity
 
         ##################################
         # Variational sweeping algorithm #
@@ -516,6 +520,8 @@ class MPSxMPO(MPS):
                 # The last variational tensor is not updated;
                 # it'll be the first in the next sweep
 
+                sweep_direction = "left"
+
             elif sweep_direction == "left":
                 update_variational_tensor(
                     pos=len(self) - 1,
@@ -533,6 +539,8 @@ class MPSxMPO(MPS):
                     update_sweep_cache(pos, direction="left")
                 # The last variational tensor is not updated;
                 # it'll be the first in the next sweep
+
+                sweep_direction = "right"
 
         # Clear out the MPO
         self._mpo = [[]] * len(self)
