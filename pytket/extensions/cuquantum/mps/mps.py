@@ -144,7 +144,7 @@ class MPS:
         """Initialise an MPS on the computational state 0.
 
         Note:
-            Use as ``with MPSxGate(..) as mps:`` so that cuQuantum
+            Use as ``with MPS(..) as mps:`` so that cuQuantum
             handles are automatically destroyed at the end of execution.
 
         Args:
