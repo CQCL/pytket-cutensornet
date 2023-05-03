@@ -41,7 +41,7 @@ class MPSxMPO(MPS):
     """
 
     def __init__(
-        self, n_tensors: int, chi: int, k: int = 2, float_precision: str = "float64"
+        self, n_tensors: int, chi: int, k: int = 4, float_precision: str = "float64"
     ):
         """Initialise an MPS on the computational state 0.
 
@@ -57,7 +57,7 @@ class MPSxMPO(MPS):
             k: The maximum number of layers the MPO is allowed to have before
                 being contracted. Increasing this might increase fidelity, but
                 it will also increase resource requirements exponentially.
-                Default value is 2.
+                Default value is 4.
             float_precision: Either 'float32' for single precision (32 bits per
                 real number) or 'float64' for double precision (64 bits per real).
                 Each complex number is represented using two of these real numbers.
@@ -76,7 +76,7 @@ class MPSxMPO(MPS):
         #
         # Each of the tensors will have four bonds ordered as follows:
         # [input, left, right, output]
-        self._mpo: list[list[Tensor]] = [[]] * n_tensors
+        self._mpo: list[list[Tensor]] = [list() for _ in range(n_tensors)]
 
         # Initialise the MPS that we will use as first approximation of the
         # variational algorithm.
@@ -181,9 +181,19 @@ class MPSxMPO(MPS):
 
         # Create the tensor object for the gate
         if l_pos == positions[0]:
-            gate_bonds = [left_gate_output, right_gate_output, left_gate_input, right_gate_input]
+            gate_bonds = [
+                left_gate_output,
+                right_gate_output,
+                left_gate_input,
+                right_gate_input,
+            ]
         else:  # Implicit swap
-            gate_bonds = [right_gate_output, left_gate_output, right_gate_input, left_gate_input]
+            gate_bonds = [
+                right_gate_output,
+                left_gate_output,
+                right_gate_input,
+                left_gate_input,
+            ]
         G = Tensor(gate_tensor, gate_bonds)
 
         # Template of tensors that will store the SVD decomposition of the gate tensor
@@ -259,8 +269,9 @@ class MPSxMPO(MPS):
         # Add dummy bonds of dimension 1 to L and R so that they have the right shape
         L.data = cp.reshape(L.data, (2, 1, 4, 2))
         L.bonds = [left_gate_input, left_dummy, gate_v_bond, left_gate_output]
-        R.data = cp.reshape(L.data, (2, 4, 1, 2))
+        R.data = cp.reshape(R.data, (2, 4, 1, 2))
         R.bonds = [right_gate_input, gate_v_bond, right_dummy, right_gate_output]
+
         # Store L and R
         self._mpo[l_pos].append(L)
         self._mpo[r_pos].append(R)
@@ -499,7 +510,7 @@ class MPSxMPO(MPS):
                 sweep_direction = "right"
 
         # Clear out the MPO
-        self._mpo = [[]] * len(self)
+        self._mpo = [list() for _ in range(len(self))]
         self._mpo_bond_counter = 0
 
         # Update the MPS tensors
