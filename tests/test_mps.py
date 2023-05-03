@@ -172,6 +172,8 @@ def test_line_circ_exact() -> None:
 
     # EXACT CONTRACTION (chi=4 is enough for n_qubits=5)
     # Check that all of the amplitudes are correct
+
+    # Check for MPSxGate
     with MPSxGate(n_tensors=n_qubits, chi=4) as mps:
         # Apply each of the gates
         for g in c.get_commands():
@@ -195,7 +197,33 @@ def test_line_circ_exact() -> None:
 
                 # Check the amplitudes are similar
                 assert np.isclose(b_mps.vdot(mps), unitary[b][0])
-                assert mps.fidelity == 1
+                assert np.isclose(mps.fidelity, 1.0)
+
+    # Check for MPSxMPO
+    with MPSxMPO(n_tensors=n_qubits, chi=4) as mps:
+        # Apply each of the gates
+        for g in c.get_commands():
+            if len(g.qubits) == 1:
+                q = g.qubits[0]
+                mps.apply_1q_gate(qubit_pos[q], g.op)
+            else:
+                q0 = qubit_pos[g.qubits[0]]
+                q1 = qubit_pos[g.qubits[1]]
+                mps.apply_2q_gate((q0, q1), g.op)
+        assert mps.is_valid()
+
+        # Check that all of the amplitudes are correct
+        for b in range(2**n_qubits):
+            with MPSxMPO(n_tensors=n_qubits, chi=2) as b_mps:
+                bitstring = format(b, f"0{n_qubits}b")
+                for i in range(n_qubits):
+                    if bitstring[i] == "1":
+                        b_mps.apply_1q_gate(i, Op.create(OpType.X))
+                assert b_mps.is_valid()
+
+                # Check the amplitudes are similar
+                assert np.isclose(b_mps.vdot(mps), unitary[b][0])
+                assert np.isclose(mps.fidelity, 1.0)
 
 
 def test_line_circ_approx() -> None:
@@ -226,6 +254,8 @@ def test_line_circ_approx() -> None:
     qubit_pos = {q: i for i, q in enumerate(c.qubits)}
 
     # APPROXIMATE CONTRACTION (chi=8 is insufficient for exact)
+
+    # Check for MPSxGate
     with MPSxGate(n_tensors=n_qubits, chi=8) as mps:
         # Apply each of the gates
         for g in c.get_commands():
@@ -237,12 +267,12 @@ def test_line_circ_approx() -> None:
                 q1 = qubit_pos[g.qubits[1]]
                 mps.apply_2q_gate((q0, q1), g.op)
         assert mps.is_valid()
-        assert np.isclose(mps.fidelity, 0.00013, atol=1e-6)
+        assert np.isclose(mps.fidelity, 0.000130, atol=1e-6)
 
         # Check that that the state has norm 1
         assert np.isclose(mps.vdot(mps), 1.0)
 
-    # APPROXIMATE CONTRACTION (chi=8 is insufficient for exact)
+    # Check for MPSxMPO
     with MPSxMPO(n_tensors=n_qubits, chi=8) as mps:
         # Apply each of the gates
         for g in c.get_commands():
@@ -254,7 +284,7 @@ def test_line_circ_approx() -> None:
                 q1 = qubit_pos[g.qubits[1]]
                 mps.apply_2q_gate((q0, q1), g.op)
         assert mps.is_valid()
-        assert np.isclose(mps.fidelity, 0.00013, atol=1e-6)
+        assert np.isclose(mps.fidelity, 0.000268, atol=1e-6)
 
         # Check that that the state has norm 1
         assert np.isclose(mps.vdot(mps), 1.0)
