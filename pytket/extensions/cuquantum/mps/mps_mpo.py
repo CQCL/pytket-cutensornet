@@ -171,29 +171,29 @@ class MPSxMPO(MPS):
         gate_tensor = cp.reshape(gate_tensor, (2, 2, 2, 2))
 
         # Assign bond IDs
-        left_p_bond = self.get_physical_bond(l_pos)
-        right_p_bond = self.get_physical_bond(r_pos)
-        left_new_p_bond = self._new_bond_id()
-        right_new_p_bond = self._new_bond_id()
-        new_v_bond = self._new_bond_id()
-        left_dummy_bond = self._new_bond_id()
-        right_dummy_bond = self._new_bond_id()
+        left_gate_input = self.get_physical_bond(l_pos)
+        right_gate_input = self.get_physical_bond(r_pos)
+        left_gate_output = self._new_bond_id()
+        right_gate_output = self._new_bond_id()
+        gate_v_bond = self._new_bond_id()
+        left_dummy = self._new_bond_id()
+        right_dummy = self._new_bond_id()
 
         # Create the tensor object for the gate
         if l_pos == positions[0]:
-            gate_bonds = [left_new_p_bond, right_new_p_bond, left_p_bond, right_p_bond]
+            gate_bonds = [left_gate_output, right_gate_output, left_gate_input, right_gate_input]
         else:  # Implicit swap
-            gate_bonds = [right_new_p_bond, left_new_p_bond, right_p_bond, left_p_bond]
+            gate_bonds = [right_gate_output, left_gate_output, right_gate_input, left_gate_input]
         G = Tensor(gate_tensor, gate_bonds)
 
         # Template of tensors that will store the SVD decomposition of the gate tensor
         L = Tensor(
-            cp.empty(shape=(2, 1, 4, 2), dtype=self._complex_t),
-            [left_p_bond, left_dummy_bond, new_v_bond, left_new_p_bond],
+            cp.empty(shape=(2, 4, 2), dtype=self._complex_t),
+            [left_gate_input, gate_v_bond, left_gate_output],
         )
         R = Tensor(
-            cp.empty(shape=(2, 4, 1, 2), dtype=self._complex_t),
-            [right_p_bond, new_v_bond, right_dummy_bond, right_new_p_bond],
+            cp.empty(shape=(2, 4, 2), dtype=self._complex_t),
+            [right_gate_input, gate_v_bond, right_gate_output],
         )
         S_d = cp.empty(4, dtype=self._real_t)
 
@@ -256,6 +256,11 @@ class MPSxMPO(MPS):
         cutn.destroy_tensor_svd_config(svd_config)
         cutn.destroy_tensor_svd_info(svd_info)
 
+        # Add dummy bonds of dimension 1 to L and R so that they have the right shape
+        L.data = cp.reshape(L.data, (2, 1, 4, 2))
+        L.bonds = [left_gate_input, left_dummy, gate_v_bond, left_gate_output]
+        R.data = cp.reshape(L.data, (2, 4, 1, 2))
+        R.bonds = [right_gate_input, gate_v_bond, right_dummy, right_gate_output]
         # Store L and R
         self._mpo[l_pos].append(L)
         self._mpo[r_pos].append(R)
@@ -428,8 +433,7 @@ class MPSxMPO(MPS):
             optim_fidelity = float(optim_fidelity.real)
 
             # Normalise F and update the variational MPS
-            F.data = F.data / np.sqrt(optim_fidelity)
-            self._aux_mps.tensors[pos] = F
+            self._aux_mps.tensors[pos].data = F.data / np.sqrt(optim_fidelity)
 
             return optim_fidelity
 
