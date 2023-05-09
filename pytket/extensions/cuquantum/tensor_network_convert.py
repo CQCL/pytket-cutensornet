@@ -493,7 +493,7 @@ def _measure_qubit_state(
     ket._cuquantum_interleaved.extend([cap[bit_value], [sticky_ind]])
     return ket
 
-
+# TODO: Make this compatible with mid circuit measurements and reset
 def measure_qubits_state(
     ket: TensorNetwork, measurement_dict: dict[Qubit, int], loglevel=logging.INFO
 ):
@@ -509,7 +509,6 @@ def measure_qubits_state(
     Returns:
         A TensorNetwork object representing a quantum state after the measurement with a modified interleaved notation containing the extra measurement tensors.
     """
-
     for qubit_id, bit_value in measurement_dict.items():
         ket = _measure_qubit_state(ket, qubit_id, bit_value, loglevel)
     return ket
@@ -568,6 +567,7 @@ class ExpectationValueTensorNetwork:
         """
         self._bra = bra
         self._ket = ket
+
         self._operator = PauliOperatorTensorNetwork(paulis, ket)
         self._cuquantum_interleaved = self._make_interleaved()
 
