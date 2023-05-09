@@ -11,7 +11,7 @@ from pytket.circuit import Circuit, Qubit
 from pytket.backends.backendresult import BackendResult
 import numpy.typing as npt
 import numpy as np
-import cuquantum as cq 
+from pytket.extensions.cuquantum.backends import CuTensorNetBackend
 
 from pytket.extensions.cuquantum.tensor_network_convert import (  # type: ignore
     tk_to_tensor_network,
@@ -19,84 +19,11 @@ from pytket.extensions.cuquantum.tensor_network_convert import (  # type: ignore
     measure_qubits_state
 )
 
-def _reorder_qlist(post_select_dict:dict, qlist:list[Qubit]):
-    """Reorder qlist so that post_select_qubit is first in the list.
+from pytket.extensions.cuquantum.backends import CuTensorNetBackend
+from pytket.extensions.qiskit import AerStateBackend
+import cuquantum as cq
 
-    Args:
-        post_select_dict (dict): Dictionary of post selection qubit and value
-        qlist (list): List of qubits
-
-    Returns:
-        tuple: Tuple containing: q_list_reordered (list): List of qubits reordered so that post_select_qubit is first in the list. q (Qubit): The post select qubit
-    """
-
-    post_select_q = list(post_select_dict.keys())[0]
-
-    for i,q in enumerate(qlist):
-        if q == post_select_q:
-            pop_i = i
-            break
-        if i == len(qlist)-1:
-            raise ValueError("post_select_q not in qlist")
-
-    q = qlist.pop(pop_i)
-
-    q_list_reordered = [q]
-    
-    q_list_reordered.extend(qlist)
-
-    return q_list_reordered, q
-
-def statevector_postselect(qlist: list[Qubit], sv: npt.NDArray, post_select_dict: dict[Qubit, int]):
-    """Post selects a statevector. recursively calls itself if there are multiple post select qubits.
-    Uses backend result to get statevector and permutes so the the post select qubit for each iteration is first in the list.
-
-    Args:
-        qlist (list): List of qubits
-        sv (npt.NDArray): Statevector
-        post_select_dict (dict): Dictionary of post selection qubit and value
-
-    Returns:
-        npt.NDArray: Post selected statevector
-    """
-
-    n = len(qlist)
-    n_p = len(post_select_dict)
-
-    b_res = BackendResult(state = sv, q_bits=qlist)
-
-    q_list_reordered, q = _reorder_qlist(post_select_dict, qlist)
-
-    sv = b_res.get_state(qbits=q_list_reordered)
-
-    if post_select_dict[q] == 0:
-        new_sv = sv[:2**(n-1):]
-    elif post_select_dict[q] == 1:
-        new_sv = sv[2**(n-1):]
-    else:
-        raise ValueError("post_select_dict[q] must be 0 or 1")
-
-    if n_p == 1:
-        return new_sv
-
-    post_select_dict.pop(q)
-    q_list_reordered.pop(0)
-
-    return statevector_postselect(q_list_reordered, new_sv, post_select_dict)
-
-def circuit_statevector_postselect(circ: Circuit, post_select_dict: dict[Qubit, int]):
-    """Post selects a circuit statevector. recursively calls itself if there are multiple post select qubits.
-    Should only be used for testing small circuits as it uses the circuit.get_unitary() method.
-    
-    Args:
-        circ (Circuit): Circuit
-        post_select_dict (dict): Dictionary of post selection qubit and value
-        
-    Returns:
-        npt.NDArray: Post selected statevector
-    """
-    
-    return statevector_postselect(circ.qubits, circ.get_statevector(), post_select_dict)
+from pytket.extensions.cuquantum.utils import circuit_statevector_postselect
 
 @pytest.mark.parametrize(
     "circuit_2q",
@@ -109,10 +36,13 @@ def circuit_statevector_postselect(circ: Circuit, post_select_dict: dict[Qubit, 
         pytest.lazy_fixture("q2_x0cx01cx10"),  # type: ignore
         pytest.lazy_fixture("q2_v0cx01cx10"),  # type: ignore
         pytest.lazy_fixture("q2_hadamard_test"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu1"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu2"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu3"),  # type: ignore
     ],
 )
 
-def test_measure_qubits_state_2q(circuit_2q: Circuit) -> None:
+def test_postselect_qubits_state_2q(circuit_2q: Circuit) -> None:
 
     measurement_dict = {Qubit('q',0) : 0}
     sv = circuit_statevector_postselect(circuit_2q, measurement_dict)
@@ -128,26 +58,99 @@ def test_measure_qubits_state_2q(circuit_2q: Circuit) -> None:
     result_cu = cq.contract(*ten_net.cuquantum_interleaved).flatten().round(10)
     assert np.allclose(result_cu, sv)
 
+
 @pytest.mark.parametrize(
     "circuit_3q",
     [
         pytest.lazy_fixture("q3_v0cx02"),  # type: ignore
         pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
+        pytest.lazy_fixture("q4_lcu1"),  # type: ignore
     ],
 )
 
-def test_measure_qubits_state_3q(circuit_3q: Circuit) -> None:
+def test_postselect_qubits_state_3q(circuit_3q: Circuit) -> None:
 
-    measurement_dict = {Qubit('q',0) : 0, Qubit('q',0) : 0}
-    sv = circuit_statevector_postselect(circuit_3q, measurement_dict)
+    postselect_dict = {Qubit('q',0) : 0, Qubit('q',1) : 0}
+    print(circuit_3q.qubits)
+    sv = circuit_statevector_postselect(circuit_3q, postselect_dict.copy())
     tn = TensorNetwork(circuit_3q)
-    ten_net = measure_qubits_state(tn, measurement_dict)
-    result_cu = cq.contract(*ten_net.cuquantum_interleaved).flatten().round(10)
+    ten_net = measure_qubits_state(tn, postselect_dict)
+    result_cu = cq.contract(*ten_net.cuquantum_interleaved).flatten()
+    print(result_cu)
     assert np.allclose(result_cu, sv)
 
-    measurement_dict = {Qubit('q',1) : 0, Qubit('q',1) : 0}
-    sv = circuit_statevector_postselect(circuit_3q, measurement_dict)
+    measurement_dict = {Qubit('q',0) : 1, Qubit('q',1) : 1}
+    sv = circuit_statevector_postselect(circuit_3q, measurement_dict.copy())
     tn = TensorNetwork(circuit_3q)
     ten_net = measure_qubits_state(tn, measurement_dict)
-    result_cu = cq.contract(*ten_net.cuquantum_interleaved).flatten().round(10)
+    result_cu = cq.contract(*ten_net.cuquantum_interleaved).flatten()
     assert np.allclose(result_cu, sv)
+
+@pytest.mark.parametrize(
+    "circuit_2q",
+    [
+        pytest.lazy_fixture("q2_x0"),  # type: ignore
+        pytest.lazy_fixture("q2_x1"),  # type: ignore
+        pytest.lazy_fixture("q2_v0"),  # type: ignore
+        pytest.lazy_fixture("q2_x0cx01"),  # type: ignore
+        pytest.lazy_fixture("q2_x1cx10x1"),  # type: ignore
+        pytest.lazy_fixture("q2_hadamard_test"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu1"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu2"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu3"),  # type: ignore
+    ],
+)
+
+def test_expectation_value_postselect_2q(circuit_2q: Circuit) -> None:
+    postselect_dict = {Qubit('q',1) : 0}
+    op = QubitPauliOperator(
+        {
+            QubitPauliString({Qubit(0): Pauli.Z}): 1.0,
+        }
+    )
+    op_matrix = op.to_sparse_matrix(1).todense()
+    sv = np.array([circuit_statevector_postselect(circuit_2q, postselect_dict)]).T
+    sv_exp = (sv.conj().T @ op_matrix @ sv)[0,0]
+    b = CuTensorNetBackend()
+    c = b.get_compiled_circuit(circuit_2q)
+    ten_exp = b.get_operator_expectation_value_postselect(c.copy(), op, postselect_dict)
+    assert np.isclose(ten_exp, sv_exp)
+
+    postselect_dict = {Qubit('q',1) : 1}
+    op = QubitPauliOperator(
+        {
+            QubitPauliString({Qubit(0): Pauli.Z}): 1.0,
+        }
+    )
+    op_matrix = op.to_sparse_matrix(1).todense()
+    sv = np.array([circuit_statevector_postselect(circuit_2q, postselect_dict)]).T
+    sv_exp = (sv.conj().T @ op_matrix @ sv)[0,0]
+    b = CuTensorNetBackend()
+    c = b.get_compiled_circuit(circuit_2q)
+    ten_exp = b.get_operator_expectation_value_postselect(c.copy(), op, postselect_dict)
+    assert np.isclose(ten_exp, sv_exp)
+
+
+@pytest.mark.parametrize(
+    "circuit_lcu_4q",
+    [
+        pytest.lazy_fixture("q4_lcu1"),  # type: ignore
+    ],
+)
+
+def test_expectation_value_postselect_4q_lcu(circuit_lcu_4q: Circuit) -> None:
+
+    postselect_dict = {Qubit('q',2) : 0, Qubit('q',3) : 0 }
+    op = QubitPauliOperator(
+        {
+            QubitPauliString({Qubit(0): Pauli.Z, Qubit(1): Pauli.X}): 0.25,
+        }
+    )
+    op_matrix = op.to_sparse_matrix(2).todense()
+    sv = np.array([circuit_statevector_postselect(circuit_lcu_4q, postselect_dict.copy())]).T
+    b = CuTensorNetBackend()
+    c = b.get_compiled_circuit(circuit_lcu_4q)
+    sv = sv * np.exp(1j * np.pi * c.phase)
+    sv_exp = (sv.conj().T @ op_matrix @ sv)[0,0] # Signs and ordering seem to tbe different in bra. Should probably write more tests.....
+    ten_exp = b.get_operator_expectation_value_postselect(c.copy(), op, postselect_dict)
+    assert np.isclose(ten_exp, sv_exp)
