@@ -493,6 +493,7 @@ def _measure_qubit_state(
     ket._cuquantum_interleaved.extend([cap[bit_value], [sticky_ind]])
     return ket
 
+
 # TODO: Make this compatible with mid circuit measurements and reset
 def measure_qubits_state(
     ket: TensorNetwork, measurement_dict: dict[Qubit, int], loglevel=logging.INFO

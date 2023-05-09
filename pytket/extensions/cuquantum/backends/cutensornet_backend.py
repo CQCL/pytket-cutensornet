@@ -34,7 +34,7 @@ from pytket.extensions.cuquantum.tensor_network_convert import (
     TensorNetwork,
     ExpectationValueTensorNetwork,
     tk_to_tensor_network,
-    measure_qubits_state
+    measure_qubits_state,
 )
 from pytket.predicates import Predicate, GateSetPredicate, NoClassicalBitsPredicate  # type: ignore
 from pytket.passes import (  # type: ignore
@@ -316,14 +316,18 @@ class CuTensorNetBackend(Backend):
 
         post_select_qubits = list(post_selection.keys())
         if set(post_select_qubits).issubset(operator.all_qubits):
-            raise ValueError('Post selection qubits must be a not be a subset of operator qubits')
+            raise ValueError(
+                "Post selection qubits must be a not be a subset of operator qubits"
+            )
 
         expectation = 0
         for qos, coeff in operator._dict.items():
             ket_network = TensorNetwork(state_circuit)
             bra_network = ket_network.dagger()
             ket_network = measure_qubits_state(ket_network, post_selection)
-            bra_network = measure_qubits_state(bra_network, post_selection) # This needed because dagger does not work with post selection
+            bra_network = measure_qubits_state(
+                bra_network, post_selection
+            )  # This needed because dagger does not work with post selection
 
             expectation_value_network = ExpectationValueTensorNetwork(
                 bra_network, qos, ket_network
