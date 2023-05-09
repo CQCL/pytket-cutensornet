@@ -1,28 +1,14 @@
-from typing import List, Union
 import numpy as np
-from numpy.typing import NDArray
+import cuquantum as cq
 import pytest
-from pytket.backends.backendresult import BackendResult
 from pytket.circuit import Qubit, Circuit
 from pytket.pauli import Pauli, QubitPauliString
 from pytket.utils import QubitPauliOperator
-
-from pytket.circuit import Circuit, Qubit
-from pytket.backends.backendresult import BackendResult
-import numpy.typing as npt
-import numpy as np
 from pytket.extensions.cuquantum.backends import CuTensorNetBackend
-
 from pytket.extensions.cuquantum.tensor_network_convert import (  # type: ignore
-    tk_to_tensor_network,
     TensorNetwork,
     measure_qubits_state,
 )
-
-from pytket.extensions.cuquantum.backends import CuTensorNetBackend
-from pytket.extensions.qiskit import AerStateBackend
-import cuquantum as cq
-
 from pytket.extensions.cuquantum.utils import circuit_statevector_postselect
 
 
@@ -150,6 +136,6 @@ def test_expectation_value_postselect_4q_lcu(circuit_lcu_4q: Circuit) -> None:
     sv = sv * np.exp(1j * np.pi * c.phase)
     sv_exp = (sv.conj().T @ op_matrix @ sv)[
         0, 0
-    ]  # Signs and ordering seem to tbe different in bra. Should probably write more tests.....
+    ]
     ten_exp = b.get_operator_expectation_value_postselect(c.copy(), op, postselect_dict)
     assert np.isclose(ten_exp, sv_exp)

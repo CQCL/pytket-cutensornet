@@ -47,7 +47,7 @@ from pytket.passes import (  # type: ignore
     SquashCustom,
 )
 from pytket.utils.operators import QubitPauliOperator
-import sys
+
 
 
 # TODO: this is temporary - probably don't need it eventually?
@@ -301,7 +301,8 @@ class CuTensorNetBackend(Backend):
         post_selection: dict[Qubit, int],
         valid_check: bool = True,
     ) -> float:
-        """Calculates expectation value of an operator using cuTensorNet contraction where the is a post selection on an ancilla register.
+        """Calculates expectation value of an operator using 
+        cuTensorNet contraction where the is a post selection on an ancilla register.
 
         Args:
             state_circuit: Circuit representing state.

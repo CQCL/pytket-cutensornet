@@ -1,6 +1,6 @@
+from numpy.typing import NDArray
 from pytket.backends.backendresult import BackendResult
 from pytket.circuit import Qubit, Circuit
-from numpy.typing import NDArray
 
 
 def _reorder_qlist(post_select_dict: dict, qlist: list[Qubit]):
@@ -11,7 +11,9 @@ def _reorder_qlist(post_select_dict: dict, qlist: list[Qubit]):
         qlist (list): List of qubits
 
     Returns:
-        tuple: Tuple containing: q_list_reordered (list): List of qubits reordered so that post_select_qubit is first in the list. q (Qubit): The post select qubit
+        tuple: Tuple containing: q_list_reordered (list): List of qubits 
+        reordered so that post_select_qubit is first in
+        the list. q (Qubit): The post select qubit
     """
 
     post_select_q = list(post_select_dict.keys())[0]
@@ -35,8 +37,10 @@ def _reorder_qlist(post_select_dict: dict, qlist: list[Qubit]):
 def statevector_postselect(
     qlist: list[Qubit], sv: NDArray, post_select_dict: dict[Qubit, int]
 ):
-    """Post selects a statevector. recursively calls itself if there are multiple post select qubits.
-    Uses backend result to get statevector and permutes so the the post select qubit for each iteration is first in the list.
+    """Post selects a statevector. recursively calls itself if there 
+    are multiple post select qubits. Uses backend result to get statevector 
+    and permutes so the the post select qubit for each 
+    iteration is first in the list.
 
     Args:
         qlist (list): List of qubits
@@ -73,8 +77,9 @@ def statevector_postselect(
 
 
 def circuit_statevector_postselect(circ: Circuit, post_select_dict: dict[Qubit, int]):
-    """Post selects a circuit statevector. recursively calls itself if there are multiple post select qubits.
-    Should only be used for testing small circuits as it uses the circuit.get_unitary() method.
+    """Post selects a circuit statevector. recursively calls 
+    itself if there are multiple post select qubits. Should only be 
+    used for testing small circuits as it uses the circuit.get_unitary() method.
 
     Args:
         circ (Circuit): Circuit
