@@ -300,6 +300,7 @@ class TensorNetwork:
             for node in nodes_out:
                 if node in edge:
                     for ei, qi in edge_indices[edge]:
+                        print(f'edge: {ei}, qubit: {qi}')
                         sticky_indices.append(ei)
         sticky_indices.sort(key=abs)
         self._logger.debug(f"sticky (outer) edge indices: \n {sticky_indices}")
