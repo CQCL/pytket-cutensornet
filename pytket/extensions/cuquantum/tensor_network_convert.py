@@ -489,7 +489,11 @@ class PauliOperatorTensorNetwork:
     }
 
     def __init__(
-        self, paulis: QubitPauliString, ket: TensorNetwork, loglevel: int = logging.INFO
+        self,
+        paulis: QubitPauliString,
+        bra: TensorNetwork,
+        ket: TensorNetwork,
+        loglevel: int = logging.INFO,
     ) -> None:
         """Constructs a tensor network representing a Pauli operator string.
 
@@ -502,7 +506,8 @@ class PauliOperatorTensorNetwork:
 
         Args:
             paulis: Pauli operators string.
-            ket: Tensor network object representing a certain circuit.
+            bra: Tensor network object representing a bra circuit.
+            ket: Tensor network object representing a ket circuit.
             loglevel: Logger verbosity level.
         """
         self._logger = set_logger("PauliOperatorTensorNetwork", loglevel)
@@ -514,12 +519,17 @@ class PauliOperatorTensorNetwork:
             for (qubit, pauli_tensor) in zip(qubit_ids, self._pauli_tensors)
         }
         self._logger.debug(f"qubit to Pauli mapping: {qubit_to_pauli}")
+        if set(bra.sticky_indices.keys()) != set(ket.sticky_indices.keys()):
+            raise RuntimeError("The bra and ket tensor networks are incompatible!")
+        sticky_index_pairs = []
+        for iq in ket.sticky_indices:
+            sticky_index_pairs.append((ket.sticky_indices[iq], bra.sticky_indices[iq]))
         self._cuquantum_interleaved = [
-            f(x)  # type: ignore
-            for x in ket.sticky_indices
+            f(x, y)  # type: ignore
+            for x, y in sticky_index_pairs
             for f in (
-                lambda x: qubit_to_pauli[x] if (x in qubit_ids) else self.PAULI["I"],
-                lambda x: [-x, x],
+                lambda x, y: qubit_to_pauli[x] if (x in qubit_ids) else self.PAULI["I"],
+                lambda x: [y, x],
             )
         ]
         self._logger.debug(f"Pauli TN: {self.cuquantum_interleaved}")
@@ -548,7 +558,7 @@ class ExpectationValueTensorNetwork:
         """
         self._bra = bra
         self._ket = ket
-        self._operator = PauliOperatorTensorNetwork(paulis, ket)
+        self._operator = PauliOperatorTensorNetwork(paulis, bra, ket)
         self._cuquantum_interleaved = self._make_interleaved()
 
     @property
