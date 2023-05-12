@@ -228,7 +228,7 @@ class TensorNetwork:
 
     def _get_tn_indices(
         self, net: nx.MultiDiGraph, adj: bool = False
-    ) -> Tuple[List[Any], List[Any]]:
+    ) -> Tuple[List[Any], dict[Any]]:
         """Computes indices of the edges of the tensor network nodes (tensors).
 
         Indices are computed such that they range from high (for circuit leftmost gates)
@@ -295,14 +295,20 @@ class TensorNetwork:
             f"Network edge indices after swaps (if any): \n {edge_indices}"
         )
         # Store the "sticky" indices
-        sticky_indices = []
+        sticky_indices = {}
         for edge in net.edges():
             for node in nodes_out:
                 if node in edge:
                     for ei, qi in edge_indices[edge]:
-                        print(f'edge: {ei}, qubit: {qi}')
-                        sticky_indices.append(ei)
-        sticky_indices.sort(key=abs)
+                        print(f"edge: {ei}, qubit: {qi}")
+                        sticky_indices[qi] = ei
+        if len(sticky_indices) != len(self._output_nodes):
+            raise RuntimeError(
+                f"Number of sticky indices ({len(sticky_indices)})"
+                f" is not equal to number of qubits"
+                f" ({len(self._output_nodes)})"
+            )
+        # sticky_indices.sort(key=abs)
         self._logger.debug(f"sticky (outer) edge indices: \n {sticky_indices}")
         # Assign correctly ordered indices to tensors (nodes) and store their lists in
         # the same order as we store tensors themselves.
@@ -451,12 +457,19 @@ class TensorNetwork:
             A tensor network in an interleaved form, representing an overlap of two
              circuits.
         """
+        if set(self.sticky_indices.keys()) != set(tn_other.sticky_indices.keys()):
+            raise RuntimeError("The two tensor networks are incompatible!")
         tn_other_adj = tn_other.dagger()
         i_mat = np.array([[1, 0], [0, 1]], dtype="complex128")
+        sticky_index_pairs = []
+        for iq in self.sticky_indices:
+            sticky_index_pairs.append(
+                (self.sticky_indices[iq], tn_other_adj.sticky_indices[iq])
+            )
         connector = [
-            f(x)  # type: ignore
-            for x in self.sticky_indices
-            for f in (lambda x: i_mat, lambda x: [-x, x])
+            f(x, y)  # type: ignore
+            for x, y in sticky_index_pairs
+            for f in (lambda x, y: i_mat, lambda x, y: [-x, y])
         ]
         tn_concatenated = tn_other_adj.cuquantum_interleaved
         tn_concatenated.extend(connector)
