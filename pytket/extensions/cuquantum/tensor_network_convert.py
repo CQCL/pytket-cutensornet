@@ -469,7 +469,7 @@ class TensorNetwork:
         connector = [
             f(x, y)  # type: ignore
             for x, y in sticky_index_pairs
-            for f in (lambda x, y: i_mat, lambda x, y: [-x, y])
+            for f in (lambda x, y: i_mat, lambda x, y: [y, x])
         ]
         tn_concatenated = tn_other_adj.cuquantum_interleaved
         tn_concatenated.extend(connector)
