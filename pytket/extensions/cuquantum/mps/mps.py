@@ -19,7 +19,7 @@ import numpy as np  # type: ignore
 import cuquantum as cq  # type: ignore
 import cuquantum.cutensornet as cutn  # type: ignore
 
-from pytket.circuit import Op  # type: ignore
+from pytket.circuit import Command, Op, Qubit  # type: ignore
 
 # An alias so that `intptr_t` from CuQuantum's API (which is not available in
 # base python) has some meaningful type name.
@@ -130,6 +130,8 @@ class MPS:
         tensors (list[Tensor]): A list of tensors in the MPS; tensors[0] is
             the leftmost and tensors[len(self)-1] is the rightmost; tensors[i]
             and tensors[i+1] are connected in the MPS via a bond.
+        qubit_position (dict[Qubit, int]): A dictionary mapping circuit qubits
+            to the position its tensor is at in the MPS.
         fidelity (float): A lower bound of the fidelity, obtained by multiplying
             the fidelities after each contraction. The fidelity of a contraction
             corresponds to |<psi|phi>|^2 where |psi> and |phi> are the states
@@ -140,7 +142,7 @@ class MPS:
     # - The left virtual bond of the tensor `i` of the MPS has ID `i`.
     # - The right virtual bond of the tensor `i` of the MPS has ID `i+1`.
     # - The physical bond of the tensor `i` has ID `i+len(tensors)`.
-    def __init__(self, n_tensors: int, chi: int, float_precision: str = "float64"):
+    def __init__(self, qubits: list[Qubit], chi: int, float_precision: str = "float64"):
         """Initialise an MPS on the computational state 0.
 
         Note:
@@ -148,7 +150,7 @@ class MPS:
             handles are automatically destroyed at the end of execution.
 
         Args:
-            n_tensors: The number of tensors in the MPS.
+            qubits: The list of qubits of the circuit the MPS will simulate.
             chi: The maximum value the dimension of the virtual bonds
                 is allowed to take. Higher implies better approximation but
                 more computational resources.
@@ -157,8 +159,6 @@ class MPS:
                 Each complex number is represented using two of these real numbers.
                 Default is 'float64'.
         """
-        if n_tensors < 2 and n_tensors != -1:
-            raise Exception("The n_tensors of the MPS must be >= 2.")
         if chi < 2:
             raise Exception("The max virtual bond dim (chi) must be >= 2.")
 
@@ -212,8 +212,13 @@ class MPS:
         self.chi = chi
         self.fidelity = 1.0
 
-        if n_tensors == -1:  # Special input to avoid initialisation
+        n_tensors = len(qubits)
+        if n_tensors == 0:  # There's no initialisation to be done
             return None
+        elif n_tensors == 1:
+            raise RuntimeError("Please, provide at least two qubits.")
+
+        self.qubit_position = {q: i for i, q in enumerate(qubits)}
 
         # Create the first and last tensors (these have one fewer bond)
         lr_shape = (1, 2)  # Initial virtual bond dim is 1; physical is 2
@@ -276,6 +281,42 @@ class MPS:
         v_bonds_ok = v_bonds_ok and self.get_virtual_bonds(i)[0] == i
 
         return chi_ok and phys_ok and shape_ok and v_bonds_ok
+
+    def apply_gate(self, gate: Command) -> MPS:
+        """Apply the gate to the MPS.
+
+        Note:
+            Only one-qubit gates and two-qubit gates are supported. Two-qubit
+            gates must act on adjacent qubits.
+
+        Args:
+            gate: The gate to be applied.
+
+        Returns:
+            ``self``, to allow for method chaining.
+        """
+        positions = [self.qubit_position[q] for q in gate.qubits]
+
+        if len(positions) == 1:
+            self._apply_1q_gate(positions[0], gate.op)
+
+        elif len(positions) == 2:
+            dist = positions[1] - positions[0]
+            # We explicitly allow both dist==1 or dist==-1 so that non-symmetric
+            # gates such as CX can use the same Op for the two ways it can be in.
+            if dist not in [1, -1]:
+                raise RuntimeError(
+                    "Gates must be applied to adjacent qubits! "
+                    + f"This is not satisfied by {gate}."
+                )
+            self._apply_2q_gate(positions, gate.op)
+
+        else:
+            raise RuntimeError(
+                "Gates must act on only 1 or 2 qubits! "
+                + f"This is not satisfied by {gate}."
+            )
+        return self
 
     def vdot(self, mps: MPS) -> complex:
         """Obtain the inner product of the two MPS. It can be used to
@@ -543,8 +584,8 @@ class MPS:
         """
         self._flush()
 
-        # Create object without initialising to |0> state
-        new_mps = MPS(n_tensors=-1, chi=self.chi)
+        # Create a dummy object
+        new_mps = MPS(qubits=[], chi=self.chi)
         # Copy all data
         new_mps.fidelity = self.fidelity
         new_mps.tensors = [t.copy() for t in self.tensors]
@@ -569,13 +610,13 @@ class MPS:
     def __exit__(self, exc_type: Any, exc_value: Any, exc_tb: Any) -> None:
         del self
 
-    def apply_1q_gate(self, position: int, gate: Op) -> None:
+    def _apply_1q_gate(self, position: int, gate: Op) -> MPS:
         raise NotImplementedError(
             "MPS is a base class with no contraction algorithm implemented."
             + " You must use a subclass of MPS, such as MPSxGate or MPSxMPO."
         )
 
-    def apply_2q_gate(self, positions: tuple[int, int], gate: Op) -> None:
+    def _apply_2q_gate(self, positions: list[int], gate: Op) -> MPS:
         raise NotImplementedError(
             "MPS is a base class with no contraction algorithm implemented."
             + " You must use a subclass of MPS, such as MPSxGate or MPSxMPO."

@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from __future__ import annotations  # type: ignore
 
 from typing import Optional
 
@@ -19,7 +20,7 @@ import numpy as np  # type: ignore
 import cuquantum as cq  # type: ignore
 import cuquantum.cutensornet as cutn  # type: ignore
 
-from pytket.circuit import Op  # type: ignore
+from pytket.circuit import Op, Qubit  # type: ignore
 from .mps import Tensor, Bond, MPS
 from .mps_gate import MPSxGate
 
@@ -41,7 +42,11 @@ class MPSxMPO(MPS):
     """
 
     def __init__(
-        self, n_tensors: int, chi: int, k: int = 4, float_precision: str = "float64"
+        self,
+        qubits: list[Qubit],
+        chi: int,
+        k: int = 4,
+        float_precision: str = "float64",
     ):
         """Initialise an MPS on the computational state 0.
 
@@ -50,7 +55,7 @@ class MPSxMPO(MPS):
             handles are automatically destroyed at the end of execution.
 
         Args:
-            n_tensors: The number of tensors in the MPS.
+            qubits: The list of qubits of the circuit the MPS will simulate.
             chi: The maximum value the dimension of the virtual bonds
                 is allowed to take. Higher implies better approximation but
                 more computational resources.
@@ -63,7 +68,7 @@ class MPSxMPO(MPS):
                 Each complex number is represented using two of these real numbers.
                 Default is 'float64'.
         """
-        super().__init__(n_tensors, chi, float_precision)
+        super().__init__(qubits, chi, float_precision)
 
         # Initialise the MPO data structure. This will keep a list of the gates
         # batched for application to the MPS; all of them will be applied at
@@ -76,16 +81,16 @@ class MPSxMPO(MPS):
         #
         # Each of the tensors will have four bonds ordered as follows:
         # [input, left, right, output]
-        self._mpo: list[list[Tensor]] = [list() for _ in range(n_tensors)]
+        self._mpo: list[list[Tensor]] = [list() for _ in qubits]
 
         # Initialise the MPS that we will use as first approximation of the
         # variational algorithm.
-        self._aux_mps = MPSxGate(n_tensors, chi, float_precision)
+        self._aux_mps = MPSxGate(qubits, chi, float_precision)
 
         self.k = k
         self._mpo_bond_counter = 0
 
-    def apply_1q_gate(self, position: int, gate: Op) -> None:
+    def _apply_1q_gate(self, position: int, gate: Op) -> MPSxMPO:
         """Apply the 1-qubit gate to the MPS. This does not increase the
         dimension of any bond.
 
@@ -93,6 +98,9 @@ class MPSxMPO(MPS):
             position: The position of the MPS tensor that this gate
                 is applied to.
             gate: The gate to be applied.
+
+        Returns:
+            ``self``, to allow for method chaining.
         """
         if self.get_physical_dimension(position) != 2:
             raise RuntimeError(
@@ -101,7 +109,7 @@ class MPSxMPO(MPS):
             )
 
         # Apply the gate to the MPS with eager approximation
-        self._aux_mps.apply_1q_gate(position, gate)
+        self._aux_mps._apply_1q_gate(position, gate)
 
         # Load the gate's unitary to the GPU memory
         gate_tensor = cp.empty(shape=(2, 2), dtype=self._complex_t)
@@ -129,8 +137,9 @@ class MPSxMPO(MPS):
 
         # Update the tensor; do so "in place" in the MPS-MPO data structures
         last_tensor.data = new_tensor
+        return self
 
-    def apply_2q_gate(self, positions: tuple[int, int], gate: Op) -> None:
+    def _apply_2q_gate(self, positions: list[int], gate: Op) -> MPSxMPO:
         """Apply the 2-qubit gate to the MPS. If doing so increases the
         virtual bond dimension beyond ``chi``; truncation is automatically
         applied. The MPS is converted to canonical form before truncating.
@@ -139,6 +148,9 @@ class MPSxMPO(MPS):
             positions: The position of the MPS tensors that this gate
                 is applied to. They must be contiguous.
             gate: The gate to be applied.
+
+        Returns:
+            ``self``, to allow for method chaining.
         """
         if any(self.get_physical_dimension(pos) != 2 for pos in positions):
             raise RuntimeError(
@@ -161,7 +173,7 @@ class MPSxMPO(MPS):
         # TODO: I should try and do some kind of BFS for the gates.
 
         # Apply the gate to the MPS with eager approximation
-        self._aux_mps.apply_2q_gate(positions, gate)
+        self._aux_mps._apply_2q_gate(positions, gate)
 
         # Load the gate's unitary to the GPU memory
         gate_tensor = cp.empty(shape=(4, 4), dtype=self._complex_t)
@@ -216,12 +228,12 @@ class MPSxMPO(MPS):
         svd_config = cutn.create_tensor_svd_config(self._libhandle)
 
         svd_config_attributes = [
-            # Contract the rank-1 tensor of singular values (S) directly
-            # into U and V. UV_EQUAL refers to applying U = U*sqrt(S) and
-            # similarly for V. Here, U and V are L and R respectively.
+            # TensorSVDPartition.US asks that cuTensorNet automatically
+            # contracts the tensor of singular values (S) into one of the
+            # two tensors (U), named L in our case.
             (
                 cutn.TensorSVDConfigAttribute.S_PARTITION,
-                cutn.TensorSVDPartition.UV_EQUAL,
+                cutn.TensorSVDPartition.US,
             ),
         ]
 
@@ -275,6 +287,7 @@ class MPSxMPO(MPS):
         # Store L and R
         self._mpo[l_pos].append(L)
         self._mpo[r_pos].append(R)
+        return self
 
     def get_physical_bond(self, position: int) -> Bond:
         """Return the unique identifier of the physical bond at ``position``.

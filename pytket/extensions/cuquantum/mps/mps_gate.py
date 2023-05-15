@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from __future__ import annotations  # type: ignore
 
 import cupy as cp  # type: ignore
 import numpy as np  # type: ignore
@@ -36,7 +37,7 @@ class MPSxGate(MPS):
             before and after truncation (assuming both are normalised).
     """
 
-    def apply_1q_gate(self, position: int, gate: Op) -> None:
+    def _apply_1q_gate(self, position: int, gate: Op) -> MPSxGate:
         """Apply the 1-qubit gate to the MPS. This does not increase the
         dimension of any bond.
 
@@ -44,6 +45,9 @@ class MPSxGate(MPS):
             position: The position of the MPS tensor that this gate
                 is applied to.
             gate: The gate to be applied.
+
+        Returns:
+            ``self``, to allow for method chaining.
         """
         if self.get_physical_dimension(position) != 2:
             raise RuntimeError(
@@ -71,8 +75,9 @@ class MPSxGate(MPS):
 
         # Update ``self.tensors``
         self.tensors[position].data = new_tensor
+        return self
 
-    def apply_2q_gate(self, positions: tuple[int, int], gate: Op) -> None:
+    def _apply_2q_gate(self, positions: list[int], gate: Op) -> MPSxGate:
         """Apply the 2-qubit gate to the MPS. If doing so increases the
         virtual bond dimension beyond ``chi``; truncation is automatically
         applied. The MPS is converted to canonical form before truncating.
@@ -81,18 +86,15 @@ class MPSxGate(MPS):
             positions: The position of the MPS tensors that this gate
                 is applied to. They must be contiguous.
             gate: The gate to be applied.
+
+        Returns:
+            ``self``, to allow for method chaining.
         """
         if any(self.get_physical_dimension(pos) != 2 for pos in positions):
             raise RuntimeError(
                 "Gates can only be applied to tensors with physical"
                 + " bond dimension of 2."
             )
-
-        dist = positions[1] - positions[0]
-        # We explicitly allow both dist==1 or dist==-1 so that non-symmetric
-        # gates such as CX can use the same Op for the two ways it can be in.
-        if dist not in [1, -1]:
-            raise Exception("Gates must be applied to contiguous positions!")
         l_pos = min(positions)
         r_pos = max(positions)
 
@@ -179,12 +181,12 @@ class MPSxGate(MPS):
         svd_config = cutn.create_tensor_svd_config(self._libhandle)
 
         svd_config_attributes = [
-            # Contract the rank-1 tensor of singular values (S) directly
-            # into U and V. UV_EQUAL refers to applying U = U*sqrt(S) and
-            # similarly for V. Here, U and V are L and R respectively.
+            # TensorSVDPartition.US asks that cuTensorNet automatically
+            # contracts the tensor of singular values (S) into one of the
+            # two tensors (U), named L in our case.
             (
                 cutn.TensorSVDConfigAttribute.S_PARTITION,
-                cutn.TensorSVDPartition.UV_EQUAL,
+                cutn.TensorSVDPartition.US,
             ),
         ]
 
@@ -267,3 +269,4 @@ class MPSxGate(MPS):
         # The L and R tensors have already been updated and these correspond
         # to the entries of l_pos and r_pos in self.tensors
         assert self.tensors[l_pos] is L and self.tensors[r_pos] is R
+        return self

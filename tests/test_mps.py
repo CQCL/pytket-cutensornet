@@ -7,19 +7,23 @@ from pytket.extensions.cuquantum.mps import Tensor, MPSxGate, MPSxMPO
 
 
 def test_init() -> None:
-    with MPSxGate(n_tensors=5, chi=8) as mps:
+    circ = Circuit(5)
+
+    with MPSxGate(qubits=circ.qubits, chi=8) as mps:
         assert mps.is_valid()
 
-    with MPSxMPO(n_tensors=5, chi=8) as mps:
+    with MPSxMPO(qubits=circ.qubits, chi=8) as mps:
         assert mps.is_valid()
 
 
 def test_trivial_vdot() -> None:
-    with MPSxGate(n_tensors=5, chi=8) as mps:
+    circ = Circuit(5)
+
+    with MPSxGate(qubits=circ.qubits, chi=8) as mps:
         assert mps.is_valid()
         assert np.isclose(mps.vdot(mps), 1.0)
 
-    with MPSxMPO(n_tensors=5, chi=8) as mps:
+    with MPSxMPO(qubits=circ.qubits, chi=8) as mps:
         assert mps.is_valid()
         assert np.isclose(mps.vdot(mps), 1.0)
 
@@ -34,41 +38,37 @@ def test_1q_gates() -> None:
     circ.TK1(0.6, 0.5, 0.7, 4)
     unitary = circ.get_unitary()
 
-    qubit_pos = {q: i for i, q in enumerate(circ.qubits)}
-
-    with MPSxGate(n_tensors=n_qubits, chi=2) as mps:
+    with MPSxGate(qubits=circ.qubits, chi=2) as mps:
         # Apply each of the single qubit gates
         for g in circ.get_commands():
-            q = g.qubits[0]
-            mps.apply_1q_gate(qubit_pos[q], g.op)
+            mps.apply_gate(g)
         assert mps.is_valid()
 
         # Check that all of the amplitudes are correct
         for b in range(2**n_qubits):
-            with MPSxGate(n_tensors=n_qubits, chi=2) as b_mps:
+            with MPSxGate(qubits=circ.qubits, chi=2) as b_mps:
                 bitstring = format(b, f"0{n_qubits}b")
                 for i in range(n_qubits):
                     if bitstring[i] == "1":
-                        b_mps.apply_1q_gate(i, Op.create(OpType.X))
+                        b_mps._apply_1q_gate(i, Op.create(OpType.X))
                 assert b_mps.is_valid()
 
                 # Check the amplitude
                 assert np.isclose(b_mps.vdot(mps), unitary[b][0])
 
-    with MPSxMPO(n_tensors=n_qubits, chi=2) as mps:
+    with MPSxMPO(qubits=circ.qubits, chi=2) as mps:
         # Apply each of the single qubit gates
         for g in circ.get_commands():
-            q = g.qubits[0]
-            mps.apply_1q_gate(qubit_pos[q], g.op)
+            mps.apply_gate(g)
         assert mps.is_valid()
 
         # Check that all of the amplitudes are correct
         for b in range(2**n_qubits):
-            with MPSxMPO(n_tensors=n_qubits, chi=2) as b_mps:
+            with MPSxMPO(qubits=circ.qubits, chi=2) as b_mps:
                 bitstring = format(b, f"0{n_qubits}b")
                 for i in range(n_qubits):
                     if bitstring[i] == "1":
-                        b_mps.apply_1q_gate(i, Op.create(OpType.X))
+                        b_mps._apply_1q_gate(i, Op.create(OpType.X))
                 assert b_mps.is_valid()
 
                 # Check the amplitude
@@ -77,8 +77,9 @@ def test_1q_gates() -> None:
 
 def test_canonicalise() -> None:
     np.random.seed(1)
+    circ = Circuit(5)
 
-    with MPSxGate(n_tensors=5, chi=4) as mps:
+    with MPSxGate(qubits=circ.qubits, chi=4) as mps:
         # Fill up the tensors with random entries
 
         # Leftmost tensor
@@ -168,31 +169,24 @@ def test_line_circ_exact() -> None:
             c.CX(pair[0], pair[1])
 
     unitary = c.get_unitary()
-    qubit_pos = {q: i for i, q in enumerate(c.qubits)}
 
     # EXACT CONTRACTION (chi=4 is enough for n_qubits=5)
     # Check that all of the amplitudes are correct
 
     # Check for MPSxGate
-    with MPSxGate(n_tensors=n_qubits, chi=4) as mps:
+    with MPSxGate(qubits=c.qubits, chi=4) as mps:
         # Apply each of the gates
         for g in c.get_commands():
-            if len(g.qubits) == 1:
-                q = g.qubits[0]
-                mps.apply_1q_gate(qubit_pos[q], g.op)
-            else:
-                q0 = qubit_pos[g.qubits[0]]
-                q1 = qubit_pos[g.qubits[1]]
-                mps.apply_2q_gate((q0, q1), g.op)
+            mps.apply_gate(g)
         assert mps.is_valid()
 
         # Check that all of the amplitudes are correct
         for b in range(2**n_qubits):
-            with MPSxGate(n_tensors=n_qubits, chi=2) as b_mps:
+            with MPSxGate(qubits=c.qubits, chi=2) as b_mps:
                 bitstring = format(b, f"0{n_qubits}b")
                 for i in range(n_qubits):
                     if bitstring[i] == "1":
-                        b_mps.apply_1q_gate(i, Op.create(OpType.X))
+                        b_mps._apply_1q_gate(i, Op.create(OpType.X))
                 assert b_mps.is_valid()
 
                 # Check the amplitudes are similar
@@ -200,25 +194,19 @@ def test_line_circ_exact() -> None:
                 assert np.isclose(mps.fidelity, 1.0)
 
     # Check for MPSxMPO
-    with MPSxMPO(n_tensors=n_qubits, chi=4) as mps:
+    with MPSxMPO(qubits=c.qubits, chi=4) as mps:
         # Apply each of the gates
         for g in c.get_commands():
-            if len(g.qubits) == 1:
-                q = g.qubits[0]
-                mps.apply_1q_gate(qubit_pos[q], g.op)
-            else:
-                q0 = qubit_pos[g.qubits[0]]
-                q1 = qubit_pos[g.qubits[1]]
-                mps.apply_2q_gate((q0, q1), g.op)
+            mps.apply_gate(g)
         assert mps.is_valid()
 
         # Check that all of the amplitudes are correct
         for b in range(2**n_qubits):
-            with MPSxMPO(n_tensors=n_qubits, chi=2) as b_mps:
+            with MPSxMPO(qubits=c.qubits, chi=2) as b_mps:
                 bitstring = format(b, f"0{n_qubits}b")
                 for i in range(n_qubits):
                     if bitstring[i] == "1":
-                        b_mps.apply_1q_gate(i, Op.create(OpType.X))
+                        b_mps._apply_1q_gate(i, Op.create(OpType.X))
                 assert b_mps.is_valid()
 
                 # Check the amplitudes are similar
@@ -251,21 +239,13 @@ def test_line_circ_approx() -> None:
         for pair in qubit_pairs:
             c.CX(pair[0], pair[1])
 
-    qubit_pos = {q: i for i, q in enumerate(c.qubits)}
-
     # APPROXIMATE CONTRACTION (chi=8 is insufficient for exact)
 
     # Check for MPSxGate
-    with MPSxGate(n_tensors=n_qubits, chi=8) as mps:
+    with MPSxGate(qubits=c.qubits, chi=8) as mps:
         # Apply each of the gates
         for g in c.get_commands():
-            if len(g.qubits) == 1:
-                q = g.qubits[0]
-                mps.apply_1q_gate(qubit_pos[q], g.op)
-            else:
-                q0 = qubit_pos[g.qubits[0]]
-                q1 = qubit_pos[g.qubits[1]]
-                mps.apply_2q_gate((q0, q1), g.op)
+            mps.apply_gate(g)
         assert mps.is_valid()
         assert np.isclose(mps.fidelity, 0.000130, atol=1e-6)
 
@@ -273,16 +253,10 @@ def test_line_circ_approx() -> None:
         assert np.isclose(mps.vdot(mps), 1.0)
 
     # Check for MPSxMPO
-    with MPSxMPO(n_tensors=n_qubits, chi=8) as mps:
+    with MPSxMPO(qubits=c.qubits, chi=8) as mps:
         # Apply each of the gates
         for g in c.get_commands():
-            if len(g.qubits) == 1:
-                q = g.qubits[0]
-                mps.apply_1q_gate(qubit_pos[q], g.op)
-            else:
-                q0 = qubit_pos[g.qubits[0]]
-                q1 = qubit_pos[g.qubits[1]]
-                mps.apply_2q_gate((q0, q1), g.op)
+            mps.apply_gate(g)
         assert mps.is_valid()
         assert np.isclose(mps.fidelity, 0.000268, atol=1e-6)
 
