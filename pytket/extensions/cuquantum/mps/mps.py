@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from __future__ import annotations  # type: ignore
-from typing import Any
+from typing import Any, Optional
 
 import cupy as cp  # type: ignore
 import numpy as np  # type: ignore
@@ -147,7 +147,7 @@ class MPS:
     # - The left virtual bond of the tensor `i` of the MPS has ID `i`.
     # - The right virtual bond of the tensor `i` of the MPS has ID `i+1`.
     # - The physical bond of the tensor `i` has ID `i+len(tensors)`.
-    def __init__(self, qubits: list[Qubit], chi: int, float_precision: str = "float64"):
+    def __init__(self, qubits: list[Qubit], chi: int, float_precision: Optional[str] = None):
         """Initialise an MPS on the computational state 0.
 
         Note:
@@ -168,7 +168,9 @@ class MPS:
             raise Exception("The max virtual bond dim (chi) must be >= 2.")
 
         allowed_precisions = ["float32", "float64"]
-        if float_precision not in allowed_precisions:
+        if float_precision is None:
+            float_precision == "float64"
+        elif float_precision not in allowed_precisions:
             raise Exception(f"Value of float_precision must be in {allowed_precisions}")
 
         if float_precision == "float32":  # Single precision
@@ -286,40 +288,6 @@ class MPS:
         v_bonds_ok = v_bonds_ok and self.get_virtual_bonds(i)[0] == i
 
         return chi_ok and phys_ok and shape_ok and v_bonds_ok
-
-    def apply_circuit(self, circuit: Circuit) -> MPS:
-        """Apply the circuit to the MPS. This method will decompose all boxes
-        in the circuit and route the circuit as appropriate.
-
-        Notes:
-            The qubit names of the ``circuit`` must be a subset of those
-            provided when creating the instance of this ``MPS``.
-
-        Args:
-            circuit: The pytket circuit to be simulated.
-
-        Returns:
-            The updated ``MPS`` after applying the circuit to it.
-        """
-        if any(q not in self.qubit_position.keys() for q in circuit.qubits):
-            assert RuntimeError(
-                "The given circuit acts on qubits not tracked by the MPS."
-            )
-
-        DecomposeBoxes().apply(circuit)
-
-        # Implement it in a line architecture
-        cu = CompilationUnit(circuit)
-        architecture = Architecture([(i, i+1) for i in range(n_qubits - 1)])
-        DefaultMappingPass(architecture).apply(cu)
-        circuit = cu.circuit
-        Transform.DecomposeBRIDGE().apply(circuit)
-
-        # Apply each gate
-        for g in circuit.get_commands():
-            self.apply_gate(g)
-
-        return self
 
     def apply_gate(self, gate: Command) -> MPS:
         """Apply the gate to the MPS.
