@@ -343,6 +343,11 @@ class MPS:
                 raise RuntimeError(
                     f"Physical bond dimension at position {i} do not match."
                 )
+        if self.qubit_position != mps.qubit_position:
+            raise RuntimeError(
+                "The qubit labels or their position on the MPS do not match."
+            )
+
         self._flush()
         mps._flush()
 
@@ -593,6 +598,7 @@ class MPS:
         # Copy all data
         new_mps.fidelity = self.fidelity
         new_mps.tensors = [t.copy() for t in self.tensors]
+        new_mps.qubit_position = self.qubit_position.copy()
         new_mps._complex_t = self._complex_t
         new_mps._real_t = self._real_t
 
