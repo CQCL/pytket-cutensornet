@@ -1,8 +1,9 @@
 import cuquantum as cq  # type: ignore
 import cupy as cp  # type: ignore
 import numpy as np  # type: ignore
+from scipy.stats import unitary_group  # type: ignore
 
-from pytket.circuit import Op, OpType, Circuit  # type: ignore
+from pytket.circuit import Op, OpType, Circuit, Unitary2qBox  # type: ignore
 from pytket.extensions.cuquantum.mps import Tensor, MPSxGate, MPSxMPO
 
 
@@ -259,6 +260,49 @@ def test_line_circ_approx() -> None:
             mps.apply_gate(g)
         assert mps.is_valid()
         assert np.isclose(mps.fidelity, 0.000268, atol=1e-6)
+
+        # Check that that the state has norm 1
+        assert np.isclose(mps.vdot(mps), 1.0)
+
+
+def test_apply_volume_circuit() -> None:
+
+    n_qubits = 6
+    chi = 8  # This is enough for exact
+    np.random.seed(1)
+
+    # Generate quantum volume circuit
+    depth = n_qubits
+    c = Circuit(n_qubits)
+
+    for _ in range(depth):
+
+        qubits = np.random.permutation([i for i in range(n_qubits)])
+        qubit_pairs = [[qubits[i], qubits[i + 1]] for i in range(0, n_qubits - 1, 2)]
+
+        for pair in qubit_pairs:
+            # Generate random 4x4 unitary matrix.
+            SU4 = unitary_group.rvs(4)  # random unitary in SU4
+            SU4 = SU4 / (np.linalg.det(SU4) ** 0.25)
+            SU4 = np.matrix(SU4)
+            c.add_unitary2qbox(Unitary2qBox(SU4), *pair)
+
+    # Check for MPSxGate
+    with MPSxGate(qubits=c.qubits, chi=chi) as mps:
+        # Apply each of the gates
+        mps.apply_circuit(c)
+        assert mps.is_valid()
+        assert np.isclose(mps.fidelity, 1.0)
+
+        # Check that that the state has norm 1
+        assert np.isclose(mps.vdot(mps), 1.0)
+
+    # Check for MPSxMPO
+    with MPSxMPO(qubits=c.qubits, chi=chi) as mps:
+        # Apply each of the gates
+        mps.apply_circuit(c)
+        assert mps.is_valid()
+        assert np.isclose(mps.fidelity, 1.0)
 
         # Check that that the state has norm 1
         assert np.isclose(mps.vdot(mps), 1.0)
