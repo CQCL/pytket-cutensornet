@@ -1,11 +1,18 @@
+from typing import Any
 
 from pytket.circuit import Circuit  # type ignore
+from pytket.passes import DecomposeBoxes  # type: ignore
+from pytket.transform import Transform  # type: ignore
+from pytket.architecture import Architecture  # type: ignore
+from pytket.passes import DefaultMappingPass  # type: ignore
+from pytket.predicates import CompilationUnit  # type: ignore
 
 from .mps import MPS
 from .mps_gate import MPSxGate
 from .mps_mpo import MPSxMPO
 
-def simulate(circuit: Circuit, algorithm: str, chi: int, **kwargs) -> MPS:
+
+def simulate(circuit: Circuit, algorithm: str, chi: int, **kwargs: Any) -> MPS:
     """Simulate the given circuit and return the ``MPS`` representing the final state.
 
     Note:
@@ -34,20 +41,20 @@ def simulate(circuit: Circuit, algorithm: str, chi: int, **kwargs) -> MPS:
     float_precision = kwargs.get("float_precision", None)
 
     if algorithm == "MPSxGate":
-        mps = MPSxGate(prep_circ.qubits, chi, float_precision)
+        mps = MPSxGate(prep_circ.qubits, chi, float_precision)  # type: ignore
     elif algorithm == "MPSxMPO":
         k = kwargs.get("k", None)
-        mps = MPSxMPO(prep_circ.qubits, chi, k, float_precision)
+        mps = MPSxMPO(prep_circ.qubits, chi, k, float_precision)  # type: ignore
     else:
         print(f"Unrecognised algorithm: {algorithm}.")
 
     for g in prep_circ.get_commands():
         mps.apply_gate(g)
 
-    return self
+    return mps
 
 
-def prepare_circuit(circuit: Circuit) -> Circuit
+def prepare_circuit(circuit: Circuit) -> Circuit:
     """Return an equivalent circuit with the appropriate structure to be simulated by
     an ``MPS`` algorithm.
 
@@ -63,9 +70,9 @@ def prepare_circuit(circuit: Circuit) -> Circuit
 
     # Implement it in a line architecture
     cu = CompilationUnit(prep_circ)
-    architecture = Architecture([(i, i+1) for i in range(prep_circ.n_qubits - 1)])
+    architecture = Architecture([(i, i + 1) for i in range(prep_circ.n_qubits - 1)])
     DefaultMappingPass(architecture).apply(cu)
-    prep_circuit = cu.circuit
+    prep_circ = cu.circuit
     Transform.DecomposeBRIDGE().apply(prep_circ)
 
     return prep_circ

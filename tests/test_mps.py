@@ -266,7 +266,6 @@ def test_line_circ_approx() -> None:
 
 
 def test_simulate_volume_circuit() -> None:
-
     n_qubits = 6
     chi = 8  # This is enough for exact
     np.random.seed(1)
@@ -276,7 +275,6 @@ def test_simulate_volume_circuit() -> None:
     c = Circuit(n_qubits)
 
     for _ in range(depth):
-
         qubits = np.random.permutation([i for i in range(n_qubits)])
         qubit_pairs = [[qubits[i], qubits[i + 1]] for i in range(0, n_qubits - 1, 2)]
 
@@ -289,8 +287,6 @@ def test_simulate_volume_circuit() -> None:
 
     # Check for MPSxGate
     with simulate(c, "MPSxGate", chi) as mps:
-        # Apply each of the gates
-        mps.apply_circuit(c)
         assert mps.is_valid()
         assert np.isclose(mps.fidelity, 1.0)
 
@@ -300,8 +296,6 @@ def test_simulate_volume_circuit() -> None:
 
     # Check for MPSxMPO
     with simulate(c, "MPSxMPO", chi) as mps:
-        # Apply each of the gates
-        mps.apply_circuit(c)
         assert mps.is_valid()
         assert np.isclose(mps.fidelity, 1.0)
 

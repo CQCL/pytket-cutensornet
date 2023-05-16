@@ -20,11 +20,6 @@ import cuquantum as cq  # type: ignore
 import cuquantum.cutensornet as cutn  # type: ignore
 
 from pytket.circuit import Command, Op, Qubit  # type: ignore
-from pytket.passes import DecomposeBoxes  # type: ignore
-from pytket.transform import Transform  # type: ignore
-from pytket.architecture import Architecture  # type: ignore
-from pytket.passes import DefaultMappingPass  # type: ignore
-from pytket.predicates import CompilationUnit  # type: ignore
 
 # An alias so that `intptr_t` from CuQuantum's API (which is not available in
 # base python) has some meaningful type name.
@@ -147,7 +142,9 @@ class MPS:
     # - The left virtual bond of the tensor `i` of the MPS has ID `i`.
     # - The right virtual bond of the tensor `i` of the MPS has ID `i+1`.
     # - The physical bond of the tensor `i` has ID `i+len(tensors)`.
-    def __init__(self, qubits: list[Qubit], chi: int, float_precision: Optional[str] = None):
+    def __init__(
+        self, qubits: list[Qubit], chi: int, float_precision: Optional[str] = None
+    ):
         """Initialise an MPS on the computational state 0.
 
         Note:
@@ -169,7 +166,7 @@ class MPS:
 
         allowed_precisions = ["float32", "float64"]
         if float_precision is None:
-            float_precision == "float64"
+            float_precision = "float64"
         elif float_precision not in allowed_precisions:
             raise Exception(f"Value of float_precision must be in {allowed_precisions}")
 
