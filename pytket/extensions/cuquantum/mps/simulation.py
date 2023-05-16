@@ -66,7 +66,10 @@ def prepare_circuit(circuit: Circuit) -> Circuit:
     """
 
     prep_circ = circuit.copy()
+
+    # Compile down to 1-qubit and 2-qubit gates with no implicit swaps
     DecomposeBoxes().apply(prep_circ)
+    prep_circ.replace_implicit_wire_swaps()
 
     # Implement it in a line architecture
     cu = CompilationUnit(prep_circ)
