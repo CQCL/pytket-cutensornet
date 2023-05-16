@@ -4,7 +4,7 @@ import numpy as np  # type: ignore
 from scipy.stats import unitary_group  # type: ignore
 
 from pytket.circuit import Op, OpType, Circuit, Unitary2qBox  # type: ignore
-from pytket.extensions.cuquantum.mps import Tensor, MPSxGate, MPSxMPO
+from pytket.extensions.cuquantum.mps import Tensor, MPSxGate, MPSxMPO, simulate
 
 
 def test_init() -> None:
@@ -265,7 +265,7 @@ def test_line_circ_approx() -> None:
         assert np.isclose(mps.vdot(mps), 1.0)
 
 
-def test_apply_volume_circuit() -> None:
+def test_simulate_volume_circuit() -> None:
 
     n_qubits = 6
     chi = 8  # This is enough for exact
@@ -288,21 +288,23 @@ def test_apply_volume_circuit() -> None:
             c.add_unitary2qbox(Unitary2qBox(SU4), *pair)
 
     # Check for MPSxGate
-    with MPSxGate(qubits=c.qubits, chi=chi) as mps:
+    with simulate(c, "MPSxGate", chi) as mps:
         # Apply each of the gates
         mps.apply_circuit(c)
         assert mps.is_valid()
         assert np.isclose(mps.fidelity, 1.0)
 
         # Check that that the state has norm 1
+        assert type(mps) == MPSxGate
         assert np.isclose(mps.vdot(mps), 1.0)
 
     # Check for MPSxMPO
-    with MPSxMPO(qubits=c.qubits, chi=chi) as mps:
+    with simulate(c, "MPSxMPO", chi) as mps:
         # Apply each of the gates
         mps.apply_circuit(c)
         assert mps.is_valid()
         assert np.isclose(mps.fidelity, 1.0)
 
         # Check that that the state has norm 1
+        assert type(mps) == MPSxMPO
         assert np.isclose(mps.vdot(mps), 1.0)

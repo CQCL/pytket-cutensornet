@@ -45,7 +45,7 @@ class MPSxMPO(MPS):
         self,
         qubits: list[Qubit],
         chi: int,
-        k: int = 4,
+        k: Optional[int] = None,
         float_precision: str = "float64",
     ):
         """Initialise an MPS on the computational state 0.
@@ -87,7 +87,11 @@ class MPSxMPO(MPS):
         # variational algorithm.
         self._aux_mps = MPSxGate(qubits, chi, float_precision)
 
-        self.k = k
+        if k is None:
+            self.k = 4
+        else:
+            self.k = k
+
         self._mpo_bond_counter = 0
 
     def _apply_1q_gate(self, position: int, gate: Op) -> MPSxMPO:
