@@ -20,6 +20,11 @@ import cuquantum as cq  # type: ignore
 import cuquantum.cutensornet as cutn  # type: ignore
 
 from pytket.circuit import Command, Op, Qubit  # type: ignore
+from pytket.passes import DecomposeBoxes  # type: ignore
+from pytket.transform import Transform  # type: ignore
+from pytket.architecture import Architecture  # type: ignore
+from pytket.passes import DefaultMappingPass  # type: ignore
+from pytket.predicates import CompilationUnit  # type: ignore
 
 # An alias so that `intptr_t` from CuQuantum's API (which is not available in
 # base python) has some meaningful type name.
@@ -281,6 +286,40 @@ class MPS:
         v_bonds_ok = v_bonds_ok and self.get_virtual_bonds(i)[0] == i
 
         return chi_ok and phys_ok and shape_ok and v_bonds_ok
+
+    def apply_circuit(self, circuit: Circuit) -> MPS:
+        """Apply the circuit to the MPS. This method will decompose all boxes
+        in the circuit and route the circuit as appropriate.
+
+        Notes:
+            The qubit names of the ``circuit`` must be a subset of those
+            provided when creating the instance of this ``MPS``.
+
+        Args:
+            circuit: The pytket circuit to be simulated.
+
+        Returns:
+            The updated ``MPS`` after applying the circuit to it.
+        """
+        if any(q not in self.qubit_position.keys() for q in circuit.qubits):
+            assert RuntimeError(
+                "The given circuit acts on qubits not tracked by the MPS."
+            )
+
+        DecomposeBoxes().apply(circuit)
+
+        # Implement it in a line architecture
+        cu = CompilationUnit(circuit)
+        architecture = Architecture([(i, i+1) for i in range(n_qubits - 1)])
+        DefaultMappingPass(architecture).apply(cu)
+        circuit = cu.circuit
+        Transform.DecomposeBRIDGE().apply(circuit)
+
+        # Apply each gate
+        for g in circuit.get_commands():
+            self.apply_gate(g)
+
+        return self
 
     def apply_gate(self, gate: Command) -> MPS:
         """Apply the gate to the MPS.
