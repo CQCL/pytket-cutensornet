@@ -27,3 +27,8 @@ from .mps_gate import (
 from .mps_mpo import (
     MPSxMPO,
 )
+
+from .simulation import (
+    prepare_circuit,
+    simulate,
+)
