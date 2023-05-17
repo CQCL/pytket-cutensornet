@@ -13,10 +13,13 @@
 # limitations under the License.
 """Module for conversion from tket primitives to cuQuantum primitives."""
 
-from .mps import (
+from .generic import (
     Handle,
     Bond,
     Tensor,
+)
+
+from .mps import (
     MPS,
 )
 

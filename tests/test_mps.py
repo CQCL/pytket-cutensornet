@@ -4,7 +4,7 @@ import numpy as np  # type: ignore
 from scipy.stats import unitary_group  # type: ignore
 
 from pytket.circuit import Op, OpType, Circuit, Unitary2qBox  # type: ignore
-from pytket.extensions.cuquantum.mps import Tensor, MPSxGate, MPSxMPO, simulate
+from pytket.extensions.cuquantum.approximate import Tensor, MPSxGate, MPSxMPO, simulate
 
 
 def test_init() -> None:

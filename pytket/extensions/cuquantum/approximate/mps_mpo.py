@@ -21,7 +21,8 @@ import cuquantum as cq  # type: ignore
 import cuquantum.cutensornet as cutn  # type: ignore
 
 from pytket.circuit import Op, Qubit  # type: ignore
-from .mps import Tensor, Bond, MPS
+from .generic import Bond, Tensor
+from .mps import MPS
 from .mps_gate import MPSxGate
 
 
