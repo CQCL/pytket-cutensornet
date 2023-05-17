@@ -73,16 +73,18 @@ class TensorNetwork:
         """
         self._logger = set_logger("TensorNetwork", loglevel)
         self._circuit = circuit
-        self._network = Graph(circuit).as_nx()
+        self._qubit_names_ilo = [q.to_list()[0] for q in circuit.qubits]
+        self._logger.debug(f"ILO-ordered qubit names: {self._qubit_names_ilo}")
+        self._graph = Graph(circuit)
+        self._uid_to_qname = self._graph.input_names
+        self._logger.debug(f"NX UnitID's to qubit names map: {self._uid_to_qname}")
+        self._qname_to_uid = {qname: uid for uid, qname in self._uid_to_qname.items()}
+        self._logger.debug(f"Qubit names to NX UnitID's map: {self._uid_to_qname}")
+        self._network = self._graph.as_nx()
         self._node_tensors = self._assign_node_tensors(adj=adj)
-        if adj:
-            self._node_tensor_indices, self.sticky_indices = self._get_tn_indices(
-                self._network, adj=adj
-            )
-        else:
-            self._node_tensor_indices, self.sticky_indices = self._get_tn_indices(
-                self._network
-            )
+        self._node_tensor_indices, self.sticky_indices = self._get_tn_indices(
+            self._network, adj=adj
+        )
         self._cuquantum_interleaved = self._make_interleaved()
 
     @property
