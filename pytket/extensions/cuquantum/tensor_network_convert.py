@@ -529,7 +529,7 @@ class PauliOperatorTensorNetwork:
             for x, y in sticky_index_pairs
             for f in (
                 lambda x, y: qubit_to_pauli[x] if (x in qubit_ids) else self.PAULI["I"],
-                lambda x: [y, x],
+                lambda x, y: [y, x],
             )
         ]
         self._logger.debug(f"Pauli TN: {self.cuquantum_interleaved}")
