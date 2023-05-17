@@ -64,7 +64,7 @@ class MPS:
                 Default is 'float64'.
         """
         if chi < 2:
-            raise Exception("The max virtual bond dim (chi) must be >= 2.")
+            raise Exception("The max virtual bond dimension (chi) must be >= 2.")
 
         allowed_precisions = ["float32", "float64"]
         if float_precision is None:
