@@ -544,7 +544,11 @@ class ExpectationValueTensorNetwork:
     """Handles a tensor network representing an expectation value."""
 
     def __init__(
-        self, bra: TensorNetwork, paulis: QubitPauliString, ket: TensorNetwork
+        self,
+        bra: TensorNetwork,
+        paulis: QubitPauliString,
+        ket: TensorNetwork,
+        loglevel: int = logging.INFO,
     ) -> None:
         """Constructs a tensor network representing expectation value.
 
@@ -555,10 +559,11 @@ class ExpectationValueTensorNetwork:
             bra: Tensor network object representing a bra circuit.
             ket: Tensor network object representing a ket circuit.
             paulis: Pauli operator string.
+            loglevel: Logger verbosity level.
         """
         self._bra = bra
         self._ket = ket
-        self._operator = PauliOperatorTensorNetwork(paulis, bra, ket)
+        self._operator = PauliOperatorTensorNetwork(paulis, bra, ket, loglevel)
         self._cuquantum_interleaved = self._make_interleaved()
 
     @property
