@@ -79,7 +79,7 @@ class TensorNetwork:
         self._uid_to_qname = self._graph.input_names
         self._logger.debug(f"NX UnitID's to qubit names map: {self._uid_to_qname}")
         self._qname_to_uid = {qname: uid for uid, qname in self._uid_to_qname.items()}
-        self._logger.debug(f"Qubit names to NX UnitID's map: {self._uid_to_qname}")
+        self._logger.debug(f"Qubit names to NX UnitID's map: {self._qname_to_uid}")
         self._network = self._graph.as_nx()
         self._node_tensors = self._assign_node_tensors(adj=adj)
         self._node_tensor_indices, self.sticky_indices = self._get_tn_indices(
@@ -262,48 +262,67 @@ class TensorNetwork:
         # There can be several identical edges for which we need different indices
         edge_indices = defaultdict(list)
         n_edges = nx.number_of_edges(net)
-        # Append tuples of inverse edge indices (starting from 1) and qubit indices
+        # Append tuples of inverse edge indices (starting from 1) and their unit_id's
         # to each edge entry
         for i, (e, ed) in enumerate(zip(net.edges(), net.edges(data=True))):
-            edge_indices[e].append((sign * (n_edges - i), int(ed[-1]["unit_id"] / 2)))
+            edge_indices[e].append((sign * (n_edges - i), int(ed[-1]["unit_id"])))
         self._logger.debug(f"Network edge indices: \n {edge_indices}")
         nodes_out = self._output_nodes
+        # Re-order outward edges indices according to ILO
+        edges_out = [
+            edge for edge in net.edges() if edge[1] in self._graph.output_names
+        ]
+        uids, eids = zip(
+            *[
+                (record[0][1], record[0][0])
+                for key, record in edge_indices.items()
+                if key in edges_out
+            ]
+        )
+        eids_sorted = sorted(eids)
+        qnames_unsorted = [qname for qname in self._graph.input_names.values()]
+        eids_ilo = [
+            eids_sorted[qnames_unsorted.index(q)] for q in self._qubit_names_ilo
+        ]
+        uid_to_eid = {}
+        for uid, eid in zip(uids, eids_ilo):
+            uid_to_eid[uid] = eid
+        for edge in edges_out:
+            uid = edge_indices[edge][0][1]
+            edge_indices[edge] = [(uid_to_eid[uid], uid)]
         # Check if need to swap indices for outward indices
-        for node in nodes_out:
-            prenode = next(net.predecessors(node))
-            eid = edge_indices[(prenode, node)][0][0]
-            qid = edge_indices[(prenode, node)][0][1]
-            if (
-                eid - sign * 1 != sign * qid
-            ):  # Edge indexing starts from 1 or -1, qubit from 0
-                lswap = False
-                # expensive:
-                for edge, idx_lst in edge_indices.items():
-                    for i, (ei, qi) in enumerate(idx_lst):
-                        if ei - sign * 1 == sign * qid:
-                            self._logger.debug(
-                                f"Swapping indices of edges {edge} and "
-                                f"({prenode, node})!"
-                            )
-                            edge_indices[(prenode, node)] = [
-                                (edge_indices[edge][i][0], qid)
-                            ]
-                            edge_indices[edge][i] = (eid, qi)
-                            lswap = True
-                            break
-                    if lswap:
-                        break
+        #for node in nodes_out:
+        #    prenode = next(net.predecessors(node))
+        #    eid = edge_indices[(prenode, node)][0][0]
+        #    qid = edge_indices[(prenode, node)][0][1]
+        #    if (
+        #        eid - sign * 1 != sign * qid
+        #    ):  # Edge indexing starts from 1 or -1, qubit from 0
+        #        lswap = False
+        #        # expensive:
+        #        for edge, idx_lst in edge_indices.items():
+        #            for i, (ei, qi) in enumerate(idx_lst):
+        #                if ei - sign * 1 == sign * qid:
+        #                    self._logger.debug(
+        #                        f"Swapping indices of edges {edge} and "
+        #                        f"({prenode, node})!"
+        #                    )
+        #                    edge_indices[(prenode, node)] = [
+        #                        (edge_indices[edge][i][0], qid)
+        #                    ]
+        #                    edge_indices[edge][i] = (eid, qi)
+        #                    lswap = True
+        #                    break
+        #            if lswap:
+        #                break
         self._logger.debug(
             f"Network edge indices after swaps (if any): \n {edge_indices}"
         )
         # Store the "sticky" indices
         sticky_indices = {}
-        for edge in net.edges():
-            for node in nodes_out:
-                if node in edge:
-                    for ei, qi in edge_indices[edge]:
-                        print(f"edge: {ei}, qubit: {qi}")
-                        sticky_indices[qi] = ei
+        for edge in edges_out:
+            for eid, uid in edge_indices[edge]:
+                sticky_indices[uid] = eid
         if len(sticky_indices) != len(self._output_nodes):
             raise RuntimeError(
                 f"Number of sticky indices ({len(sticky_indices)})"
