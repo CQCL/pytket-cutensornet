@@ -73,7 +73,11 @@ class TensorNetwork:
         """
         self._logger = set_logger("TensorNetwork", loglevel)
         self._circuit = circuit
-        self._qubit_names_ilo = [q.to_list()[0] for q in circuit.qubits]
+        # self._qubit_names_ilo = [q.to_list()[0] for q in circuit.qubits]
+        self._qubit_names_ilo = [
+            "".join([q.reg_name, "".join([str(i) for i in q.index])])
+            for q in circuit.qubits
+        ]
         self._logger.debug(f"ILO-ordered qubit names: {self._qubit_names_ilo}")
         self._graph = Graph(circuit)
         self._uid_to_qname = self._graph.input_names
@@ -291,7 +295,7 @@ class TensorNetwork:
             uid = edge_indices[edge][0][1]
             edge_indices[edge] = [(uid_to_eid[uid], uid)]
         # Check if need to swap indices for outward indices
-        #for node in nodes_out:
+        # for node in nodes_out:
         #    prenode = next(net.predecessors(node))
         #    eid = edge_indices[(prenode, node)][0][0]
         #    qid = edge_indices[(prenode, node)][0][1]
