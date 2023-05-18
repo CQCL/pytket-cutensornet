@@ -30,63 +30,64 @@ TreeDir = Enum("TreeDir", ["LEFT", "RIGHT", "PARENT", "NONE"])
 
 
 class TreeTensor(Tensor):
-	"""A wrapper around ``Tensor`` that contains information regarding its
-	neighbouring tensors in a Tree Tensor Network.
+    """A wrapper around ``Tensor`` that contains information regarding its
+    neighbouring tensors in a Tree Tensor Network.
 
-	Attributes:
-		neighbours (dict[TreeDir, TreeTensor]): Maps each direction to the
-			``TreeTensor`` adjacent to ``self`` in that direction. The root of
-			the TTN does not have a ``PARENT`` and leaf nodes do not have ``LEFT``
-			nor ``RIGHT``.
-		canonicalised (TreeDir): If the tensor is an isometry (i.e. it has been
-			canonicalised), indicate which bond is the one that remains open when
-			applying the dagger isometry.
-	"""
-	# The ``Tensor`` bonds in ``self.bonds`` are always ordered as follows:
-	# [PARENT, LEFT, RIGHT]. These are present even in the case of the root
-	# of the TTN, where PARENT is just a bond of dimension 1.
+    Attributes:
+        neighbours (dict[TreeDir, TreeTensor]): Maps each direction to the
+            ``TreeTensor`` adjacent to ``self`` in that direction. The root of
+            the TTN does not have a ``PARENT`` and leaf nodes do not have ``LEFT``
+            nor ``RIGHT``.
+        canonicalised (TreeDir): If the tensor is an isometry (i.e. it has been
+            canonicalised), indicate which bond is the one that remains open when
+            applying the dagger isometry.
+    """
+    # The ``Tensor`` bonds in ``self.bonds`` are always ordered as follows:
+    # [PARENT, LEFT, RIGHT]. These are present even in the case of the root
+    # of the TTN, where PARENT is just a bond of dimension 1.
 
-	def __init__(self, data: cp.ndarray, bonds: list[Bond]):
-		super().__init__(data, bonds)
-		self.neighbours: dict[TreeDir, TreeTensor] = dict()
-		self.canonicalised = TreeDir.NONE
+    def __init__(self, data: cp.ndarray, bonds: list[Bond]):
+        super().__init__(data, bonds)
+        self.neighbours: dict[TreeDir, TreeTensor] = dict()
+        self.canonicalised = TreeDir.NONE
 
-	def get_bond_at(self, direction: TreeDir) -> Bond:
-		"""Retrieve the ID of the bond of ``self`` in the requested direction.
+    def get_bond_at(self, direction: TreeDir) -> Bond:
+        """Retrieve the ID of the bond of ``self`` in the requested direction.
 
-		Args:
-			direction: The relative direction of the bond within ``self``.
+        Args:
+            direction: The relative direction of the bond within ``self``.
 
-		Returns:
-			The ID of the requested bond.
-		"""
-		if direction == TreeDir.PARENT:
-			return self.bonds[0]
-		elif direction == TreeDir.LEFT:
-			return self.bonds[1]
-		elif direction == TreeDir.RIGHT:
-			return self.bonds[2]
-		else:
-			raise RuntimeError(f"Invalid direction: {direction}")
-
-	def set_bond_at(self, direction: TreeDir, bond: Bond) -> None:
-		"""Set the ID of the bond of ``self`` in the requested direction.
-
-		Args:
-			direction: The relative direction of the bond within ``self``.
-			bond: The new ID of said bond.
-		"""
-		if direction == TreeDir.PARENT:
-			self.bonds[0] = bond
-		elif direction == TreeDir.LEFT:
-			self.bonds[1] = bond
-		elif direction == TreeDir.RIGHT:
-			self.bonds[2] = bond
-		else:
-			raise RuntimeError(f"Invalid direction: {direction}")
-
-	def copy(self) -> TreeTensor:
+        Returns:
+            The ID of the requested bond.
         """
+        if direction == TreeDir.PARENT:
+            return self.bonds[0]
+        elif direction == TreeDir.LEFT:
+            return self.bonds[1]
+        elif direction == TreeDir.RIGHT:
+            return self.bonds[2]
+        else:
+            raise RuntimeError(f"Invalid direction: {direction}")
+
+    def set_bond_at(self, direction: TreeDir, bond: Bond) -> None:
+        """Set the ID of the bond of ``self`` in the requested direction.
+
+        Args:
+            direction: The relative direction of the bond within ``self``.
+            bond: The new ID of said bond.
+        """
+        if direction == TreeDir.PARENT:
+            self.bonds[0] = bond
+        elif direction == TreeDir.LEFT:
+            self.bonds[1] = bond
+        elif direction == TreeDir.RIGHT:
+            self.bonds[2] = bond
+        else:
+            raise RuntimeError(f"Invalid direction: {direction}")
+
+    def copy(self) -> TreeTensor:
+        """Deep copy of the tensor.
+
         Returns:
             A deep copy of the TreeTensor.
         """
@@ -97,20 +98,20 @@ class TreeTensor(Tensor):
 
 
 class TTN:
-	"""Parent class for state-based simulation using Tree Tensor Network
+    """Parent class for state-based simulation using Tree Tensor Network
     representation.
 
-	Attributes:
-		chi (int): The maximum allowed dimension of a virtual bond.
+    Attributes:
+        chi (int): The maximum allowed dimension of a virtual bond.
         leaf_nodes (list[TensorNode]): A list of the leaf nodes in the TTN. Each
-        	leaf node has two physical bonds (two qubits).
+            leaf node has two physical bonds (two qubits).
         qubit_bond (dict[Qubit, Bond]): A dictionary mapping circuit qubits
             to the physical bond they correspond to in the TTN.
         fidelity (float): A lower bound of the fidelity, obtained by multiplying
             the fidelities after each contraction. The fidelity of a contraction
             corresponds to |<psi|phi>|^2 where |psi> and |phi> are the states
             before and after truncation (assuming both are normalised).
-	"""
+    """
 
     def __init__(
         self, qubits: list[Qubit], chi: int, float_precision: Optional[str] = None
