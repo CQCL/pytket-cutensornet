@@ -231,7 +231,7 @@ class TensorNetwork:
 
     def _get_tn_indices(
         self, net: nx.MultiDiGraph, adj: bool = False
-    ) -> Tuple[List[Any], dict[Any]]:
+    ) -> Tuple[List[Any], dict[str, int]]:
         """Computes indices of the edges of the tensor network nodes (tensors).
 
         Indices are computed such that they range from high (for circuit leftmost gates)
