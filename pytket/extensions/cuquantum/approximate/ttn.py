@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from __future__ import annotations  # type: ignore
+from typing import Optional
 from enum import Enum  # type: ignore
 import math
 import random
@@ -42,6 +43,7 @@ class TreeTensor(Tensor):
             canonicalised), indicate which bond is the one that remains open when
             applying the dagger isometry.
     """
+
     # The ``Tensor`` bonds in ``self.bonds`` are always ordered as follows:
     # [PARENT, LEFT, RIGHT]. These are present even in the case of the root
     # of the TTN, where PARENT is just a bond of dimension 1.
@@ -199,7 +201,7 @@ class TTN:
         # uniformly throughout to avoid biasing the size of subtrees.
         l = math.ceil(math.log(n_qubits, 2))  # Tree height
         dummies = [None for i in range(2**l - n_qubits)]
-        qubits_and_dummies = []
+        qubits_and_dummies: list[Optional[Qubit]] = []
         # The proportion of actual qubits vs qubits+dummies
         prop_q = n_qubits / (n_qubits + len(dummies))
         # Add qubits or dummies trying to maintain the proportion
@@ -222,7 +224,7 @@ class TTN:
             # For each ``k``, ``qubits_and_dummies[k]`` is assigned to bond ID ``k+1``
             # Notice that ``qubits_and_dummies`` is in reverse order, but this should
             # not cause any issues.
-            bond_ids = [2**l + 1 + i, 2*i + 1, 2*i + 2]  # [PARENT, LEFT, RIGHT]
+            bond_ids = [2**l + 1 + i, 2 * i + 1, 2 * i + 2]  # [PARENT, LEFT, RIGHT]
             self.qubit_bond[q_left] = bond_ids[1]
             self.qubit_bond[q_right] = bond_ids[2]
 
@@ -244,7 +246,6 @@ class TTN:
         # Create all of the other tensors
         previous_layer = self.leaf_nodes
         for j in range(1, l):  # Create one layer at a time
-
             left_tensors = [t for i, t in enumerate(previous_layer) if i % 2 == 0]
             right_tensors = [t for i, t in enumerate(previous_layer) if i % 2 == 1]
             assert len(left_tensors) == len(right_tensors)
@@ -269,7 +270,3 @@ class TTN:
                 previous_layer.append(tensor)
 
         assert len(previous_layer) == 1  # Last layer is just the root tensor
-
-
-
-
