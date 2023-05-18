@@ -289,7 +289,7 @@ class TensorNetwork:
             eids_sorted[qnames_unsorted.index(q)] for q in self._qubit_names_ilo
         ]
         uid_to_eid = {}
-        for uid, eid in zip(uids, eids_ilo):
+        for uid, eid in zip(sorted(uids), eids_ilo):
             uid_to_eid[uid] = eid
         for edge in edges_out:
             uid = edge_indices[edge][0][1]
