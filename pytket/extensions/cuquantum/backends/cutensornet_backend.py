@@ -200,9 +200,9 @@ class CuTensorNetBackend(Backend):
         handle_list = []
         for circuit in circuit_list:
             state_tnet = tk_to_tensor_network(circuit)
-            state_tnet.append(
-                list(range(1, circuit.n_qubits + 1))
-            )  # This ensures the right order.
+            #state_tnet.append(
+            #    list(range(1, circuit.n_qubits + 1))
+            #)  # This ensures the right order.
             state = cq.contract(*state_tnet).flatten()
             try:  # This constraint (from pytket-Qulacs) seems reasonable?
                 phase = float(circuit.phase)
