@@ -19,7 +19,7 @@ from pytket.extensions.cuquantum.tensor_network_convert import (  # type: ignore
 def state_contract(tn: List[Union[NDArray, List]], nqubit: int) -> NDArray:
     """Calls cuQuantum contract function to contract an input state tensor network."""
     state_tn = tn.copy()
-    state_tn.append(list(range(1, nqubit + 1)))  # This ensures the right ordering
+    #state_tn.append(list(range(1, nqubit + 1)))  # This ensures the right ordering
     state: NDArray = cq.contract(*state_tn).flatten()
     return state
 
