@@ -270,3 +270,65 @@ class TTN:
                 previous_layer.append(tensor)
 
         assert len(previous_layer) == 1  # Last layer is just the root tensor
+
+    def is_valid(self) -> bool:
+        """Verify that the TTN does not exceed the dimension limit (chi) of
+        the virtual bonds, that physical bonds have dimension 2 and that
+        the virtual bonds form a tree.
+
+        Returns:
+            False if a violation was detected.
+        """
+        self._flush()
+
+        chi_ok = True
+        phys_ok = True
+        b_id_ok = True
+        tree_ok = True
+
+        bond_id = 1
+        for tensor in self.leaf_nodes:
+            b_id_ok = b_id_ok and tensor.get_bond_at(TreeDir.LEFT) == bond_id
+            b_id_ok = b_id_ok and tensor.get_bond_at(TreeDir.RIGHT) == bond_id + 1
+            bond_id += 2
+
+        for q, b_id in qubit_bond:
+            tensor = self.get_leaf_tensor_of(q)
+            phys_ok = phys_ok and tensor.get_dimension_of(b_id) == 2
+
+        virtual_bond_set = set()
+        nodes_to_visit = self.leaf_nodes.copy()
+        root_node = None  # type: ignore
+        while nodes_to_visit:
+            tensor = nodes_to_visit.pop()
+            parent = tensor.neighbours[TreeDir.PARENT]
+            if parent is not None:
+                tree_ok = tree_ok and tensor in [parent.neighbours[TreeDir.LEFT], parent.neighbours[TreeDir.RIGHT]]
+                bond = tensor.get_bond_at(TreeDir.PARENT)
+                chi_ok = chi_ok and tensor.get_dimension_of(bond) <= self.chi
+                virtual_bond_set.add(bond)
+                nodes_to_visit.append(parent)
+            else:
+                if root_node is None:
+                    root_node = tensor
+                else:
+                    tree_ok = tree_ok and tensor is root_node
+
+        l = math.log(len(self.leaf_nodes, 2))  # Number of layers
+        total_virtual_bonds = sum([2**k for k in range(l+1)])
+        b_id_ok = b_id_ok and len(virtual_bond_set) == total_virtual_bonds
+
+        return chi_ok and phys_ok and b_id_ok and tree_ok
+
+    def get_leaf_tensor_of(self, qubit: Qubit) -> TreeTensor:
+        """Retrieve the tensor from ``leaf_nodes`` that contains the information
+        of the given ``qubit``.
+
+        Returns:
+            A reference to the corresponding tensor.
+        """
+        bond = self.qubit_bond[qubit]
+        t_index = math.floor((bond - 1) / 2)
+        t = self.leaf_nodes[t_index]
+        assert bond in [t.get_bond_at(TreeDir.LEFT), t.get_bond_at(TreeDir.RIGHT)]
+        return tensor
