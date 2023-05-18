@@ -294,31 +294,6 @@ class TensorNetwork:
         for edge in edges_out:
             uid = edge_indices[edge][0][1]
             edge_indices[edge] = [(uid_to_eid[uid], uid)]
-        # Check if need to swap indices for outward indices
-        # for node in nodes_out:
-        #    prenode = next(net.predecessors(node))
-        #    eid = edge_indices[(prenode, node)][0][0]
-        #    qid = edge_indices[(prenode, node)][0][1]
-        #    if (
-        #        eid - sign * 1 != sign * qid
-        #    ):  # Edge indexing starts from 1 or -1, qubit from 0
-        #        lswap = False
-        #        # expensive:
-        #        for edge, idx_lst in edge_indices.items():
-        #            for i, (ei, qi) in enumerate(idx_lst):
-        #                if ei - sign * 1 == sign * qid:
-        #                    self._logger.debug(
-        #                        f"Swapping indices of edges {edge} and "
-        #                        f"({prenode, node})!"
-        #                    )
-        #                    edge_indices[(prenode, node)] = [
-        #                        (edge_indices[edge][i][0], qid)
-        #                    ]
-        #                    edge_indices[edge][i] = (eid, qi)
-        #                    lswap = True
-        #                    break
-        #            if lswap:
-        #                break
         self._logger.debug(
             f"Network edge indices after swaps (if any): \n {edge_indices}"
         )
@@ -333,7 +308,6 @@ class TensorNetwork:
                 f" is not equal to number of qubits"
                 f" ({len(self._output_nodes)})"
             )
-        # sticky_indices.sort(key=abs)
         self._logger.debug(f"sticky (outer) edge indices: \n {sticky_indices}")
         # Assign correctly ordered indices to tensors (nodes) and store their lists in
         # the same order as we store tensors themselves.

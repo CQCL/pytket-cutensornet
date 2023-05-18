@@ -200,9 +200,6 @@ class CuTensorNetBackend(Backend):
         handle_list = []
         for circuit in circuit_list:
             state_tnet = tk_to_tensor_network(circuit)
-            #state_tnet.append(
-            #    list(range(1, circuit.n_qubits + 1))
-            #)  # This ensures the right order.
             state = cq.contract(*state_tnet).flatten()
             try:  # This constraint (from pytket-Qulacs) seems reasonable?
                 phase = float(circuit.phase)
@@ -218,7 +215,7 @@ class CuTensorNetBackend(Backend):
             res_qubits = [
                 implicit_perm[qb] for qb in sorted(circuit.qubits, reverse=False)
             ]  # reverse was set to True in the pytket-example but this fails tests.
-            # The below line is as per pytket-Qulacs, but this alone failt the implicit
+            # The below line is as per pytket-Qulacs, but this alone fails the implicit
             # permutation test result.
             # res_qubits = sorted(circuit.qubits, reverse=False)
             handle = ResultHandle(str(uuid4()))
