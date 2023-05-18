@@ -31,6 +31,10 @@ from .mps_mpo import (
     MPSxMPO,
 )
 
+from .ttn import (
+    TTN,
+)
+
 from .simulation import (
     prepare_circuit,
     simulate,

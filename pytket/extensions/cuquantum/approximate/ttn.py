@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from __future__ import annotations  # type: ignore
-from typing import Optional
+from typing import Optional, Any
 from enum import Enum  # type: ignore
 import math
 import random
@@ -213,8 +213,8 @@ class TTN:
                 qubits_and_dummies.append(qubits.pop())
 
         # Create the leaf nodes
-        self.leaf_nodes = []
-        self.qubit_bond = dict()
+        self.leaf_nodes: list[TreeTensor] = []
+        self.qubit_bond: dict[Qubit, Bond] = dict()
         # Each leaf node will contain a left bond and a right bond
         left_bonds = [q for i, q in enumerate(qubits_and_dummies) if i % 2 == 0]
         right_bonds = [q for i, q in enumerate(qubits_and_dummies) if i % 2 == 1]
@@ -292,18 +292,21 @@ class TTN:
             b_id_ok = b_id_ok and tensor.get_bond_at(TreeDir.RIGHT) == bond_id + 1
             bond_id += 2
 
-        for q, b_id in qubit_bond:
+        for q, b_id in self.qubit_bond.items():
             tensor = self.get_leaf_tensor_of(q)
             phys_ok = phys_ok and tensor.get_dimension_of(b_id) == 2
 
         virtual_bond_set = set()
         nodes_to_visit = self.leaf_nodes.copy()
-        root_node = None  # type: ignore
+        root_node: Optional[TreeTensor] = None
         while nodes_to_visit:
             tensor = nodes_to_visit.pop()
-            parent = tensor.neighbours[TreeDir.PARENT]
-            if parent is not None:
-                tree_ok = tree_ok and tensor in [parent.neighbours[TreeDir.LEFT], parent.neighbours[TreeDir.RIGHT]]
+            if TreeDir.PARENT in tensor.neighbours.keys():
+                parent = tensor.neighbours[TreeDir.PARENT]
+                tree_ok = tree_ok and tensor in [
+                    parent.neighbours[TreeDir.LEFT],
+                    parent.neighbours[TreeDir.RIGHT],
+                ]
                 bond = tensor.get_bond_at(TreeDir.PARENT)
                 chi_ok = chi_ok and tensor.get_dimension_of(bond) <= self.chi
                 virtual_bond_set.add(bond)
@@ -314,8 +317,8 @@ class TTN:
                 else:
                     tree_ok = tree_ok and tensor is root_node
 
-        l = math.log(len(self.leaf_nodes, 2))  # Number of layers
-        total_virtual_bonds = sum([2**k for k in range(l+1)])
+        l = int(math.log(len(self.leaf_nodes), 2))  # Number of layers
+        total_virtual_bonds = sum([2**k for k in range(l + 1)])
         b_id_ok = b_id_ok and len(virtual_bond_set) == total_virtual_bonds
 
         return chi_ok and phys_ok and b_id_ok and tree_ok
@@ -331,4 +334,19 @@ class TTN:
         t_index = math.floor((bond - 1) / 2)
         t = self.leaf_nodes[t_index]
         assert bond in [t.get_bond_at(TreeDir.LEFT), t.get_bond_at(TreeDir.RIGHT)]
-        return tensor
+        return t
+
+    def __del__(self) -> None:
+        cutn.destroy(self._libhandle)
+
+    def __enter__(self) -> TTN:
+        return self
+
+    def __exit__(self, exc_type: Any, exc_value: Any, exc_tb: Any) -> None:
+        del self
+
+    def _flush(self) -> None:
+        # Does nothing in the general MPS case; but children classes with batched
+        # gate contraction will redefine this method so that the last batch of
+        # gates is applied.
+        return None
