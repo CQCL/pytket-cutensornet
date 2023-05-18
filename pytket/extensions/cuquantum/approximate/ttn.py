@@ -13,6 +13,8 @@
 # limitations under the License.
 from __future__ import annotations  # type: ignore
 from enum import Enum  # type: ignore
+import math
+import random
 
 import cupy as cp  # type: ignore
 import numpy as np  # type: ignore
@@ -185,19 +187,88 @@ class TTN:
         self.chi = chi
         self.fidelity = 1.0
 
-        n_tensors = len(qubits)
-        if n_tensors == 0:  # There's no initialisation to be done
+        n_qubits = len(qubits)
+        if n_qubits == 0:  # There's no initialisation to be done
             return None
-        elif n_tensors == 1:
+        elif n_qubits == 1:
             raise RuntimeError("Please, provide at least two qubits.")
 
         # If the number of qubits is not a power of 2, add dummies to the
         # ``qubits`` list so that it is a power of 2. Add these dummies
-        # uniformly throughout to avoid biasing the size of the TTN.
+        # uniformly throughout to avoid biasing the size of subtrees.
+        l = math.ceil(math.log(n_qubits, 2))  # Tree height
+        dummies = [None for i in range(2**l - n_qubits)]
+        qubits_and_dummies = []
+        # The proportion of actual qubits vs qubits+dummies
+        prop_q = n_qubits / (n_qubits + len(dummies))
+        # Add qubits or dummies trying to maintain the proportion
+        for _ in range(2**l):
+            # If the proportion of qubits left is small, we need to add dummies
+            if len(qubits) / (len(qubits) + len(dummies)) < prop_q:
+                qubits_and_dummies.append(dummies.pop())
+            else:
+                qubits_and_dummies.append(qubits.pop())
 
-        # TODO
+        # Create the leaf nodes
+        self.leaf_nodes = []
+        self.qubit_bond = dict()
+        # Each leaf node will contain a left bond and a right bond
+        left_bonds = [q for i, q in enumerate(qubits_and_dummies) if i % 2 == 0]
+        right_bonds = [q for i, q in enumerate(qubits_and_dummies) if i % 2 == 1]
+        assert len(left_bonds) == len(right_bonds)
 
-        # For each ``i``, ``qubits[i]`` is assigned to bond ID ``i+1``
-        self.qubit_bond = {q: i+1 for i, q in enumerate(qubits)}
+        for i, (q_left, q_right) in enumerate(zip(left_bonds, right_bonds)):
+            # For each ``k``, ``qubits_and_dummies[k]`` is assigned to bond ID ``k+1``
+            # Notice that ``qubits_and_dummies`` is in reverse order, but this should
+            # not cause any issues.
+            bond_ids = [2**l + 1 + i, 2*i + 1, 2*i + 2]  # [PARENT, LEFT, RIGHT]
+            self.qubit_bond[q_left] = bond_ids[1]
+            self.qubit_bond[q_right] = bond_ids[2]
 
-        # TODO: Continue as in MPS
+            # Create the tensor of shape [PARENT, LEFT, RIGHT] on state |0>
+            if q_left is None and q_right is None:  # Both are dummies
+                leaf_tensor = cp.zeros(shape=(1, 1, 1), dtype=self._complex_t)
+            elif q_left is None:  # Only the left one is a dummy
+                leaf_tensor = cp.zeros(shape=(1, 1, 2), dtype=self._complex_t)
+            elif q_right is None:  # Only the right one is a dummy
+                leaf_tensor = cp.zeros(shape=(1, 2, 1), dtype=self._complex_t)
+            else:  # Neither is a dummy
+                leaf_tensor = cp.zeros(shape=(1, 2, 2), dtype=self._complex_t)
+            # The state |0> has a 1 on the same entry and 0 in the rest
+            leaf_tensor[0][0][0] = 1
+
+            # Append the leaf node to the list
+            self.leaf_nodes.append(TreeTensor(leaf_tensor, bond_ids))
+
+        # Create all of the other tensors
+        previous_layer = self.leaf_nodes
+        for j in range(1, l):  # Create one layer at a time
+
+            left_tensors = [t for i, t in enumerate(previous_layer) if i % 2 == 0]
+            right_tensors = [t for i, t in enumerate(previous_layer) if i % 2 == 1]
+            assert len(left_tensors) == len(right_tensors)
+            previous_layer = []  # Clean up to start creating current layer
+
+            for i, (t_left, t_right) in enumerate(zip(left_tensors, right_tensors)):
+                # The tensor is just a placeholder for now, all dimensions are 1
+                tensor_d = cp.ones(shape=(1, 1, 1), dtype=self._complex_t)
+                bond_ids = [
+                    j * 2**l + i + 1,  # PARENT bond ID (it skips some numbers)
+                    t_left.get_bond_at(TreeDir.PARENT),  # Connect with left tensor
+                    t_right.get_bond_at(TreeDir.PARENT),  # Connect with right tensor
+                ]
+                tensor = TreeTensor(tensor_d, bond_ids)
+                # Give the references of children to parent and vice versa
+                tensor.neighbours[TreeDir.LEFT] = t_left
+                tensor.neighbours[TreeDir.RIGHT] = t_right
+                t_left.neighbours[TreeDir.PARENT] = tensor
+                t_right.neighbours[TreeDir.PARENT] = tensor
+
+                # Keep track of this layer's tensors
+                previous_layer.append(tensor)
+
+        assert len(previous_layer) == 1  # Last layer is just the root tensor
+
+
+
+
