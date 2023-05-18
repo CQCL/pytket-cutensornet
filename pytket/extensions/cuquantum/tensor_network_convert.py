@@ -72,7 +72,8 @@ class TensorNetwork:
             loglevel: Internal logger output level.
         """
         self._logger = set_logger("TensorNetwork", loglevel)
-        self._circuit = circuit.replace_implicit_wire_swaps()
+        self._circuit = circuit
+        self._circuit.replace_implicit_wire_swaps()
         self._qubit_names_ilo = [
             "".join([q.reg_name, "".join([f"[{str(i)}]" for i in q.index])])
             for q in self._circuit.qubits
