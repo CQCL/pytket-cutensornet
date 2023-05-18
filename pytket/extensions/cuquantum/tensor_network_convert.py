@@ -72,17 +72,15 @@ class TensorNetwork:
             loglevel: Internal logger output level.
         """
         self._logger = set_logger("TensorNetwork", loglevel)
-        self._circuit = circuit
+        self._circuit = circuit.replace_implicit_wire_swaps()
         self._qubit_names_ilo = [
             "".join([q.reg_name, "".join([f"[{str(i)}]" for i in q.index])])
-            for q in circuit.qubits
+            for q in self._circuit.qubits
         ]
         self._logger.debug(f"ILO-ordered qubit names: {self._qubit_names_ilo}")
-        self._graph = Graph(circuit)
+        self._graph = Graph(self._circuit)
         self._uid_to_qname = self._graph.input_names
         self._logger.debug(f"NX UnitID's to qubit names map: {self._uid_to_qname}")
-        self._qname_to_uid = {qname: uid for uid, qname in self._uid_to_qname.items()}
-        self._logger.debug(f"Qubit names to NX UnitID's map: {self._qname_to_uid}")
         self._network = self._graph.as_nx()
         self._node_tensors = self._assign_node_tensors(adj=adj)
         self._node_tensor_indices, self.sticky_indices = self._get_tn_indices(
