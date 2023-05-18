@@ -73,7 +73,6 @@ class TensorNetwork:
         """
         self._logger = set_logger("TensorNetwork", loglevel)
         self._circuit = circuit
-        # self._qubit_names_ilo = [q.to_list()[0] for q in circuit.qubits]
         self._qubit_names_ilo = [
             "".join([q.reg_name, "".join([f"[{str(i)}]" for i in q.index])])
             for q in circuit.qubits
@@ -301,7 +300,7 @@ class TensorNetwork:
         sticky_indices = {}
         for edge in edges_out:
             for eid, uid in edge_indices[edge]:
-                sticky_indices[uid] = eid
+                sticky_indices[self._uid_to_qname[uid]] = eid
         if len(sticky_indices) != len(self._output_nodes):
             raise RuntimeError(
                 f"Number of sticky indices ({len(sticky_indices)})"
@@ -461,9 +460,9 @@ class TensorNetwork:
         tn_other_adj = tn_other.dagger()
         i_mat = np.array([[1, 0], [0, 1]], dtype="complex128")
         sticky_index_pairs = []
-        for iq in self.sticky_indices:
+        for q in self.sticky_indices:
             sticky_index_pairs.append(
-                (self.sticky_indices[iq], tn_other_adj.sticky_indices[iq])
+                (self.sticky_indices[q], tn_other_adj.sticky_indices[q])
             )
         connector = [
             f(x, y)  # type: ignore
@@ -512,23 +511,31 @@ class PauliOperatorTensorNetwork:
         self._logger = set_logger("PauliOperatorTensorNetwork", loglevel)
         self._pauli_tensors = [self.PAULI[pauli.name] for pauli in paulis.map.values()]
         self._logger.debug(f"Pauli tensors: {self._pauli_tensors}")
-        qubit_ids = [qubit.to_list()[1][0] + 1 for qubit in paulis.map.keys()]
+        qubit_names = [
+            "".join([q.reg_name, "".join([f"[{str(i)}]" for i in q.index])])
+            for q in paulis.map.keys()
+        ]
+        # qubit_ids = [qubit.to_list()[1][0] + 1 for qubit in paulis.map.keys()]
         qubit_to_pauli = {
             qubit: pauli_tensor
-            for (qubit, pauli_tensor) in zip(qubit_ids, self._pauli_tensors)
+            for (qubit, pauli_tensor) in zip(qubit_names, self._pauli_tensors)
         }
         self._logger.debug(f"qubit to Pauli mapping: {qubit_to_pauli}")
         if set(bra.sticky_indices.keys()) != set(ket.sticky_indices.keys()):
             raise RuntimeError("The bra and ket tensor networks are incompatible!")
         sticky_index_pairs = []
-        for iq in ket.sticky_indices:
-            sticky_index_pairs.append((ket.sticky_indices[iq], bra.sticky_indices[iq]))
+        sticky_qubits = []
+        for q in ket.sticky_indices:
+            sticky_index_pairs.append((ket.sticky_indices[q], bra.sticky_indices[q]))
+            sticky_qubits.append(q)
         self._cuquantum_interleaved = [
-            f(x, y)  # type: ignore
-            for x, y in sticky_index_pairs
+            f(x, y, q)  # type: ignore
+            for (x, y), q in zip(sticky_index_pairs, sticky_qubits)
             for f in (
-                lambda x, y: qubit_to_pauli[x] if (x in qubit_ids) else self.PAULI["I"],
-                lambda x, y: [y, x],
+                lambda x, y, q: qubit_to_pauli[q]
+                if (q in qubit_names)
+                else self.PAULI["I"],
+                lambda x, y, q: [y, x],
             )
         ]
         self._logger.debug(f"Pauli TN: {self.cuquantum_interleaved}")
