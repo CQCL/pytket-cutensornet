@@ -22,7 +22,7 @@ import networkx as nx  # type: ignore
 from networkx.classes.reportviews import OutMultiEdgeView, OutMultiEdgeDataView  # type: ignore
 import numpy as np
 from numpy.typing import NDArray
-from pytket import Qubit
+from pytket import Qubit  # type: ignore
 from pytket.utils import Graph
 from pytket.pauli import QubitPauliString  # type: ignore
 from pytket.circuit import Circuit
@@ -75,10 +75,7 @@ class TensorNetwork:
         self._logger = set_logger("TensorNetwork", loglevel)
         self._circuit = circuit
         # self._circuit.replace_implicit_wire_swaps()
-        self._qubit_names_ilo = [
-            "".join([q.reg_name, "".join([f"[{str(i)}]" for i in q.index])])
-            for q in self._circuit.qubits
-        ]
+        self._qubit_names_ilo = [str(q) for q in self._circuit.qubits]
         self._logger.debug(f"ILO-ordered qubit names: {self._qubit_names_ilo}")
         self._graph = Graph(self._circuit)
         qname_to_q = {
@@ -288,12 +285,12 @@ class TensorNetwork:
             ]
         )
         eids_sorted = sorted(eids, key=abs)
-        qnames_unsorted = [qname for qname in self._graph.input_names.values()]
-        eids_ilo = [
-            eids_sorted[qnames_unsorted.index(q)] for q in self._qubit_names_ilo
-        ]
+        qnames_graph_sorted = [qname for qname in self._graph.input_names.values()]
+        eids_graph_sorted = [
+            eids_sorted[qnames_graph_sorted.index(q)] for q in self._qubit_names_ilo
+        ]  # Sort eid's in the same way as qnames_graph_sorted as compared to ILO
         uid_to_eid = {}
-        for uid, eid in zip(sorted(uids), eids_ilo):
+        for uid, eid in zip(sorted(uids), eids_graph_sorted):
             uid_to_eid[uid] = eid
         for edge in edges_out:
             uid = edge_indices[edge][0][1]
