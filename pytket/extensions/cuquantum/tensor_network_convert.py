@@ -22,6 +22,7 @@ import networkx as nx  # type: ignore
 from networkx.classes.reportviews import OutMultiEdgeView, OutMultiEdgeDataView  # type: ignore
 import numpy as np
 from numpy.typing import NDArray
+from pytket import Qubit
 from pytket.utils import Graph
 from pytket.pauli import QubitPauliString  # type: ignore
 from pytket.circuit import Circuit
@@ -73,15 +74,20 @@ class TensorNetwork:
         """
         self._logger = set_logger("TensorNetwork", loglevel)
         self._circuit = circuit
-        self._circuit.replace_implicit_wire_swaps()
+        # self._circuit.replace_implicit_wire_swaps()
         self._qubit_names_ilo = [
             "".join([q.reg_name, "".join([f"[{str(i)}]" for i in q.index])])
             for q in self._circuit.qubits
         ]
         self._logger.debug(f"ILO-ordered qubit names: {self._qubit_names_ilo}")
         self._graph = Graph(self._circuit)
-        self._uid_to_qname = self._graph.input_names
-        self._logger.debug(f"NX UnitID's to qubit names map: {self._uid_to_qname}")
+        qname_to_q = {
+            qname: q for qname, q in zip(self._qubit_names_ilo, self._circuit.qubits)
+        }
+        self._uid_to_qubit = {
+            uid: qname_to_q[qname] for uid, qname in self._graph.input_names.items()
+        }
+        self._logger.debug(f"NX UnitID's to qubit objects map: {self._uid_to_qubit}")
         self._network = self._graph.as_nx()
         self._node_tensors = self._assign_node_tensors(adj=adj)
         self._node_tensor_indices, self.sticky_indices = self._get_tn_indices(
@@ -232,7 +238,7 @@ class TensorNetwork:
 
     def _get_tn_indices(
         self, net: nx.MultiDiGraph, adj: bool = False
-    ) -> Tuple[List[Any], dict[str, int]]:
+    ) -> Tuple[List[Any], dict[Qubit, int]]:
         """Computes indices of the edges of the tensor network nodes (tensors).
 
         Indices are computed such that they range from high (for circuit leftmost gates)
@@ -299,7 +305,7 @@ class TensorNetwork:
         sticky_indices = {}
         for edge in edges_out:
             for eid, uid in edge_indices[edge]:
-                sticky_indices[self._uid_to_qname[uid]] = eid
+                sticky_indices[self._uid_to_qubit[uid]] = eid
         if len(sticky_indices) != len(self._output_nodes):
             raise RuntimeError(
                 f"Number of sticky indices ({len(sticky_indices)})"
@@ -510,14 +516,15 @@ class PauliOperatorTensorNetwork:
         self._logger = set_logger("PauliOperatorTensorNetwork", loglevel)
         self._pauli_tensors = [self.PAULI[pauli.name] for pauli in paulis.map.values()]
         self._logger.debug(f"Pauli tensors: {self._pauli_tensors}")
-        qubit_names = [
-            "".join([q.reg_name, "".join([f"[{str(i)}]" for i in q.index])])
-            for q in paulis.map.keys()
-        ]
+        qubits = [q for q in paulis.map.keys()]
+        # qubit_names = [
+        #    "".join([q.reg_name, "".join([f"[{str(i)}]" for i in q.index])])
+        #    for q in paulis.map.keys()
+        # ]
         # qubit_ids = [qubit.to_list()[1][0] + 1 for qubit in paulis.map.keys()]
         qubit_to_pauli = {
             qubit: pauli_tensor
-            for (qubit, pauli_tensor) in zip(qubit_names, self._pauli_tensors)
+            for (qubit, pauli_tensor) in zip(qubits, self._pauli_tensors)
         }
         self._logger.debug(f"qubit to Pauli mapping: {qubit_to_pauli}")
         if set(bra.sticky_indices.keys()) != set(ket.sticky_indices.keys()):
@@ -531,9 +538,7 @@ class PauliOperatorTensorNetwork:
             f(x, y, q)  # type: ignore
             for (x, y), q in zip(sticky_index_pairs, sticky_qubits)
             for f in (
-                lambda x, y, q: qubit_to_pauli[q]
-                if (q in qubit_names)
-                else self.PAULI["I"],
+                lambda x, y, q: qubit_to_pauli[q] if (q in qubits) else self.PAULI["I"],
                 lambda x, y, q: [y, x],
             )
         ]
