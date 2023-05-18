@@ -75,7 +75,7 @@ class TensorNetwork:
         self._circuit = circuit
         # self._qubit_names_ilo = [q.to_list()[0] for q in circuit.qubits]
         self._qubit_names_ilo = [
-            "".join([q.reg_name, "".join([str(i) for i in q.index])])
+            "".join([q.reg_name, "".join([f"[{str(i)}]" for i in q.index])])
             for q in circuit.qubits
         ]
         self._logger.debug(f"ILO-ordered qubit names: {self._qubit_names_ilo}")
