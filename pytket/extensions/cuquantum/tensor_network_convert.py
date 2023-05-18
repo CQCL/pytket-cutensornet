@@ -283,7 +283,7 @@ class TensorNetwork:
                 if key in edges_out
             ]
         )
-        eids_sorted = sorted(eids)
+        eids_sorted = sorted(eids, key=abs)
         qnames_unsorted = [qname for qname in self._graph.input_names.values()]
         eids_ilo = [
             eids_sorted[qnames_unsorted.index(q)] for q in self._qubit_names_ilo
