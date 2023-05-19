@@ -378,7 +378,7 @@ class TensorNetwork:
         Args:
             edge_indices: a map from pytket graph edges (tuples of two integers,
              representing adjacent nodes) to a list of tuples, containing an assigned
-             edge index and a corresponding qubit index.
+             edge index and a corresponding unit_id (graph-specific qubit label).
             edges: pytket graph edges (list of tuples of two integers).
             edges_data: pytket graph edges with metadata (list of tuples of two integers
              and a dict).
@@ -388,24 +388,24 @@ class TensorNetwork:
             logger: a logger object.
         """
         gate_edges_ordered = {}
-        qi_to_local_ei = {}
-        qis = []
+        uid_to_local_ei = {}
+        uids = []
         for edge_data in edges_data:
             logger.debug(f"Edge data: {edge_data}")
-            logger.debug(f"Qubit id: {int(edge_data[-1]['unit_id'] / 2)}")
-            qis.append(int(edge_data[-1]["unit_id"] / 2))
-        qis.sort()
-        for i, qi in enumerate(qis):
-            qi_to_local_ei[qi] = offset + i
-        logger.debug(f"Qubit to local edge index map: {qi_to_local_ei}")
+            uids.append(int(edge_data[-1]["unit_id"]))
+            logger.debug(f"UID: {uids[-1]}")
+        uids.sort()
+        for i, uid in enumerate(uids):
+            uid_to_local_ei[uid] = offset + i
+        logger.debug(f"UID to local edge index map: {uid_to_local_ei}")
         for edge_data, edge in zip(edges_data, edges):
-            qi = int(edge_data[-1]["unit_id"] / 2)
+            uid = int(edge_data[-1]["unit_id"])
             if len(edge_indices[edge]) == 1:
-                gate_edges_ordered[qi_to_local_ei[qi]] = edge_indices[edge][0][0]
+                gate_edges_ordered[uid_to_local_ei[uid]] = edge_indices[edge][0][0]
             else:
-                for e, q in edge_indices[edge]:
-                    if q == qi:
-                        gate_edges_ordered[qi_to_local_ei[qi]] = e
+                for e, u in edge_indices[edge]:
+                    if u == uid:
+                        gate_edges_ordered[uid_to_local_ei[uid]] = e
                         break
         return gate_edges_ordered
 
