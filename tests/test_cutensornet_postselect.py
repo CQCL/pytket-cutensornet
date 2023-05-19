@@ -23,7 +23,7 @@ from pytket.passes import DecomposeBoxes
         pytest.lazy_fixture("q2_x1cx10x1"),  # type: ignore
         pytest.lazy_fixture("q2_x0cx01cx10"),  # type: ignore
         pytest.lazy_fixture("q2_v0cx01cx10"),  # type: ignore
-        # pytest.lazy_fixture("q2_hadamard_test"),  # type: ignore
+        pytest.lazy_fixture("q2_hadamard_test"),  # type: ignore
         pytest.lazy_fixture("q2_lcu1"),  # type: ignore
         pytest.lazy_fixture("q2_lcu2"),  # type: ignore
         pytest.lazy_fixture("q2_lcu3"),  # type: ignore
@@ -83,6 +83,11 @@ def test_postselect_qubits_state_3q(circuit_3q: Circuit) -> None:
         pytest.lazy_fixture("q2_x0cx01"),  # type: ignore
         pytest.lazy_fixture("q2_x1cx10x1"),  # type: ignore
         pytest.lazy_fixture("q2_hadamard_test"),  # type: ignore
+        pytest.lazy_fixture("q2_hadamard_test_reg_names"),  # type: ignore
+        pytest.lazy_fixture("q2_hadamard_test1"),  # type: ignore
+        pytest.lazy_fixture("q2_hadamard_test2"),  # type: ignore
+        pytest.lazy_fixture("q2_hadamard_test3"),  # type: ignore
+        pytest.lazy_fixture("q2_hadamard_test4"),  # type: ignore
         pytest.lazy_fixture("q2_lcu1"),  # type: ignore
         pytest.lazy_fixture("q2_lcu2"),  # type: ignore
         pytest.lazy_fixture("q2_lcu3"),  # type: ignore

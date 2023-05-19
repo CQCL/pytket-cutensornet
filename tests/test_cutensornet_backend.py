@@ -107,8 +107,6 @@ def test_expectation_value() -> None:
         pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
         pytest.lazy_fixture("q3_pauli_gadget0"),  # type: ignore
         pytest.lazy_fixture("q3_pauli_gadget1"),  # type: ignore
-        # pytest.lazy_fixture("q3_hadamard_test4"),
-        # pytest.lazy_fixture("q3_hadamard_test5"),
         pytest.lazy_fixture("q4_lcu1"),  # type: ignore
     ],
 )

@@ -161,8 +161,10 @@ def q3_hadamard_test2() -> Circuit:
 
 @pytest.fixture
 def q3_hadamard_test3() -> Circuit:
-    circuit = Circuit(3)
-    circuit.Ry(0.12, 1).Ry(0.68, 2).H(0).CX(0, 2).CZ(0, 1).H(0)
+    circuit = Circuit(2)
+    a = circuit.add_q_register('a', 1)
+    q = circuit.get_q_register('q')
+    circuit.Ry(0.12, q[0]).Ry(0.68, q[1]).H(a[0]).CX(a[0], q[1]).CZ(a[0], q[1]).H(a[0])
     return circuit
 
 @pytest.fixture
