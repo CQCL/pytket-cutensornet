@@ -22,6 +22,7 @@ import networkx as nx  # type: ignore
 from networkx.classes.reportviews import OutMultiEdgeView, OutMultiEdgeDataView  # type: ignore
 import numpy as np
 from numpy.typing import NDArray
+from pytket import Qubit  # type: ignore
 from pytket.utils import Graph
 from pytket.pauli import QubitPauliString  # type: ignore
 from pytket.circuit import Circuit
@@ -73,16 +74,22 @@ class TensorNetwork:
         """
         self._logger = set_logger("TensorNetwork", loglevel)
         self._circuit = circuit
-        self._network = Graph(circuit).as_nx()
+        # self._circuit.replace_implicit_wire_swaps()
+        self._qubit_names_ilo = [str(q) for q in self._circuit.qubits]
+        self._logger.debug(f"ILO-ordered qubit names: {self._qubit_names_ilo}")
+        self._graph = Graph(self._circuit)
+        qname_to_q = {
+            qname: q for qname, q in zip(self._qubit_names_ilo, self._circuit.qubits)
+        }
+        self._uid_to_qubit = {
+            uid: qname_to_q[qname] for uid, qname in self._graph.input_names.items()
+        }
+        self._logger.debug(f"NX UnitID's to qubit objects map: {self._uid_to_qubit}")
+        self._network = self._graph.as_nx()
         self._node_tensors = self._assign_node_tensors(adj=adj)
-        if adj:
-            self._node_tensor_indices, self.sticky_indices = self._get_tn_indices(
-                self._network, adj=adj
-            )
-        else:
-            self._node_tensor_indices, self.sticky_indices = self._get_tn_indices(
-                self._network
-            )
+        self._node_tensor_indices, self.sticky_indices = self._get_tn_indices(
+            self._network, adj=adj
+        )
         self._cuquantum_interleaved = self._make_interleaved()
 
     @property
@@ -228,7 +235,7 @@ class TensorNetwork:
 
     def _get_tn_indices(
         self, net: nx.MultiDiGraph, adj: bool = False
-    ) -> Tuple[List[Any], List[Any]]:
+    ) -> Tuple[List[Any], dict[Qubit, int]]:
         """Computes indices of the edges of the tensor network nodes (tensors).
 
         Indices are computed such that they range from high (for circuit leftmost gates)
@@ -260,48 +267,48 @@ class TensorNetwork:
         # There can be several identical edges for which we need different indices
         edge_indices = defaultdict(list)
         n_edges = nx.number_of_edges(net)
-        # Append tuples of inverse edge indices (starting from 1) and qubit indices
+        # Append tuples of inverse edge indices (starting from 1) and their unit_id's
         # to each edge entry
         for i, (e, ed) in enumerate(zip(net.edges(), net.edges(data=True))):
-            edge_indices[e].append((sign * (n_edges - i), int(ed[-1]["unit_id"] / 2)))
+            edge_indices[e].append((sign * (n_edges - i), int(ed[-1]["unit_id"])))
         self._logger.debug(f"Network edge indices: \n {edge_indices}")
         nodes_out = self._output_nodes
-        # Check if need to swap indices for outward indices
-        for node in nodes_out:
-            prenode = next(net.predecessors(node))
-            eid = edge_indices[(prenode, node)][0][0]
-            qid = edge_indices[(prenode, node)][0][1]
-            if (
-                eid - sign * 1 != sign * qid
-            ):  # Edge indexing starts from 1 or -1, qubit from 0
-                lswap = False
-                # expensive:
-                for edge, idx_lst in edge_indices.items():
-                    for i, (ei, qi) in enumerate(idx_lst):
-                        if ei - sign * 1 == sign * qid:
-                            self._logger.debug(
-                                f"Swapping indices of edges {edge} and "
-                                f"({prenode, node})!"
-                            )
-                            edge_indices[(prenode, node)] = [
-                                (edge_indices[edge][i][0], qid)
-                            ]
-                            edge_indices[edge][i] = (eid, qi)
-                            lswap = True
-                            break
-                    if lswap:
-                        break
+        # Re-order outward edges indices according to ILO
+        edges_out = [
+            edge for edge in net.edges() if edge[1] in self._graph.output_names
+        ]
+        uids, eids = zip(
+            *[
+                (record[0][1], record[0][0])
+                for key, record in edge_indices.items()
+                if key in edges_out
+            ]
+        )
+        eids_sorted = sorted(eids, key=abs)
+        qnames_graph_sorted = [qname for qname in self._graph.input_names.values()]
+        eids_graph_sorted = [
+            eids_sorted[qnames_graph_sorted.index(q)] for q in self._qubit_names_ilo
+        ]  # Sort eid's in the same way as qnames_graph_sorted as compared to ILO
+        uid_to_eid = {}
+        for uid, eid in zip(sorted(uids), eids_graph_sorted):
+            uid_to_eid[uid] = eid
+        for edge in edges_out:
+            uid = edge_indices[edge][0][1]
+            edge_indices[edge] = [(uid_to_eid[uid], uid)]
         self._logger.debug(
             f"Network edge indices after swaps (if any): \n {edge_indices}"
         )
         # Store the "sticky" indices
-        sticky_indices = []
-        for edge in net.edges():
-            for node in nodes_out:
-                if node in edge:
-                    for ei, qi in edge_indices[edge]:
-                        sticky_indices.append(ei)
-        sticky_indices.sort(key=abs)
+        sticky_indices = {}
+        for edge in edges_out:
+            for eid, uid in edge_indices[edge]:
+                sticky_indices[self._uid_to_qubit[uid]] = eid
+        if len(sticky_indices) != len(self._output_nodes):
+            raise RuntimeError(
+                f"Number of sticky indices ({len(sticky_indices)})"
+                f" is not equal to number of qubits"
+                f" ({len(self._output_nodes)})"
+            )
         self._logger.debug(f"sticky (outer) edge indices: \n {sticky_indices}")
         # Assign correctly ordered indices to tensors (nodes) and store their lists in
         # the same order as we store tensors themselves.
@@ -371,7 +378,7 @@ class TensorNetwork:
         Args:
             edge_indices: a map from pytket graph edges (tuples of two integers,
              representing adjacent nodes) to a list of tuples, containing an assigned
-             edge index and a corresponding qubit index.
+             edge index and a corresponding unit_id (graph-specific qubit label).
             edges: pytket graph edges (list of tuples of two integers).
             edges_data: pytket graph edges with metadata (list of tuples of two integers
              and a dict).
@@ -381,24 +388,24 @@ class TensorNetwork:
             logger: a logger object.
         """
         gate_edges_ordered = {}
-        qi_to_local_ei = {}
-        qis = []
+        uid_to_local_ei = {}
+        uids = []
         for edge_data in edges_data:
             logger.debug(f"Edge data: {edge_data}")
-            logger.debug(f"Qubit id: {int(edge_data[-1]['unit_id'] / 2)}")
-            qis.append(int(edge_data[-1]["unit_id"] / 2))
-        qis.sort()
-        for i, qi in enumerate(qis):
-            qi_to_local_ei[qi] = offset + i
-        logger.debug(f"Qubit to local edge index map: {qi_to_local_ei}")
+            uids.append(int(edge_data[-1]["unit_id"]))
+            logger.debug(f"UID: {uids[-1]}")
+        uids.sort()
+        for i, uid in enumerate(uids):
+            uid_to_local_ei[uid] = offset + i
+        logger.debug(f"UID to local edge index map: {uid_to_local_ei}")
         for edge_data, edge in zip(edges_data, edges):
-            qi = int(edge_data[-1]["unit_id"] / 2)
+            uid = int(edge_data[-1]["unit_id"])
             if len(edge_indices[edge]) == 1:
-                gate_edges_ordered[qi_to_local_ei[qi]] = edge_indices[edge][0][0]
+                gate_edges_ordered[uid_to_local_ei[uid]] = edge_indices[edge][0][0]
             else:
-                for e, q in edge_indices[edge]:
-                    if q == qi:
-                        gate_edges_ordered[qi_to_local_ei[qi]] = e
+                for e, u in edge_indices[edge]:
+                    if u == uid:
+                        gate_edges_ordered[uid_to_local_ei[uid]] = e
                         break
         return gate_edges_ordered
 
@@ -450,12 +457,19 @@ class TensorNetwork:
             A tensor network in an interleaved form, representing an overlap of two
              circuits.
         """
+        if set(self.sticky_indices.keys()) != set(tn_other.sticky_indices.keys()):
+            raise RuntimeError("The two tensor networks are incompatible!")
         tn_other_adj = tn_other.dagger()
         i_mat = np.array([[1, 0], [0, 1]], dtype="complex128")
+        sticky_index_pairs = []
+        for q in self.sticky_indices:
+            sticky_index_pairs.append(
+                (self.sticky_indices[q], tn_other_adj.sticky_indices[q])
+            )
         connector = [
-            f(x)  # type: ignore
-            for x in self.sticky_indices
-            for f in (lambda x: i_mat, lambda x: [-x, x])
+            f(x, y)  # type: ignore
+            for x, y in sticky_index_pairs
+            for f in (lambda x, y: i_mat, lambda x, y: [y, x])
         ]
         tn_concatenated = tn_other_adj.cuquantum_interleaved
         tn_concatenated.extend(connector)
@@ -475,7 +489,11 @@ class PauliOperatorTensorNetwork:
     }
 
     def __init__(
-        self, paulis: QubitPauliString, ket: TensorNetwork, loglevel: int = logging.INFO
+        self,
+        paulis: QubitPauliString,
+        bra: TensorNetwork,
+        ket: TensorNetwork,
+        loglevel: int = logging.INFO,
     ) -> None:
         """Constructs a tensor network representing a Pauli operator string.
 
@@ -488,24 +506,37 @@ class PauliOperatorTensorNetwork:
 
         Args:
             paulis: Pauli operators string.
-            ket: Tensor network object representing a certain circuit.
+            bra: Tensor network object representing a bra circuit.
+            ket: Tensor network object representing a ket circuit.
             loglevel: Logger verbosity level.
         """
         self._logger = set_logger("PauliOperatorTensorNetwork", loglevel)
         self._pauli_tensors = [self.PAULI[pauli.name] for pauli in paulis.map.values()]
         self._logger.debug(f"Pauli tensors: {self._pauli_tensors}")
-        qubit_ids = [qubit.to_list()[1][0] + 1 for qubit in paulis.map.keys()]
+        qubits = [q for q in paulis.map.keys()]
+        # qubit_names = [
+        #    "".join([q.reg_name, "".join([f"[{str(i)}]" for i in q.index])])
+        #    for q in paulis.map.keys()
+        # ]
+        # qubit_ids = [qubit.to_list()[1][0] + 1 for qubit in paulis.map.keys()]
         qubit_to_pauli = {
             qubit: pauli_tensor
-            for (qubit, pauli_tensor) in zip(qubit_ids, self._pauli_tensors)
+            for (qubit, pauli_tensor) in zip(qubits, self._pauli_tensors)
         }
         self._logger.debug(f"qubit to Pauli mapping: {qubit_to_pauli}")
+        if set(bra.sticky_indices.keys()) != set(ket.sticky_indices.keys()):
+            raise RuntimeError("The bra and ket tensor networks are incompatible!")
+        sticky_index_pairs = []
+        sticky_qubits = []
+        for q in ket.sticky_indices:
+            sticky_index_pairs.append((ket.sticky_indices[q], bra.sticky_indices[q]))
+            sticky_qubits.append(q)
         self._cuquantum_interleaved = [
-            f(x)  # type: ignore
-            for x in ket.sticky_indices
+            f(x, y, q)  # type: ignore
+            for (x, y), q in zip(sticky_index_pairs, sticky_qubits)
             for f in (
-                lambda x: qubit_to_pauli[x] if (x in qubit_ids) else self.PAULI["I"],
-                lambda x: [-x, x],
+                lambda x, y, q: qubit_to_pauli[q] if (q in qubits) else self.PAULI["I"],
+                lambda x, y, q: [y, x],
             )
         ]
         self._logger.debug(f"Pauli TN: {self.cuquantum_interleaved}")
@@ -520,7 +551,11 @@ class ExpectationValueTensorNetwork:
     """Handles a tensor network representing an expectation value."""
 
     def __init__(
-        self, bra: TensorNetwork, paulis: QubitPauliString, ket: TensorNetwork
+        self,
+        bra: TensorNetwork,
+        paulis: QubitPauliString,
+        ket: TensorNetwork,
+        loglevel: int = logging.INFO,
     ) -> None:
         """Constructs a tensor network representing expectation value.
 
@@ -531,10 +566,11 @@ class ExpectationValueTensorNetwork:
             bra: Tensor network object representing a bra circuit.
             ket: Tensor network object representing a ket circuit.
             paulis: Pauli operator string.
+            loglevel: Logger verbosity level.
         """
         self._bra = bra
         self._ket = ket
-        self._operator = PauliOperatorTensorNetwork(paulis, ket)
+        self._operator = PauliOperatorTensorNetwork(paulis, bra, ket, loglevel)
         self._cuquantum_interleaved = self._make_interleaved()
 
     @property
