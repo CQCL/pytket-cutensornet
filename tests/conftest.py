@@ -89,6 +89,14 @@ def q2_v0cx01cx10() -> Circuit:
 
 
 @pytest.fixture
+def q2_hadamard_test_reg_names() -> Circuit:
+    circuit = Circuit(1)
+    a = circuit.add_q_register('a', 1)
+    q = circuit.get_q_register('q')
+    circuit.H(a[0]).CRx(0.5, a[0], q[0]).H(a[0])
+    return circuit
+
+@pytest.fixture
 def q2_hadamard_test() -> Circuit:
     circuit = Circuit(2)
     circuit.H(0).CRx(0.5, 0, 1).H(0)
@@ -96,47 +104,58 @@ def q2_hadamard_test() -> Circuit:
 
 @pytest.fixture
 def q2_hadamard_test1() -> Circuit:
-    circuit = Circuit(2)
-    circuit.Ry(0.78, 1).H(0).CX(0, 1).H(0)
+    circuit = Circuit(1)
+    a = circuit.add_q_register('a', 1)
+    q = circuit.get_q_register('q')
+    circuit.Ry(0.78, q[0]).H(a[0]).CX(a[0], q[0]).H(q[0])
     return circuit
 
 
 @pytest.fixture
 def q2_hadamard_test2() -> Circuit:
-    circuit = Circuit(2)
-    circuit.Ry(0.48, 1).H(0).CY(0, 1).H(0)
+    circuit = Circuit(1)
+    a = circuit.add_q_register('a', 1)
+    q = circuit.get_q_register('q')
+    circuit.Ry(0.48, q[0]).H(a[0]).CY(a[0], q[0]).H(a[0])
     return circuit
 
 
 @pytest.fixture
 def q2_hadamard_test3() -> Circuit:
-    circuit = Circuit(2)
-    circuit.Ry(0.12, 1).H(0).CZ(0, 1).H(0)
+    circuit = Circuit(1)
+    a = circuit.add_q_register('a', 1)
+    q = circuit.get_q_register('q')
+    circuit.Ry(0.12, q[0]).H(a[0])
     return circuit
 
 
 @pytest.fixture
 def q2_hadamard_test4() -> Circuit:
-    circ = Circuit(2)
+    circ = Circuit(1)
+    a = circ.add_q_register('a', 1)
+    q = circ.get_q_register('q')
     pbox = PauliExpBox([Pauli.Z], -0.12) # This is failing?
     qbox = QControlBox(pbox, 1)
-    q = circ.get_q_register('q')
-    circ.Ry(0.5, q[1])
-    circ.H(q[0])
-    circ.add_gate(qbox, [q[0], q[1]])
-    circ.H(q[0])
+    circ.Ry(0.5, q[0])
+    circ.H(a[0])
+    circ.add_gate(qbox, [a[0], q[0]])
+    circ.H(a[0])
     return circ
 
 @pytest.fixture
 def q3_hadamard_test1() -> Circuit:
-    circuit = Circuit(3)
-    circuit.Ry(0.78, 1).Ry(0.58, 2).H(0).CX(0, 1).CZ(0, 2).H(0)
+    circuit = Circuit(2)
+    a = circuit.add_q_register('a', 1)
+    q = circuit.get_q_register('q')
+    circuit.Ry(0.78, q[0]).Ry(0.58, q[1]).H(a[0]).CX(a[0], q[0]).CZ(a[0], q[1]).H(a[0])
     return circuit
 
 @pytest.fixture
 def q3_hadamard_test2() -> Circuit:
-    circuit = Circuit(3)
-    circuit.Ry(0.48, 1).Ry(0.38, 2).H(0).CZ(0, 1).CY(0, 2).H(0)
+    circuit = Circuit(2)
+    a = circuit.add_q_register('a', 1)
+    q = circuit.get_q_register('q')
+    circuit.Ry(0.48, q[0]).Ry(0.38, q[1]).H(a[0]).CZ(a[0], q[0]).CY(a[0], q[1]).H(a[0])
     return circuit
 
 
@@ -148,194 +167,218 @@ def q3_hadamard_test3() -> Circuit:
 
 @pytest.fixture
 def q3_hadamard_test4() -> Circuit:
-    circ = Circuit(3)
+    circ = Circuit(2)
+    a = circ.add_q_register('a', 1)
     pbox = PauliExpBox([Pauli.X, Pauli.Y], 0.12) # This is failing
     qbox = QControlBox(pbox, 1)
     q = circ.get_q_register('q')
-    circ.Ry(0.5, q[1]).Ry(0.35, q[2])
-    circ.H(q[0])
-    circ.add_gate(qbox, [q[0], q[1], q[2]])
-    circ.H(q[0])
+    circ.Ry(0.5, q[0]).Ry(0.35, q[1])
+    circ.H(a[0])
+    circ.add_gate(qbox, [a[0], q[0], q[1]])
+    circ.H(a[0])
     return circ
 
 @pytest.fixture
 def q3_hadamard_test5() -> Circuit:
-    circ = Circuit(3)
+    circ = Circuit(2)
+    a = circ.add_q_register('a', 1)
+    q = circ.get_q_register('q')
     pbox = PauliExpBox([Pauli.X, Pauli.Y], -0.12) # This is failing
     qbox = QControlBox(pbox, 1)
     q = circ.get_q_register('q')
-    circ.Ry(0.5, q[1]).Ry(0.35, q[2])
-    circ.H(q[0])
-    circ.add_gate(qbox, [q[0], q[1], q[2]])
-    circ.H(q[0])
+    circ.Ry(0.5, q[0]).Ry(0.35, q[0])
+    circ.H(a[0])
+    circ.add_gate(qbox, [a[0], q[0], q[1]])
+    circ.H(a[0])
     return circ
 
 
 @pytest.fixture
 def q3_hadamard_test6() -> Circuit:
-    circ = Circuit(3)
-    pbox = PauliExpBox([Pauli.Y, Pauli.X], 0.12) 
+    circ = Circuit(2)
+    a = circ.add_q_register('a', 1)
+    q = circ.get_q_register('q')
+    pbox = PauliExpBox([Pauli.X, Pauli.Y], 0.12) # This is failing
     qbox = QControlBox(pbox, 1)
     q = circ.get_q_register('q')
-    circ.Ry(0.5, q[1]).Ry(0.35, q[2])
-    circ.H(q[0])
-    circ.add_gate(qbox, [q[0], q[1], q[2]])
-    circ.H(q[0])
+    circ.Ry(0.5, q[0]).Ry(0.35, q[0])
+    circ.H(a[0])
+    circ.add_gate(qbox, [a[0], q[0], q[1]])
+    circ.H(a[0])
     return circ
 
 @pytest.fixture
 def q3_hadamard_test7() -> Circuit:
-    circ = Circuit(3)
-    pbox = PauliExpBox([Pauli.Y, Pauli.X], -0.12) 
+    circ = Circuit(2)
+    a = circ.add_q_register('a', 1)
+    q = circ.get_q_register('q')
+    pbox = PauliExpBox([Pauli.Y, Pauli.X], -0.12) # This is failing
     qbox = QControlBox(pbox, 1)
     q = circ.get_q_register('q')
-    circ.Ry(0.5, q[1]).Ry(0.35, q[2])
-    circ.H(q[0])
-    circ.add_gate(qbox, [q[0], q[1], q[2]])
-    circ.H(q[0])
+    circ.Ry(0.5, q[0]).Ry(0.35, q[0])
+    circ.H(a[0])
+    circ.add_gate(qbox, [a[0], q[0], q[1]])
+    circ.H(a[0])
     return circ
 
 @pytest.fixture
 def q3_hadamard_test8() -> Circuit:
-    circ = Circuit(3)
-    pbox = PauliExpBox([Pauli.X, Pauli.X], 0.12)
+    circ = Circuit(2)
+    a = circ.add_q_register('a', 1)
+    q = circ.get_q_register('q')
+    pbox = PauliExpBox([Pauli.Y, Pauli.X], 0.12) # This is failing
     qbox = QControlBox(pbox, 1)
     q = circ.get_q_register('q')
-    circ.Ry(0.5, q[1]).Ry(0.35, q[2])
-    circ.H(q[0])
-    circ.add_gate(qbox, [q[0], q[1], q[2]])
-    circ.H(q[0])
+    circ.Ry(0.5, q[0]).Ry(0.35, q[0])
+    circ.H(a[0])
+    circ.add_gate(qbox, [a[0], q[0], q[1]])
+    circ.H(a[0])
     return circ
 
 @pytest.fixture
 def q3_hadamard_test9() -> Circuit:
-    circ = Circuit(3)
-    pbox = PauliExpBox([Pauli.X, Pauli.X], -0.12) 
+    circ = Circuit(2)
+    a = circ.add_q_register('a', 1)
+    q = circ.get_q_register('q')
+    pbox = PauliExpBox([Pauli.X, Pauli.X], -0.12) # This is failing
     qbox = QControlBox(pbox, 1)
     q = circ.get_q_register('q')
-    circ.Ry(0.5, q[1]).Ry(0.35, q[2])
-    circ.H(q[0])
-    circ.add_gate(qbox, [q[0], q[1], q[2]])
-    circ.H(q[0])
+    circ.Ry(0.5, q[0]).Ry(0.35, q[0])
+    circ.H(a[0])
+    circ.add_gate(qbox, [a[0], q[0], q[1]])
+    circ.H(a[0])
     return circ
 
 
 @pytest.fixture
 def q3_hadamard_test10() -> Circuit:
-    circ = Circuit(3)
+    circ = Circuit(2)
+    a = circ.add_q_register('a', 1)
     q = circ.get_q_register('q')
-    qbox = controlled_pauli_gadget_box([Pauli.X, Pauli.Y], 0.12)
-    circ.Ry(0.5, q[1]).Ry(0.35, q[2])
-    circ.H(q[0])
-    circ.add_gate(qbox, [q[0], q[1], q[2]])
-    circ.H(q[0])
+    pbox = PauliExpBox([Pauli.X, Pauli.X], 0.12) # This is failing
+    qbox = QControlBox(pbox, 1)
+    q = circ.get_q_register('q')
+    circ.Ry(0.5, q[0]).Ry(0.35, q[0])
+    circ.H(a[0])
+    circ.add_gate(qbox, [a[0], q[0], q[1]])
+    circ.H(a[0])
     return circ
+
 
 @pytest.fixture
 def q3_hadamard_test11() -> Circuit:
-    circ = Circuit(3)
+    circ = Circuit(2)
+    a = circ.add_q_register('a', 1)
     q = circ.get_q_register('q')
     qbox = controlled_pauli_gadget_box([Pauli.X, Pauli.Y], -0.12)
-    circ.Ry(0.5, q[1]).Ry(0.35, q[2])
-    circ.H(q[0])
-    circ.add_gate(qbox, [q[0], q[1], q[2]])
-    circ.H(q[0])
+    circ.Ry(0.5, q[0]).Ry(0.35, q[1])
+    circ.H(a[0])
+    circ.add_gate(qbox, [a[0], q[0], q[1]])
+    circ.H(a[0])
     return circ
 
 
 @pytest.fixture
 def q4_hadamard_test1() -> Circuit:
-    circ = Circuit(4)
+    circ = Circuit(3)
+    a = circ.add_q_register('a', 1)
     pbox = PauliExpBox([Pauli.Z, Pauli.Z, Pauli.Z], 0.55)
     qbox = QControlBox(pbox, 1)
     q = circ.get_q_register('q')
-    circ.Ry(0.5, q[1]).Ry(0.35, q[2]).Ry(0.65, q[3])
-    circ.H(q[0])
-    circ.add_gate(qbox, [q[0], q[1], q[2], q[3]])
-    circ.H(q[0])
+    circ.Ry(0.5, q[0]).Ry(0.35, q[1]).Ry(0.65, q[2])
+    circ.H(a[0])
+    circ.add_gate(qbox, [a[0], q[0], q[1], q[2]])
+    circ.H(a[0])
     return circ
 
 @pytest.fixture
 def q4_hadamard_test2() -> Circuit:
-    circ = Circuit(4)
+    circ = Circuit(3)
+    a = circ.add_q_register('a', 1)
     pbox = PauliExpBox([Pauli.X, Pauli.Y, Pauli.Z], 0.12) # This is failing?
     qbox = QControlBox(pbox, 1)
     q = circ.get_q_register('q')
-    circ.Ry(0.5, q[1]).Ry(0.35, q[2]).Ry(0.65, q[3])
-    circ.H(q[0])
-    circ.add_gate(qbox, [q[0], q[1], q[2], q[3]])
-    circ.H(q[0])
+    circ.Ry(0.5, q[0]).Ry(0.35, q[1]).Ry(0.65, q[2])
+    circ.H(a[0])
+    circ.add_gate(qbox, [a[0], q[0], q[1], q[2]])
+    circ.H(a[0])
     return circ
 
 @pytest.fixture
 def q4_hadamard_test3() -> Circuit:
-    circ = Circuit(4)
+    circ = Circuit(3)
+    a = circ.add_q_register('a', 1)
     pbox = PauliExpBox([Pauli.X, Pauli.Y, Pauli.Z], -0.12)
     qbox = QControlBox(pbox, 1)
     q = circ.get_q_register('q')
-    circ.Ry(0.5, q[1]).Ry(0.35, q[2]).Ry(0.65, q[3])
-    circ.H(q[0])
-    circ.add_gate(qbox, [q[0], q[1], q[2], q[3]])
-    circ.H(q[0])
+    circ.Ry(0.5, q[0]).Ry(0.35, q[1]).Ry(0.65, q[2])
+    circ.H(a[0])
+    circ.add_gate(qbox, [a[0], q[0], q[1], q[2]])
+    circ.H(a[0])
     return circ
 
 @pytest.fixture
 def q4_hadamard_test4() -> Circuit:
-    circ = Circuit(4)
+    circ = Circuit(3)
+    a = circ.add_q_register('a', 1)
     pbox = PauliExpBox([Pauli.X, Pauli.Y, Pauli.Z], -0.42)
     qbox = QControlBox(pbox, 1)
     q = circ.get_q_register('q')
-    circ.Ry(0.5, q[1]).Ry(0.35, q[2]).Ry(0.65, q[3])
-    circ.H(q[0])
-    circ.add_gate(qbox, [q[0], q[1], q[2], q[3]])
-    circ.H(q[0])
+    circ.Ry(0.5, q[0]).Ry(0.35, q[1]).Ry(0.65, q[2])
+    circ.H(a[0])
+    circ.add_gate(qbox, [a[0], q[0], q[1], q[2]])
+    circ.H(a[0])
     return circ
 
 @pytest.fixture
 def q4_hadamard_test5() -> Circuit:
-    circ = Circuit(4)
+    circ = Circuit(3)
+    a = circ.add_q_register('a', 1)
     pbox = PauliExpBox([Pauli.Z, Pauli.Y, Pauli.Z], 0.32)
     qbox = QControlBox(pbox, 1)
     q = circ.get_q_register('q')
-    circ.Ry(0.5, q[1]).Ry(0.35, q[2]).Ry(0.65, q[3])
-    circ.H(q[0])
-    circ.add_gate(qbox, [q[0], q[1], q[2], q[3]])
-    circ.H(q[0])
+    circ.Ry(0.5, q[0]).Ry(0.35, q[1]).Ry(0.65, q[2])
+    circ.H(a[0])
+    circ.add_gate(qbox, [a[0], q[0], q[1], q[2]])
+    circ.H(a[0])
     return circ
 
 @pytest.fixture
 def q4_hadamard_test6() -> Circuit:
-    circ = Circuit(4)
+    circ = Circuit(3)
+    a = circ.add_q_register('a', 1)
     pbox = PauliExpBox([Pauli.Z, Pauli.Z, Pauli.Z], 0.32)
     qbox = QControlBox(pbox, 1)
     q = circ.get_q_register('q')
-    circ.Ry(0.5, q[1]).Ry(0.35, q[2]).Ry(0.65, q[3])
-    circ.H(q[0])
-    circ.add_gate(qbox, [q[0], q[1], q[2], q[3]])
-    circ.H(q[0])
+    circ.Ry(0.5, q[0]).Ry(0.35, q[1]).Ry(0.65, q[2])
+    circ.H(a[0])
+    circ.add_gate(qbox, [a[0], q[0], q[1], q[2]])
+    circ.H(a[0])
     return circ
 
 
 @pytest.fixture
 def q4_hadamard_test7() -> Circuit:
-    circ = Circuit(4)
+    circ = Circuit(3)
     q = circ.get_q_register('q')
+    a = circ.add_q_register('a', 1)
     qbox = controlled_pauli_gadget_box([Pauli.X, Pauli.Y, Pauli.Z], 0.12)
-    circ.Ry(0.5, q[1]).Ry(0.35, q[2]).Ry(0.65, q[3])
-    circ.H(q[0])
-    circ.add_gate(qbox, [q[0], q[1], q[2], q[3]])
-    circ.H(q[0])
+    circ.Ry(0.5, q[0]).Ry(0.35, q[1]).Ry(0.65, q[2])
+    circ.H(a[0])
+    circ.add_gate(qbox, [a[0], q[0], q[1], q[2]])
+    circ.H(a[0])
     return circ
 
 @pytest.fixture
 def q4_hadamard_test8() -> Circuit:
-    circ = Circuit(4)
+    circ = Circuit(3)
+    a = circ.add_q_register('a', 1)
     q = circ.get_q_register('q')
     qbox = controlled_pauli_gadget_box([Pauli.X, Pauli.Y, Pauli.Z], -0.12)
-    circ.Ry(0.5, q[1]).Ry(0.35, q[2]).Ry(0.65, q[3])
-    circ.H(q[0])
-    circ.add_gate(qbox, [q[0], q[1], q[2], q[3]])
-    circ.H(q[0])
+    circ.Ry(0.5, q[0]).Ry(0.35, q[1]).Ry(0.65, q[2])
+    circ.H(a[0])
+    circ.add_gate(qbox, [a[0], q[0], q[1], q[2]])
+    circ.H(a[0])
     return circ
 
 
