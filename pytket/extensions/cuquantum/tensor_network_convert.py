@@ -85,7 +85,8 @@ class TensorNetwork:
             oi: qname_to_q[qname] for oi, qname in self._graph.output_names.items()
         }
         self._logger.debug(
-            f"NX output index to (possibly re-labeled) qubit objects map: {self._output_index_to_qubit}"
+            f"NX output index to (possibly re-labeled) qubit objects map: "
+            f"{self._output_index_to_qubit}"
         )
         self._network = self._graph.as_nx()
         self._node_tensors = self._assign_node_tensors(adj=adj)
@@ -293,7 +294,9 @@ class TensorNetwork:
             for q in self._qubit_names_ilo
         ]  # Order output edges indexes such that each still corresponds to the same
         # qubit from the graph output_names, but with the qubits re-ordered in ILO order
-        oid_to_eid = {oid: eid for oid, eid in zip(oids_qubit_ordered, eids_qubit_ordered)}
+        oid_to_eid = {
+            oid: eid for oid, eid in zip(oids_qubit_ordered, eids_qubit_ordered)
+        }
         for edge in edges_out:
             uid = edge_indices[edge][0][1]
             edge_indices[edge] = [(oid_to_eid[edge[1]], uid)]
