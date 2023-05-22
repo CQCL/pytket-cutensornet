@@ -194,3 +194,37 @@ def test_expectation_value_postselect_4q_lcu(circuit_lcu_4q: Circuit) -> None:
     sv_exp = (sv.conj().T @ op_matrix @ sv)[0, 0]
     ten_exp = b.get_operator_expectation_value_postselect(c.copy(), op, postselect_dict)
     assert np.isclose(ten_exp, sv_exp)
+
+
+@pytest.mark.parametrize(
+    "circuit_lcu_5q",
+    [
+        pytest.lazy_fixture("q5_lcu_hadamard_test0"),
+        pytest.lazy_fixture("q5_lcu_hadamard_test1"),
+    ]
+
+)
+
+def test_expectation_value_postselect_5q_lcu(circuit_lcu_5q: Circuit) -> None:
+
+
+    p_reg = circuit_lcu_5q.get_q_register('p')
+    post_select = {p : 0 for p in p_reg}
+    op = QubitPauliOperator({QubitPauliString({Qubit("q", 0): Pauli.I}): 1.0}) #This adds identities to all qubits
+    b = CuTensorNetBackend()
+    c = b.get_compiled_circuit(circuit_lcu_5q.copy())
+    p0_dict = post_select
+    p0_dict.update({Qubit("a", 0): 1})
+    p0_exp = b.get_operator_expectation_value_postselect(c.copy(), op, p0_dict) 
+
+    op_matrix = op.to_sparse_matrix(2).todense()
+    sv = np.array(
+        [circuit_statevector_postselect(circuit_lcu_5q, p0_dict.copy())]
+    ).T
+    b = CuTensorNetBackend()
+    sv = sv * np.exp(1j * np.pi * c.phase)
+    sv_exp = (sv.conj().T @ op_matrix @ sv)[
+        0, 0
+    ]
+    assert np.isclose(p0_exp, sv_exp)
+

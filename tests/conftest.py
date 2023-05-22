@@ -563,6 +563,34 @@ def q5_lcu_hadamard_test0() -> Circuit:
     return circuit
 
 
+@pytest.fixture
+def q5_lcu_hadamard_test1() -> Circuit:
+    circuit = Circuit(2)
+
+    a = circuit.add_q_register('a', 1)
+    q = circuit.get_q_register('q')
+    p = circuit.add_q_register('p', 2)
+
+    circuit.H(a[0])
+
+    circuit.Ry(0.78, q[1]).Ry(0.27, q[0]).CX(q[0], q[1]).Ry(0.58, q[0]).Ry(0.21, q[1])
+
+    prep_circ_box = CircBox(Circuit(2).Ry(0.6, 0).Ry(0.6, 1))
+    circuit.add_gate(prep_circ_box, [p[0], p[1]])
+
+    circuit.add_gate(OpType.CnX, [a[0], p[0],p[1],q[0]])
+
+    circuit.add_gate(prep_circ_box.dagger, [p[0], p[1]])
+   
+    circuit.H(a[0])
+    
+    DecomposeBoxes().apply(circuit)
+
+    print(circuit.get_commands())
+
+    return circuit
+
+
 
 @pytest.fixture
 def q6_lcu_hadamard_test() -> Circuit:
@@ -593,8 +621,36 @@ def q6_lcu_hadamard_test() -> Circuit:
     
     DecomposeBoxes().apply(circuit)
 
-    # print(circuit.implicit_qubit_permutation())
-
     return circuit
+
+
+# @pytest.fixture
+# def q5_lcu_hadamard_test_noind() -> Circuit:
+#     circuit = Circuit(5)
+
+#     circuit.H(4)
+
+#     circuit.Ry(0.78, 1).Ry(0.27, 0).CX(0, 1).Ry(0.58, 0).Ry(0.21, 1)
+
+#     prep_circ_box = CircBox(Circuit(2).Ry(0.6, 0).Ry(0.6, 1))
+#     circuit.add_gate(prep_circ_box, [2, 3])
+
+#     circuit.add_gate(OpType.CnX, [4, 2,3,0])
+    
+#     circuit.X(2).add_gate(OpType.CnX, [4, 2,3,1]).X(2)
+
+#     circuit.X(3).add_gate(OpType.CnY, [4, 2,3,0]).X(3)
+
+#     circuit.X(2).X(3).add_gate(OpType.CnY, [4, 2,3,1]).X(2).X(3)
+
+#     circuit.add_gate(prep_circ_box.dagger, [2, 3])
+   
+#     circuit.H(4)
+    
+#     DecomposeBoxes().apply(circuit)
+
+#     # print(circuit.implicit_qubit_permutation())
+
+#     return circuit
 
 
