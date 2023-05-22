@@ -211,10 +211,11 @@ class CuTensorNetBackend(Backend):
                     "adjust for phase"
                 )
             # Qubits order:
-            implicit_perm = circuit.implicit_qubit_permutation()
-            res_qubits = [
-                implicit_perm[qb] for qb in sorted(circuit.qubits, reverse=False)
-            ]  # reverse was set to True in the pytket-example but this fails tests.
+            # implicit_perm = circuit.implicit_qubit_permutation()
+            # res_qubits = [
+            #     implicit_perm[qb] for qb in sorted(circuit.qubits, reverse=False)
+            # ]  # reverse was set to True in the pytket-example but this fails tests.
+            res_qubits = [qb for qb in sorted(circuit.qubits)]
             # The below line is as per pytket-Qulacs, but this alone fails the implicit
             # permutation test result.
             # res_qubits = sorted(circuit.qubits, reverse=False)
