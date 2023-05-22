@@ -5,9 +5,9 @@ import random
 import numpy as np
 from numpy.typing import NDArray
 import pytest
-from pytket.circuit import Circuit, ToffoliBox, Qubit
-from pytket.passes import DecomposeBoxes, CnXPairwiseDecomposition
-from pytket.transform import Transform
+from pytket.circuit import ToffoliBox, Qubit  # type: ignore
+from pytket.passes import DecomposeBoxes, CnXPairwiseDecomposition  # type: ignore
+from pytket.transform import Transform  # type: ignore
 
 try:
     import cuquantum as cq  # type: ignore
@@ -61,8 +61,8 @@ def test_convert_statevec_overlap(circuit: Circuit) -> None:
 
 
 @pytest.mark.parametrize("n_qubits", [2])
-def test_toffoli_box_with_implicit_swaps(n_qubits) -> None:
-    def to_bool_tuple(n_qubits, x):
+def test_toffoli_box_with_implicit_swaps(n_qubits: int) -> None:
+    def to_bool_tuple(n_qubits: int, x: int) -> tuple:
         bool_list = []
         for i in reversed(range(n_qubits)):
             bool_list.append((x >> i) % 2 == 1)
