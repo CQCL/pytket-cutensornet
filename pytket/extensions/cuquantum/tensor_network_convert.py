@@ -81,10 +81,12 @@ class TensorNetwork:
         qname_to_q = {
             qname: q for qname, q in zip(self._qubit_names_ilo, self._circuit.qubits)
         }
-        self._uid_to_qubit = {
-            uid: qname_to_q[qname] for uid, qname in self._graph.input_names.items()
+        self._output_index_to_qubit = {
+            oi: qname_to_q[qname] for oi, qname in self._graph.output_names.items()
         }
-        self._logger.debug(f"NX UnitID's to qubit objects map: {self._uid_to_qubit}")
+        self._logger.debug(
+            f"NX output index to (possibly re-labeled) qubit objects map: {self._output_index_to_qubit}"
+        )
         self._network = self._graph.as_nx()
         self._node_tensors = self._assign_node_tensors(adj=adj)
         self._node_tensor_indices, self.sticky_indices = self._get_tn_indices(
@@ -277,32 +279,32 @@ class TensorNetwork:
         edges_out = [
             edge for edge in net.edges() if edge[1] in self._graph.output_names
         ]
-        uids, eids = zip(
-            *[
-                (record[0][1], record[0][0])
-                for key, record in edge_indices.items()
-                if key in edges_out
-            ]
-        )
+        eids = [
+            record[0][0] for key, record in edge_indices.items() if key in edges_out
+        ]
         eids_sorted = sorted(eids, key=abs)
-        qnames_graph_sorted = [qname for qname in self._graph.input_names.values()]
-        eids_graph_sorted = [
-            eids_sorted[qnames_graph_sorted.index(q)] for q in self._qubit_names_ilo
-        ]  # Sort eid's in the same way as qnames_graph_sorted as compared to ILO
-        uid_to_eid = {}
-        for uid, eid in zip(sorted(uids), eids_graph_sorted):
-            uid_to_eid[uid] = eid
+        qnames_graph_ordered = [qname for qname in self._graph.output_names.values()]
+        oids_graph_ordered = [oid for oid in self._graph.output_names.keys()]
+        eids_qubit_ordered = [
+            eids_sorted[qnames_graph_ordered.index(q)] for q in self._qubit_names_ilo
+        ]  # Order eid's in the same way as qnames_graph_ordered as compared to ILO
+        oids_qubit_ordered = [
+            oids_graph_ordered[qnames_graph_ordered.index(q)]
+            for q in self._qubit_names_ilo
+        ]  # Order output edges indexes such that each still corresponds to the same
+        # qubit from the graph output_names, but with the qubits re-ordered in ILO order
+        oid_to_eid = {oid: eid for oid, eid in zip(oids_qubit_ordered, eids_qubit_ordered)}
         for edge in edges_out:
             uid = edge_indices[edge][0][1]
-            edge_indices[edge] = [(uid_to_eid[uid], uid)]
+            edge_indices[edge] = [(oid_to_eid[edge[1]], uid)]
         self._logger.debug(
             f"Network edge indices after swaps (if any): \n {edge_indices}"
         )
         # Store the "sticky" indices
         sticky_indices = {}
         for edge in edges_out:
-            for eid, uid in edge_indices[edge]:
-                sticky_indices[self._uid_to_qubit[uid]] = eid
+            for eid, _ in edge_indices[edge]:
+                sticky_indices[self._output_index_to_qubit[edge[1]]] = eid
         if len(sticky_indices) != len(self._output_nodes):
             raise RuntimeError(
                 f"Number of sticky indices ({len(sticky_indices)})"
