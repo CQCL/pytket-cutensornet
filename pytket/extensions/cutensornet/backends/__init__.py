@@ -15,4 +15,4 @@
 
 from .cutensornet_backend import CuTensorNetBackend
 
-# from .hadamard_test import hadamard_test, general_hadamard_test
+from .hadamard_test import hadamard_test, general_hadamard_test
