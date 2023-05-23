@@ -94,7 +94,7 @@ def test_toffoli_box_with_implicit_swaps() -> None:
 
 @pytest.mark.parametrize("n_qubits", [4, 5, 6])
 def test_generalised_toffoli_box(n_qubits: int) -> None:
-    def to_bool_tuple(n_qubits, x):
+    def to_bool_tuple(n_qubits: int, x: int) -> tuple:
         bool_list = []
         for i in reversed(range(n_qubits)):
             bool_list.append((x >> i) % 2 == 1)
