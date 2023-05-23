@@ -1,5 +1,6 @@
 from typing import List, Union
 import warnings
+import random
 import cmath
 import numpy as np
 from numpy.typing import NDArray
@@ -89,3 +90,53 @@ def test_toffoli_box_with_implicit_swaps() -> None:
     ket_pytket_vector = ket_circ.get_statevector()
 
     assert np.allclose(ket_net_vector, ket_pytket_vector)
+
+
+@pytest.mark.parametrize("n_qubits", [4, 5, 6])
+def test_generalised_toffoli_box(n_qubits: int) -> None:
+    def to_bool_tuple(n_qubits, x):
+        bool_list = []
+        for i in reversed(range(n_qubits)):
+            bool_list.append((x >> i) % 2 == 1)
+        return tuple(bool_list)
+
+    random.seed(1)
+
+    # Generate a random permutation
+    cycle = list(range(2 ** n_qubits))
+    random.shuffle(cycle)
+
+    perm = dict()
+    for orig, dest in enumerate(cycle):
+        perm[to_bool_tuple(n_qubits, orig)] = to_bool_tuple(n_qubits, dest)
+
+    # Create a circuit implementing the permutation above
+    ket_circ = ToffoliBox(perm).get_circuit()
+
+    DecomposeBoxes().apply(ket_circ)
+    CnXPairwiseDecomposition().apply(ket_circ)
+    Transform.OptimiseCliffords().apply(ket_circ)
+
+    # The ideal outcome on ket 0 input
+    output = perm[(False,) * n_qubits]
+    # A trivial circuit generating this state
+    bra_circ = Circuit()
+    for q in ket_circ.qubits:
+        bra_circ.add_qubit(q)
+    for i, bit in enumerate(output):
+        if bit:
+            bra_circ.X(i)
+
+    ket_net = TensorNetwork(ket_circ)
+    ket_net_vector = cq.contract(*ket_net.cuquantum_interleaved).flatten()
+    ket_net_vector = ket_net_vector * cmath.exp(1j * cmath.pi * ket_circ.phase)
+    ket_pytket_vector = ket_circ.get_statevector()
+    assert np.allclose(ket_net_vector, ket_pytket_vector)
+
+    bra_net = TensorNetwork(bra_circ)
+    bra_net_vector = cq.contract(*bra_net.cuquantum_interleaved).flatten()
+    bra_net_vector = bra_net_vector * cmath.exp(1j * cmath.pi * bra_circ.phase)
+    bra_pytket_vector = bra_circ.get_statevector()
+    assert np.allclose(bra_net_vector, bra_pytket_vector)
+
+    np.isclose(abs(cq.contract(*ket_net.vdot(bra_net))), 1.0)
