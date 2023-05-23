@@ -5,7 +5,7 @@ from pytket.passes import CliffordSimp  # type: ignore
 from pytket.pauli import QubitPauliString, Pauli  # type: ignore
 from pytket.utils.operators import QubitPauliOperator
 from pytket import Qubit  # type: ignore
-from pytket.extensions.cuquantum.backends import CuTensorNetBackend
+from pytket.extensions.cutensornet.backends import CuTensorNetBackend
 
 
 def test_bell() -> None:

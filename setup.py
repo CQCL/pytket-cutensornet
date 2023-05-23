@@ -21,22 +21,22 @@ with open("_metadata.py") as fp:
     exec(fp.read(), metadata)
 shutil.copy(
     "_metadata.py",
-    os.path.join("pytket", "extensions", "cuquantum", "_metadata.py"),
+    os.path.join("pytket", "extensions", "cutensornet", "_metadata.py"),
 )
 
 
 setup(
-    name="pytket-cuquantum",
+    name="pytket-cutensornet",
     version=metadata["__extension_version__"],
     author="TKET development team",
     author_email="tket-support@cambridgequantum.com",
     python_requires=">=3.9",
     project_urls={
-        "Documentation": "https://cqcl.github.io/pytket-cuquantum/api/index.html",
-        "Source": "https://github.com/CQCL/pytket-cuquantum",
-        "Tracker": "https://github.com/CQCL/pytket-cuquantum/issues",
+        "Documentation": "https://cqcl.github.io/pytket-cutensornet/api/index.html",
+        "Source": "https://github.com/CQCL/pytket-cutensornet",
+        "Tracker": "https://github.com/CQCL/pytket-cutensornet/issues",
     },
-    description="Extension for pytket, providing access to the cuQuantum simulators",
+    description="Extension for pytket, providing access to the cuTensorNet Python API.",
     long_description=open("README.md").read(),
     long_description_content_type="text/markdown",
     license="Apache 2",
