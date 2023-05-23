@@ -1,7 +1,6 @@
 from typing import List, Union
 import warnings
 import cmath
-import random
 import numpy as np
 from numpy.typing import NDArray
 import pytest
@@ -60,26 +59,17 @@ def test_convert_statevec_overlap(circuit: Circuit) -> None:
     assert ovl == pytest.approx(1.0)
 
 
-@pytest.mark.parametrize("n_qubits", [2])
-def test_toffoli_box_with_implicit_swaps(n_qubits: int) -> None:
-    def to_bool_tuple(n_qubits: int, x: int) -> tuple:
-        bool_list = []
-        for i in reversed(range(n_qubits)):
-            bool_list.append((x >> i) % 2 == 1)
-        return tuple(bool_list)
-
-    # Generate a random permutation
-    random.seed(1)
-    cycle = list(range(2**n_qubits))
-    random.shuffle(cycle)
-
-    perm = dict()
-    for orig, dest in enumerate(cycle):
-        perm[to_bool_tuple(n_qubits, orig)] = to_bool_tuple(n_qubits, dest)
+def test_toffoli_box_with_implicit_swaps() -> None:
+    # Using specific permutation here
+    perm = {
+        (False, False): (True, True),
+        (False, True): (False, False),
+        (True, False): (True, False),
+        (True, True): (False, True),
+    }
 
     # Create a circuit with more qubits and multiple applications of the permutation
     # above
-
     ket_circ = Circuit(3)
 
     # Create the circuit
