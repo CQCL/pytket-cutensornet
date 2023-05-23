@@ -103,7 +103,7 @@ def test_generalised_toffoli_box(n_qubits: int) -> None:
     random.seed(1)
 
     # Generate a random permutation
-    cycle = list(range(2 ** n_qubits))
+    cycle = list(range(2**n_qubits))
     random.shuffle(cycle)
 
     perm = dict()
