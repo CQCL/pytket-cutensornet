@@ -10,7 +10,6 @@ from pytket.extensions.cutensornet.tensor_network_convert import (  # type: igno
     measure_qubits_state,
 )
 from pytket.extensions.cuquantum.utils import circuit_statevector_postselect
-from pytket.passes import DecomposeBoxes
 
 
 @pytest.mark.parametrize(
@@ -141,8 +140,6 @@ def test_expectation_value_postselect_2q(circuit_2q: Circuit) -> None:
         pytest.lazy_fixture("q3_hadamard_test11"),
     ],
 )
-
-
 def test_expectation_value_postselect_3q_lcu(circuit_3q: Circuit) -> None:
     circuit_3q.flatten_registers()
     postselect_dict = {Qubit("q", 2): 0}
@@ -156,13 +153,9 @@ def test_expectation_value_postselect_3q_lcu(circuit_3q: Circuit) -> None:
     print(c.get_commands())
 
     op_matrix = op.to_sparse_matrix(2).todense()
-    sv = np.array(
-        [circuit_statevector_postselect(c.copy(), postselect_dict.copy())]
-    ).T
+    sv = np.array([circuit_statevector_postselect(c.copy(), postselect_dict.copy())]).T
     sv = sv * np.exp(1j * np.pi * c.phase)
-    sv_exp = (sv.conj().T @ op_matrix @ sv)[
-        0, 0
-    ]
+    sv_exp = (sv.conj().T @ op_matrix @ sv)[0, 0]
     ten_exp = b.get_operator_expectation_value_postselect(c.copy(), op, postselect_dict)
     assert np.isclose(ten_exp, sv_exp)
 
@@ -173,8 +166,6 @@ def test_expectation_value_postselect_3q_lcu(circuit_3q: Circuit) -> None:
         pytest.lazy_fixture("q4_lcu1"),  # type: ignore
     ],
 )
-
-
 def test_expectation_value_postselect_4q_lcu(circuit_lcu_4q: Circuit) -> None:
     circuit_lcu_4q.flatten_registers()
     postselect_dict = {Qubit("q", 2): 0, Qubit("q", 3): 0}
@@ -201,30 +192,23 @@ def test_expectation_value_postselect_4q_lcu(circuit_lcu_4q: Circuit) -> None:
     [
         pytest.lazy_fixture("q5_lcu_hadamard_test0"),
         pytest.lazy_fixture("q5_lcu_hadamard_test1"),
-    ]
-
+    ],
 )
-
 def test_expectation_value_postselect_5q_lcu(circuit_lcu_5q: Circuit) -> None:
-
-
-    p_reg = circuit_lcu_5q.get_q_register('p')
-    post_select = {p : 0 for p in p_reg}
-    op = QubitPauliOperator({QubitPauliString({Qubit("q", 0): Pauli.I}): 1.0}) #This adds identities to all qubits
+    p_reg = circuit_lcu_5q.get_q_register("p")
+    post_select = {p: 0 for p in p_reg}
+    op = QubitPauliOperator(
+        {QubitPauliString({Qubit("q", 0): Pauli.I}): 1.0}
+    )  # This adds identities to all qubits
     b = CuTensorNetBackend()
     c = b.get_compiled_circuit(circuit_lcu_5q.copy())
     p0_dict = post_select
     p0_dict.update({Qubit("a", 0): 1})
-    p0_exp = b.get_operator_expectation_value_postselect(c.copy(), op, p0_dict) 
+    p0_exp = b.get_operator_expectation_value_postselect(c.copy(), op, p0_dict)
 
     op_matrix = op.to_sparse_matrix(2).todense()
-    sv = np.array(
-        [circuit_statevector_postselect(circuit_lcu_5q, p0_dict.copy())]
-    ).T
+    sv = np.array([circuit_statevector_postselect(circuit_lcu_5q, p0_dict.copy())]).T
     b = CuTensorNetBackend()
     sv = sv * np.exp(1j * np.pi * c.phase)
-    sv_exp = (sv.conj().T @ op_matrix @ sv)[
-        0, 0
-    ]
+    sv_exp = (sv.conj().T @ op_matrix @ sv)[0, 0]
     assert np.isclose(p0_exp, sv_exp)
-

@@ -1,3 +1,4 @@
+from typing import Callable, Union
 from numpy.typing import NDArray
 from pytket.backends.backendresult import BackendResult
 from pytket.circuit import Qubit, Circuit  # type: ignore

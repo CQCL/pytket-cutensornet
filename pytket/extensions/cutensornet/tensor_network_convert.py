@@ -496,7 +496,6 @@ def _measure_qubit_state(
         ket: a TensorNetwork object representing a quantum state.
         qubit_id: a qubit id.
         bit_value: a bit value to be assigned to the measured qubit.
-        loglevel: logging level.
 
     Returns:
         A TensorNetwork object representing a quantum state after the
@@ -529,7 +528,6 @@ def measure_qubits_state(
         ket: a TensorNetwork object representing a quantum state.
         measurement_dict: a dictionary of qubit ids and their
         corresponding bit values to be assigned to the measured qubits.
-        loglevel: logging level.
 
     Returns:
         A TensorNetwork object representing a quantum state after
@@ -537,7 +535,7 @@ def measure_qubits_state(
         the extra measurement tensors.
     """
     for qubit_id, bit_value in measurement_dict.items():
-        ket = _measure_qubit_state(ket, qubit_id, bit_value, loglevel)
+        ket = _measure_qubit_state(ket, qubit_id, bit_value)
     return ket
 
 

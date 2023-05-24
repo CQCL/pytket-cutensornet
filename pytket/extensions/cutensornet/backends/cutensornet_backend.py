@@ -49,7 +49,6 @@ from pytket.passes import (  # type: ignore
 from pytket.utils.operators import QubitPauliOperator
 
 
-
 # TODO: this is temporary - probably don't need it eventually?
 def _sq(a: Expr, b: Expr, c: Expr) -> Circuit:
     circ = Circuit(1)

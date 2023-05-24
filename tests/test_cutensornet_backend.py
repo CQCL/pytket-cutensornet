@@ -122,7 +122,6 @@ def test_compile_convert_statevec_overlap(circuit: Circuit) -> None:
     assert ovl == pytest.approx(1.0)
 
 
-
 @pytest.mark.parametrize(
     "circuit",
     [
@@ -147,7 +146,6 @@ def test_compile_convert_statevec_overlap(circuit: Circuit) -> None:
     ],
 )
 def test_expectation_value_2(circuit):
-
     circuit.flatten_registers()
     op = QubitPauliOperator(
         {
@@ -159,8 +157,5 @@ def test_expectation_value_2(circuit):
     circ_expval = b.get_operator_expectation_value(c, op)
     sv = np.array([c.get_statevector()]).T
     op_mat = op.to_sparse_matrix(c.n_qubits).todense()
-    sv_expval = (sv.conj().T @ op_mat @ sv)[0,0].real
+    sv_expval = (sv.conj().T @ op_mat @ sv)[0, 0].real
     np.testing.assert_allclose(circ_expval, sv_expval, atol=1e-10, rtol=1e-10)
-
-
-
