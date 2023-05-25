@@ -4,6 +4,7 @@ import numpy as np
 from random import random
 
 import cuquantum as cq
+import cupy as cp
 from pytket.circuit import Circuit, fresh_symbol
 
 from pytket.extensions.cuquantum import TensorNetwork
@@ -16,6 +17,8 @@ root = 0
 comm = MPI.COMM_WORLD
 
 rank, n_procs = comm.Get_rank(), comm.Get_size()
+# Assign GPUs uniformly to processes
+device_id = rank % getDeviceCount()
 
 circ_list = None
 
@@ -62,7 +65,7 @@ for k in range(iterations):
     (i, j) = pairs[k*n_procs + rank]
     net0 = TensorNetwork(circ_list[i])
     net1 = TensorNetwork(circ_list[j])
-    overlap = cq.contract(*net0.vdot(net1))
+    overlap = cq.contract(*net0.vdot(net1), options={'device_id': device_id})
     # Report back to user
     print(f"Sample of circuit pair {(i, j)} taken. Overlap: {overlap}")
 
@@ -71,7 +74,7 @@ if rank < remainder:
     (i, j) = pairs[iterations*n_procs + rank]
     net0 = TensorNetwork(circ_list[i])
     net1 = TensorNetwork(circ_list[j])
-    overlap = cq.contract(*net0.vdot(net1))
+    overlap = cq.contract(*net0.vdot(net1), options={'device_id': device_id})
     # Report back to user
     print(f"Sample of circuit pair {(i, j)} taken. Overlap: {overlap}")
 
