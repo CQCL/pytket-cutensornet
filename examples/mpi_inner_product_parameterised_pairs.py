@@ -48,13 +48,32 @@ if rank == root:
         my_circ.symbol_substitution(symbol_map)
         circ_list.append(my_circ)
     time1 = MPI.Wtime()
-    print(f"Circuit list generated. Time taken: {time1-time0}\n")
+    print(f"Circuit list generated. Time taken: {time1-time0} seconds.\n")
 
 # Broadcast the list of circuits
 circ_list = comm.bcast(circ_list, root)
 
-# Calculate all pairs of circuits to be calculated
+# Enumerate all pairs of circuits to be calculated
 pairs = [(i,j) for i in range(n_circs) for j in range(n_circs) if i < j]
+
+# Find an efficient contraction path to be used by all contractions
+time0 = MPI.Wtime()
+# Prepare the Network object
+net0 = TensorNetwork(circ_list[0])  # Since all circuits have the same structure
+net1 = TensorNetwork(circ_list[1])  # we use these two as a template
+overlap_network = cq.Network(*net0.vdot(net1), options={'device_id': device_id})
+# Compute the path on each process with 8 samples for hyperoptimization
+path, info = overlap_network.contract_path(optimize={'samples': 8})
+# Select the best path from all ranks.
+opt_cost, sender = comm.allreduce(sendobj=(info.opt_cost, rank), op=MPI.MINLOC)
+if rank == root:
+    print(f"Process {sender} has the path with the lowest FLOP count {opt_cost}.")
+# Broadcast path from the sender to all other processes
+path = comm.bcast(path, sender)
+# Report back to user
+time1 = MPI.Wtime()
+if rank == root:
+    print(f"Contraction path found in {time1-time0} seconds.\n")
 
 # Parallelise across all available processes
 time0 = MPI.Wtime()
@@ -65,7 +84,7 @@ for k in range(iterations):
     (i, j) = pairs[k*n_procs + rank]
     net0 = TensorNetwork(circ_list[i])
     net1 = TensorNetwork(circ_list[j])
-    overlap = cq.contract(*net0.vdot(net1), options={'device_id': device_id})
+    overlap = cq.contract(*net0.vdot(net1), options={'device_id': device_id}, optimize={'path': path})
     # Report back to user
     print(f"Sample of circuit pair {(i, j)} taken. Overlap: {overlap}")
 
@@ -74,7 +93,7 @@ if rank < remainder:
     (i, j) = pairs[iterations*n_procs + rank]
     net0 = TensorNetwork(circ_list[i])
     net1 = TensorNetwork(circ_list[j])
-    overlap = cq.contract(*net0.vdot(net1), options={'device_id': device_id})
+    overlap = cq.contract(*net0.vdot(net1), options={'device_id': device_id}, optimize={'path': path})
     # Report back to user
     print(f"Sample of circuit pair {(i, j)} taken. Overlap: {overlap}")
 
