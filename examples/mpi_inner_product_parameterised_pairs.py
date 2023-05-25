@@ -1,20 +1,19 @@
+import sys
+from random import random
+
 from cupy.cuda.runtime import getDeviceCount
 from mpi4py import MPI
-import numpy as np
-from random import random
-import sys
-
 import cuquantum as cq
-import cupy as cp
+
 from pytket.circuit import Circuit, fresh_symbol
 
 from pytket.extensions.cuquantum import TensorNetwork
 
 # Parameters
 if len(sys.argv) < 3:
-    print(f"You need call this script as {sys.argv[0]} <n_circs> <n_qubits>")
-n_circs = int(sys.argv[1])
-n_qubits = int(sys.argv[2])
+    print(f"You need call this script as {sys.argv[0]} <n_qubits> <n_circs>")
+n_qubits = int(sys.argv[1])
+n_circs = int(sys.argv[2])
 
 root = 0
 comm = MPI.COMM_WORLD
