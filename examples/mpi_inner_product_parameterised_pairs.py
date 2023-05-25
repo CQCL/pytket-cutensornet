@@ -10,8 +10,8 @@ from pytket.circuit import Circuit, fresh_symbol
 from pytket.extensions.cuquantum import TensorNetwork
 
 # Parameters
-n_qubits = 5
-n_circs = 30
+n_qubits = 20
+n_circs = 10
 
 root = 0
 comm = MPI.COMM_WORLD
@@ -54,16 +54,16 @@ if rank == root:
 circ_list = comm.bcast(circ_list, root)
 
 # Enumerate all pairs of circuits to be calculated
-pairs = [(i,j) for i in range(n_circs) for j in range(n_circs) if i < j]
+pairs = [(i, j) for i in range(n_circs) for j in range(n_circs) if i < j]
 
 # Find an efficient contraction path to be used by all contractions
 time0 = MPI.Wtime()
 # Prepare the Network object
 net0 = TensorNetwork(circ_list[0])  # Since all circuits have the same structure
 net1 = TensorNetwork(circ_list[1])  # we use these two as a template
-overlap_network = cq.Network(*net0.vdot(net1), options={'device_id': device_id})
+overlap_network = cq.Network(*net0.vdot(net1), options={"device_id": device_id})
 # Compute the path on each process with 8 samples for hyperoptimization
-path, info = overlap_network.contract_path(optimize={'samples': 8})
+path, info = overlap_network.contract_path(optimize={"samples": 8})
 # Select the best path from all ranks.
 opt_cost, sender = comm.allreduce(sendobj=(info.opt_cost, rank), op=MPI.MINLOC)
 if rank == root:
@@ -79,30 +79,41 @@ if rank == root:
 time0 = MPI.Wtime()
 
 iterations, remainder = len(pairs) // n_procs, len(pairs) % n_procs
+progress_bar, progress_checkpoint = 0, iterations // 10
 for k in range(iterations):
     # Run contraction
-    (i, j) = pairs[k*n_procs + rank]
+    (i, j) = pairs[k * n_procs + rank]
     net0 = TensorNetwork(circ_list[i])
     net1 = TensorNetwork(circ_list[j])
-    overlap = cq.contract(*net0.vdot(net1), options={'device_id': device_id}, optimize={'path': path})
+    overlap = cq.contract(
+        *net0.vdot(net1), options={"device_id": device_id}, optimize={"path": path}
+    )
     # Report back to user
-    print(f"Sample of circuit pair {(i, j)} taken. Overlap: {overlap}")
+    # print(f"Sample of circuit pair {(i, j)} taken. Overlap: {overlap}")
+    if rank == root and progress_bar * progress_checkpoint < k:
+        print(f"{progress_bar*10}%")
+        progress_bar += 1
 
 if rank < remainder:
     # Run contraction
-    (i, j) = pairs[iterations*n_procs + rank]
+    (i, j) = pairs[iterations * n_procs + rank]
     net0 = TensorNetwork(circ_list[i])
     net1 = TensorNetwork(circ_list[j])
-    overlap = cq.contract(*net0.vdot(net1), options={'device_id': device_id}, optimize={'path': path})
+    overlap = cq.contract(
+        *net0.vdot(net1), options={"device_id": device_id}, optimize={"path": path}
+    )
     # Report back to user
-    print(f"Sample of circuit pair {(i, j)} taken. Overlap: {overlap}")
+    # print(f"Sample of circuit pair {(i, j)} taken. Overlap: {overlap}")
 
 time1 = MPI.Wtime()
 
 # Report back to user
 duration = time1 - time0
 print(f"Runtime at {rank} is {duration}")
-totaltime = comm.reduce(duration,op = MPI.SUM, root = root)
+totaltime = comm.reduce(duration, op=MPI.SUM, root=root)
 
 if rank == root:
-    print(f"Total runtime: {totaltime}")
+    print(f"\nNumber of circuits: {n_circs}")
+    print(f"Number of qubits: {n_qubits}")
+    print(f"Number of processes used: {n_procs}")
+    print(f"Average time per process: {totaltime / n_procs} seconds\n")
