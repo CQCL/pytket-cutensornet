@@ -1,4 +1,4 @@
-sphinx ~= 4.3.2
+sphinx
 sphinx_autodoc_annotation
 sphinx-autodoc-typehints>=1.19.3
 sphinx_book_theme >= 1.0.1, <2.0
