@@ -70,3 +70,10 @@ def q3_cx01cz12x1rx0() -> Circuit:
     circuit = Circuit(3)
     circuit.CX(0, 1).CZ(1, 2).X(1).Rx(0.3, 0)
     return circuit
+
+
+@pytest.fixture
+def q3_ry() -> Circuit:
+    circuit = Circuit(3)
+    circuit.Ry(0.2, 0).Ry(0.6, 1).Ry(0.1, 2).CX(0, 1).CZ(1, 2).X(1).Rx(0.3, 0)
+    return circuit
