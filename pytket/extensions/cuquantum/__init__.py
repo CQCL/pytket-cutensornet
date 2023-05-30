@@ -20,3 +20,5 @@ from .tensor_network_convert import (
     ExpectationValueTensorNetwork,
     tk_to_tensor_network,
 )
+
+from .qubitpaulioperator_mpo import QubitPauliMPO

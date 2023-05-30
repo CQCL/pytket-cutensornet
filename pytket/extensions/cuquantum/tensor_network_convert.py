@@ -21,12 +21,15 @@ from typing import List, Tuple, Union, Any, DefaultDict
 import networkx as nx  # type: ignore
 from networkx.classes.reportviews import OutMultiEdgeView, OutMultiEdgeDataView  # type: ignore
 import numpy as np
+import cupy as cp
 from numpy.typing import NDArray
 from pytket import Qubit  # type: ignore
 from pytket.utils import Graph
 from pytket.pauli import QubitPauliString  # type: ignore
+from pytket.utils import QubitPauliOperator  # type: ignore
 from pytket.circuit import Circuit
 from pytket.utils import permute_rows_cols_in_unitary
+from pytket.extensions.cuquantum.qubitpaulioperator_mpo import QubitPauliMPO
 
 
 # TODO: decide whether to use logger.
@@ -558,7 +561,7 @@ class ExpectationValueTensorNetwork:
     def __init__(
         self,
         bra: TensorNetwork,
-        paulis: QubitPauliString,
+        operator: QubitPauliString,
         ket: TensorNetwork,
         loglevel: int = logging.INFO,
     ) -> None:
@@ -575,7 +578,13 @@ class ExpectationValueTensorNetwork:
         """
         self._bra = bra
         self._ket = ket
-        self._operator = PauliOperatorTensorNetwork(paulis, bra, ket, loglevel)
+        if isinstance(operator, QubitPauliString):
+            self._operator = PauliOperatorTensorNetwork(operator, bra, ket, loglevel)
+        elif isinstance(operator, QubitPauliOperator):
+            mpo_sticky_indices = {q: (i, -i) for q, i in ket.sticky_indices.items()}
+            self._operator = QubitPauliMPO(
+                operator, mpo_sticky_indices, self._max_index() + 1
+            )
         self._cuquantum_interleaved = self._make_interleaved()
 
     @property
@@ -594,6 +603,15 @@ class ExpectationValueTensorNetwork:
         tn_concatenated.extend(self._operator.cuquantum_interleaved)
         tn_concatenated.extend(self._ket.cuquantum_interleaved)
         return tn_concatenated
+
+    def _max_index(self) -> int:
+        """Returns the maximum index in the tensor network.
+        so that the qpo-mpo dummy indices can start on a fresh index.
+
+        Returns:
+            Maximum index in the tensor network.
+        """
+        return self._ket.cuquantum_interleaved[-1][0]
 
 
 def tk_to_tensor_network(tkc: Circuit) -> List[Union[NDArray, List]]:

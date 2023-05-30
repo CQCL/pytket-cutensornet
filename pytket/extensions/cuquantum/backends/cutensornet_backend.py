@@ -289,3 +289,31 @@ class CuTensorNetBackend(Backend):
         overlap_net_interleaved = ket_net.vdot(TensorNetwork(circuit_bra))
         overlap: float = cq.contract(*overlap_net_interleaved)
         return overlap
+
+    def get_operator_expectation_value_mpo(
+        self,
+        state_circuit: Circuit,
+        operator: QubitPauliOperator,
+        valid_check: bool = True,
+    ) -> float:
+        """Calculates expectation value of an operator using cuTensorNet contraction.
+
+        Args:
+            state_circuit: Circuit representing state.
+            operator: Operator which expectation value is to be calculated.
+            valid_check: Whether to perform circuit validity check.
+
+        Returns:
+            Real part of the expectation value.
+        """
+        if valid_check:
+            self._check_all_circuits([state_circuit])
+
+        ket_network = TensorNetwork(state_circuit)
+        bra_network = ket_network.dagger()
+        expectation_value_network = ExpectationValueTensorNetwork(
+            bra_network, operator, ket_network
+        )
+
+        expectation = cq.contract(*expectation_value_network.cuquantum_interleaved)
+        return expectation.real
