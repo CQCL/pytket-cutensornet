@@ -6,8 +6,9 @@ high-performance library for tensor network computations, developed by NVIDIA.
 It is part of the `cuQuantum <https://docs.nvidia.com/cuda/cuquantum/index.html>`_ SDK -
 a high-performance library aimed at quantum circuit simulations on the NVIDIA GPU chips,
 consisting of two major components:
- - ``cuStateVec``: a high-performance library for state vector computations.
- - ``cuTensorNet``: a high-performance library for tensor network computations.
+
+* ``cuStateVec``: a high-performance library for state vector computations.
+* ``cuTensorNet``: a high-performance library for tensor network computations.
 
 Both components have both C and Python API.
 
@@ -17,14 +18,14 @@ expectation values to be simulated using ``cuTensorNet`` via an interface to
 
 ``pytket-cutensornet`` is available for Python 3.9 and 3.10, on Linux, MacOS and
 Windows. In order to use it, you need access to a GPU machine and first install
-`cuQuantum Python <https://docs.nvidia.com/cuda/cuquantum/python/README.html#installation>`_
-following their installation instructions. This will include the necessary dependencies
-such as CUDA toolkit. Then, to install ``pytket-cutensornet``, run:
+``cuQuantum Python`` following their installation
+`instructions  <https://docs.nvidia.com/cuda/cuquantum/python/README.html#installation>`_.
+This will include the necessary dependencies such as CUDA toolkit. Then, to install
+``pytket-cutensornet``, run:
 
 ::
 
    pip install pytket-cutensornet
-
 
 .. toctree::
     api.rst

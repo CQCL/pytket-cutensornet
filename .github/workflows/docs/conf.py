@@ -10,6 +10,7 @@ extensions = [
     "sphinx.ext.autosummary",
     "sphinx.ext.intersphinx",
     "sphinx.ext.mathjax",
+    "sphinx.ext.napoleon",
     "sphinx_copybutton",
 ]
 
@@ -18,7 +19,7 @@ pygments_style = "borland"
 html_theme = "sphinx_book_theme"
 
 html_theme_options = {
-    "repository_url": "https://github.com/CQCL/pytket-qulacs",
+    "repository_url": "https://github.com/CQCL/pytket-cutensornet",
     "use_repository_button": True,
     "use_issues_button": True,
     "logo": {
@@ -36,10 +37,10 @@ html_css_files = ["custom.css"]
 pytketdoc_base = "https://cqcl.github.io/tket/pytket/api/"
 
 intersphinx_mapping = {
-    "https://docs.python.org/3/": None,
-    pytketdoc_base: None,
-    "https://qiskit.org/documentation/": None,
-    "http://docs.qulacs.org/en/latest/": None,
+    'python': ('https://docs.python.org/3/', None),
+    'pytketdoc': (pytketdoc_base, None),
+    'qiskit': ('https://qiskit.org/documentation/', None),
+    'qulacs': ('http://docs.qulacs.org/en/latest/', None),
 }
 
 autodoc_member_order = "groupwise"
