@@ -19,8 +19,8 @@ on:
     - cron: '0 4 * * 2'
 
 jobs:
-  cuquantum-checks:
-    name: cuQuantum - Build and test module
+  cutensornet-checks:
+    name: cuTensorNet - Build and test module
     strategy:
       matrix:
         os: ['ubuntu-22.04', 'macos-12', 'windows-2022']
@@ -40,3 +40,94 @@ jobs:
       run: |
         chmod +x ./.github/workflows/build-test
         ./.github/workflows/build-test mypy
+    - uses: actions/upload-artifact@v3
+        if: github.event_name == 'release' || contains(github.ref, 'refs/heads/wheel')
+        with:
+          name: artefacts
+          path: wheelhouse/
+    - name: Install docs dependencies
+      if: (matrix.os == 'ubuntu-22.04') && (github.event_name == 'pull_request' || github.event_name == 'schedule' )
+      with:
+        python-version: '3.10'
+      run: |
+        pip install -r .github/workflows/docs/requirements.txt
+    - name: Build docs
+      if: (matrix.os == 'ubuntu-22.04') && (github.event_name == 'pull_request' || github.event_name == 'schedule' )
+      with:
+        python-version: '3.10'
+      timeout-minutes: 20
+      run: |
+        ./.github/workflows/docs/check-build-docs
+
+
+  publish_to_pypi:
+    name: Publish to pypi
+    if: github.event_name == 'release'
+    needs: cutensornet-checks
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Download all wheels
+        uses: actions/download-artifact@v3
+        with:
+          path: wheelhouse
+      - name: Put them all in the dist folder
+        run: |
+          mkdir dist
+          for w in `find wheelhouse/ -type f -name "*.whl"` ; do cp $w dist/ ; done
+      - name: Publish wheels
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          user: __token__
+          password: ${{ secrets.PYPI_PYTKET_CUTENSORNET_API_TOKEN }}
+          verbose: true
+
+  build_docs:
+    name: Build docs
+    if: github.event_name == 'release'
+    needs: publish_to_pypi
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: '0'
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      - name: Download all wheels
+        uses: actions/download-artifact@v3
+        with:
+          path: wheelhouse
+      - name: Install pip, wheel
+        run: pip install -U pip wheel
+      - name: Install extension
+        run: for w in `find wheelhouse/ -type f -name "*.whl"` ; do pip install $w ; done
+      - name: Install docs dependencies
+        run: |
+          pip install -r .github/workflows/docs/requirements.txt
+      - name: Build docs
+        timeout-minutes: 20
+        run: |
+          cd .github/workflows/docs
+          mkdir extensions
+          ./build-docs -d ${GITHUB_WORKSPACE}/.github/workflows/docs/extensions/api
+      - name: Upload docs as artefact
+        uses: actions/upload-pages-artifact@v1
+        with:
+          path: .github/workflows/docs/extensions
+
+  publish_docs:
+    name: Publish docs
+    if: github.event_name == 'release'
+    needs: build_docs
+    runs-on: ubuntu-22.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v2
