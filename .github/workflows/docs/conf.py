@@ -3,7 +3,16 @@
 # Configuration file for the Sphinx documentation builder.
 # See https://www.sphinx-doc.org/en/master/usage/configuration.html
 
-author = "Cambridge Quantum Computing Ltd"
+import re
+from typing import Any, Dict, Optional
+from urllib.parse import urljoin
+
+from docutils import nodes
+from docutils.nodes import Element, TextElement
+from sphinx.application import Sphinx
+from sphinx.environment import BuildEnvironment
+
+author = "Quantinuum"
 
 extensions = [
     "sphinx.ext.autodoc",
@@ -47,15 +56,6 @@ autodoc_member_order = "groupwise"
 
 # The following code is for resolving broken hyperlinks in the doc.
 
-import re
-from typing import Any, Dict, List, Optional
-from urllib.parse import urljoin
-
-from docutils import nodes
-from docutils.nodes import Element, TextElement
-from sphinx.application import Sphinx
-from sphinx.environment import BuildEnvironment
-
 # Mappings for broken hyperlinks that intersphinx cannot resolve
 external_url_mapping = {
     "BasePass": urljoin(pytketdoc_base, "passes.html#pytket.passes.BasePass"),
@@ -93,7 +93,8 @@ custom_internal_mapping = {
 def add_reference(
     app: Sphinx, env: BuildEnvironment, node: Element, contnode: TextElement
 ) -> Optional[nodes.reference]:
-    # Fix references in docstrings that are inherited from the base pytket.backends.Backend class.
+    # Fix references in docstrings that are inherited from the base
+    # pytket.backends.Backend class.
     mapping = app.config.external_url_mapping
     if node.astext() in mapping:
         newnode = nodes.reference(
@@ -125,7 +126,8 @@ def correct_signature(
             new_signature = new_signature.replace(k, v)
         if return_annotation is not None:
             new_return_annotation = new_return_annotation.replace(k, v)
-    # e.g. Replace <CXConfigType.Snake: 0> by CXConfigType.Snake to avoid silent failure in later stages.
+    # e.g. Replace <CXConfigType.Snake: 0> by CXConfigType.Snake to avoid
+    # silent failure in later stages.
     if new_signature is not None:
         enums_signature = re.findall(r"<.+?\: \d+>", new_signature)
         for e in enums_signature:

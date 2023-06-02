@@ -1,4 +1,4 @@
-# Copyright 2020-2023 Cambridge Quantum Computing
+# Copyright 2020-2023 Quantinuum
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -44,7 +44,7 @@ setup(
     include_package_data=True,
     install_requires=[
         "pytket ~= 1.11"
-    ],  # TODO: how to account for cuQuantum requirement?
+    ],
     classifiers=[
         "Environment :: Console",
         "Programming Language :: Python :: 3.9",
