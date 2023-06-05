@@ -3,8 +3,8 @@ import numpy as np
 import pytest
 
 # from pytket.extensions.qiskit import AerStateBackend
-from pytket.extensions.qulacs import QulacsBackend
-from pytket.circuit import Circuit
+from pytket.extensions.qulacs import QulacsBackend #type: ignore
+from pytket.circuit import Circuit #type: ignore
 from pytket.extensions.cutensornet.backends.hadamard_test import (
     hadamard_test,
     general_hadamard_test,
