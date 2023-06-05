@@ -143,7 +143,11 @@ class MPS:
     # - The right virtual bond of the tensor `i` of the MPS has ID `i+1`.
     # - The physical bond of the tensor `i` has ID `i+len(tensors)`.
     def __init__(
-        self, qubits: list[Qubit], chi: int, float_precision: Optional[str] = None
+        self,
+        qubits: list[Qubit],
+        chi: int,
+        float_precision: Optional[str] = None,
+        device_id: Optional[int] = None,
     ):
         """Initialise an MPS on the computational state 0.
 
@@ -160,6 +164,8 @@ class MPS:
                 real number) or 'float64' for double precision (64 bits per real).
                 Each complex number is represented using two of these real numbers.
                 Default is 'float64'.
+            device_id: The identifier of the GPU where this MPS is meant to be run.
+                If not provided, the default ``cupy.cuda.Device()`` will be used.
         """
         if chi < 2:
             raise Exception("The max virtual bond dim (chi) must be >= 2.")
@@ -182,7 +188,8 @@ class MPS:
         #################################################
         self._libhandle = cutn.create()
         self._stream = cp.cuda.Stream()
-        dev = cp.cuda.Device()  # get current device
+        self._device_id = device_id
+        dev = cp.cuda.Device(device_id)
 
         if cp.cuda.runtime.runtimeGetVersion() < 11020:
             raise RuntimeError("Requires CUDA 11.2+.")
@@ -586,15 +593,18 @@ class MPS:
         """
         return self.tensors[position].get_dimension_of(self.get_physical_bond(position))
 
-    def copy(self) -> MPS:
+    def copy(self, device_id: Optional[int] = None) -> MPS:
         """
+        Args:
+            device_id: The identifier of the GPU where the copy is meant to be kept.
+                If not provided, the same device will be used.
         Returns:
             A deep copy of the MPS
         """
         self._flush()
 
         # Create a dummy object
-        new_mps = MPS(qubits=[], chi=self.chi)
+        new_mps = MPS(qubits=[], chi=self.chi, device_id=self._device_id)
         # Copy all data
         new_mps.fidelity = self.fidelity
         new_mps.tensors = [t.copy() for t in self.tensors]
