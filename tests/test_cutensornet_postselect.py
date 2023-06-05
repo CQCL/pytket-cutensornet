@@ -12,6 +12,7 @@ from pytket.extensions.cutensornet.tensor_network_convert import (  # type: igno
 from pytket.extensions.cutensornet.utils import circuit_statevector_postselect
 
 
+
 @pytest.mark.parametrize(
     "circuit_2q",
     [
@@ -50,6 +51,10 @@ def test_postselect_qubits_state_2q(circuit_2q: Circuit) -> None:
         pytest.lazy_fixture("q3_v0cx02"),  # type: ignore
         pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
         pytest.lazy_fixture("q4_lcu1"),  # type: ignore
+        pytest.lazy_fixture("q3_pauli_gadget0"),  # type: ignore
+        pytest.lazy_fixture("q3_pauli_gadget1"),  # type: ignore
+        pytest.lazy_fixture("q3_hadamard_test4"),
+        pytest.lazy_fixture("q3_hadamard_test5"),
     ],
 )
 def test_postselect_qubits_state_3q(circuit_3q: Circuit) -> None:

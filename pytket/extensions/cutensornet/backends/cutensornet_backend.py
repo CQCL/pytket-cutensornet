@@ -49,6 +49,7 @@ from pytket.passes import (  # type: ignore
 from pytket.utils.operators import QubitPauliOperator
 
 
+
 # TODO: this is temporary - probably don't need it eventually?
 def _sq(a: Expr, b: Expr, c: Expr) -> Circuit:
     circ = Circuit(1)
@@ -103,6 +104,7 @@ class CuTensorNetBackend(Backend):
                     OpType.Ry,
                     OpType.Rz,
                     OpType.ZZMax,
+                    OpType.SWAP,
                 }
             ),
         ]
@@ -247,6 +249,8 @@ class CuTensorNetBackend(Backend):
         """
         if valid_check:
             self._check_all_circuits([state_circuit])
+
+        state_circuit.replace_implicit_wire_swaps()
 
         expectation = 0
         for qos, coeff in operator._dict.items():
