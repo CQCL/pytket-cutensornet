@@ -1,15 +1,15 @@
 import numpy as np
 import cuquantum as cq
 import pytest
-from pytket.circuit import Qubit, Circuit
-from pytket.pauli import Pauli, QubitPauliString
+from pytket.circuit import Qubit, Circuit  # type: ignore
+from pytket.pauli import Pauli, QubitPauliString  # type: ignore
 from pytket.utils import QubitPauliOperator
-from pytket.extensions.cuquantum.backends import CuTensorNetBackend
-from pytket.extensions.cuquantum.tensor_network_convert import (  # type: ignore
+from pytket.extensions.cutensornet.backends import CuTensorNetBackend
+from pytket.extensions.cutensornet.tensor_network_convert import (  # type: ignore
     TensorNetwork,
     measure_qubits_state,
 )
-from pytket.extensions.cuquantum.utils import circuit_statevector_postselect
+from pytket.extensions.cutensornet.utils import circuit_statevector_postselect
 
 
 @pytest.mark.parametrize(
@@ -133,8 +133,6 @@ def test_expectation_value_postselect_4q_lcu(circuit_lcu_4q: Circuit) -> None:
     b = CuTensorNetBackend()
     c = b.get_compiled_circuit(circuit_lcu_4q)
     sv = sv * np.exp(1j * np.pi * c.phase)
-    sv_exp = (sv.conj().T @ op_matrix @ sv)[
-        0, 0
-    ]
+    sv_exp = (sv.conj().T @ op_matrix @ sv)[0, 0]
     ten_exp = b.get_operator_expectation_value_postselect(c.copy(), op, postselect_dict)
     assert np.isclose(ten_exp, sv_exp)
