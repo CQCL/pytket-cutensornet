@@ -66,7 +66,7 @@ if rank == root:
 # Contract the MPS of each of the circuits in this process
 this_proc_mps = []
 for circ in this_proc_circs:
-    this_proc_mps.append(simulate(circ, "MPSxGate", chi))  # TODO: This should use `with` and GPU -> CPU
+    this_proc_mps.append(simulate(circ, "MPSxGate", chi))  # TODO: This should use `with`
 
 if rank == root:
     time1 = MPI.Wtime()
@@ -77,6 +77,10 @@ if rank == root:
 time0 = MPI.Wtime()
 for proc_i in range(n_procs):
     mps_list += comm.bcast(this_proc_mps, proc_i)
+# Change device ID
+# TODO this is very flimsy and should be implemented better; most likely via broadcasting a special version of MPS object that does not contain info about libhandle... 
+# TODO or it might just be better not to have libhandle at all in MPS...
+mps_list = [mps.copy(device_id) for mps in mps_list]
 
 if rank == root:
     time1 = MPI.Wtime()
