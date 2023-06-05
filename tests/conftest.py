@@ -1,5 +1,5 @@
 import pytest
-from pytket.circuit import (
+from pytket.circuit import (  # type: ignore
     Circuit,
     OpType,
     PauliExpBox,
@@ -8,11 +8,11 @@ from pytket.circuit import (
     CircBox,
     Qubit,
 )
-from pytket.pauli import Pauli
-from pytket.passes import DecomposeBoxes
+from pytket.pauli import Pauli  # type: ignore
+from pytket.passes import DecomposeBoxes  # type: ignore
 
 
-def controlled_pauli_gadget_box(paulis, rotation):
+def controlled_pauli_gadget_box(paulis: list[Pauli], rotation: float) -> CircBox:
     circuit_a = Circuit(len(paulis))
 
     for i, pauli in enumerate(paulis):
@@ -402,27 +402,6 @@ def q4_hadamard_test8() -> Circuit:
     circ.add_gate(qbox, [a[0], q[0], q[1], q[2]])
     circ.H(a[0])
     return circ
-
-
-@pytest.fixture
-def q2_lcu1() -> Circuit:
-    circuit = Circuit(2)
-    circuit.Ry(0.78, 1).Ry(0.27, 0).CX(0, 1).CZ(0, 1).Ry(-0.27, 0)
-    return circuit
-
-
-@pytest.fixture
-def q2_lcu2() -> Circuit:
-    circuit = Circuit(2)
-    circuit.Ry(0.78, 1).Ry(0.27, 0).CZ(0, 1).CY(0, 1).Ry(-0.27, 0)
-    return circuit
-
-
-@pytest.fixture
-def q2_lcu3() -> Circuit:
-    circuit = Circuit(2)
-    circuit.Ry(0.78, 1).Rx(0.67, 0).CX(0, 1).CZ(0, 1).Ry(-0.67, 0)
-    return circuit
 
 
 @pytest.fixture

@@ -9,7 +9,7 @@ from pytket.extensions.cutensornet.tensor_network_convert import (  # type: igno
     TensorNetwork,
     measure_qubits_state,
 )
-from pytket.extensions.cuquantum.utils import circuit_statevector_postselect
+from pytket.extensions.cutensornet.utils import circuit_statevector_postselect
 
 
 @pytest.mark.parametrize(
@@ -130,14 +130,14 @@ def test_expectation_value_postselect_2q(circuit_2q: Circuit) -> None:
         pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
         pytest.lazy_fixture("q3_pauli_gadget0"),  # type: ignore
         pytest.lazy_fixture("q3_pauli_gadget1"),  # type: ignore
-        pytest.lazy_fixture("q3_hadamard_test4"),
-        pytest.lazy_fixture("q3_hadamard_test5"),
-        pytest.lazy_fixture("q3_hadamard_test6"),
-        pytest.lazy_fixture("q3_hadamard_test7"),
-        pytest.lazy_fixture("q3_hadamard_test8"),
-        pytest.lazy_fixture("q3_hadamard_test9"),
-        pytest.lazy_fixture("q3_hadamard_test10"),
-        pytest.lazy_fixture("q3_hadamard_test11"),
+        pytest.lazy_fixture("q3_hadamard_test4"),  # type: ignore
+        pytest.lazy_fixture("q3_hadamard_test5"),  # type: ignore
+        pytest.lazy_fixture("q3_hadamard_test6"),  # type: ignore
+        pytest.lazy_fixture("q3_hadamard_test7"),  # type: ignore
+        pytest.lazy_fixture("q3_hadamard_test8"),  # type: ignore
+        pytest.lazy_fixture("q3_hadamard_test9"),  # type: ignore
+        pytest.lazy_fixture("q3_hadamard_test10"),  # type: ignore
+        pytest.lazy_fixture("q3_hadamard_test11"),  # type: ignore
     ],
 )
 def test_expectation_value_postselect_3q_lcu(circuit_3q: Circuit) -> None:
@@ -190,8 +190,8 @@ def test_expectation_value_postselect_4q_lcu(circuit_lcu_4q: Circuit) -> None:
 @pytest.mark.parametrize(
     "circuit_lcu_5q",
     [
-        pytest.lazy_fixture("q5_lcu_hadamard_test0"),
-        pytest.lazy_fixture("q5_lcu_hadamard_test1"),
+        pytest.lazy_fixture("q5_lcu_hadamard_test0"),  # type: ignore
+        pytest.lazy_fixture("q5_lcu_hadamard_test1"),  # type: ignore
     ],
 )
 def test_expectation_value_postselect_5q_lcu(circuit_lcu_5q: Circuit) -> None:

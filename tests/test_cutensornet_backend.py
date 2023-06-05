@@ -4,7 +4,7 @@ from pytket.circuit import Circuit, BasisOrder, Unitary1qBox, OpType, Qubit  # t
 from pytket.passes import CliffordSimp  # type: ignore
 from pytket.pauli import QubitPauliString, Pauli  # type: ignore
 from pytket.utils.operators import QubitPauliOperator
-from pytket.extensions.cuquantum.backends import CuTensorNetBackend
+from pytket.extensions.cutensornet.backends import CuTensorNetBackend
 
 
 def test_bell() -> None:
@@ -140,8 +140,8 @@ def test_compile_convert_statevec_overlap(circuit: Circuit) -> None:
         pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
         pytest.lazy_fixture("q3_pauli_gadget0"),  # type: ignore
         pytest.lazy_fixture("q3_pauli_gadget1"),  # type: ignore
-        pytest.lazy_fixture("q3_hadamard_test4"),
-        pytest.lazy_fixture("q3_hadamard_test5"),
+        pytest.lazy_fixture("q3_hadamard_test4"),  # type: ignore
+        pytest.lazy_fixture("q3_hadamard_test5"),  # type: ignore
         pytest.lazy_fixture("q4_lcu1"),  # type: ignore
     ],
 )

@@ -1,9 +1,9 @@
-from pytket.circuit import Circuit
+from pytket.circuit import Circuit  # type: ignore
 from pytket.circuit import Qubit  # type: ignore
-from pytket.pauli import QubitPauliString
+from pytket.pauli import QubitPauliString  # type: ignore
 from pytket.pauli import Pauli  # type: ignore
-from pytket.utils import QubitPauliOperator
-from pytket.extensions.cuquantum.backends import CuTensorNetBackend
+from pytket.utils import QubitPauliOperator  # type: ignore
+from pytket.extensions.cutensornet.backends import CuTensorNetBackend
 
 
 def hadamard_test(circ: Circuit) -> float:
