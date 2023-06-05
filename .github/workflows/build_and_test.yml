@@ -19,11 +19,11 @@ on:
     - cron: '0 4 * * 2'
 
 jobs:
-  cuquantum-checks:
-    name: cuQuantum - Build and test module
+  cutensornet-checks:
+    name: cuTensorNet - Build and test module
     strategy:
       matrix:
-        os: ['ubuntu-22.04', 'macos-12', 'windows-2022']
+        os: ['ubuntu-22.04', 'macos-12']
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v3
@@ -34,9 +34,107 @@ jobs:
       uses: actions/setup-python@v4
       with:
         python-version: '3.9'
-    - name: Build and test including remote checks (3.9) mypy
+    - name: Build and mypy (3.9)
       shell: bash
       if:  (matrix.os == 'macos-12') && (github.event_name == 'push' || (github.event_name == 'pull_request' &&  github.event.pull_request.head.repo.full_name == github.repository) || github.event_name == 'release' || github.event_name == 'schedule' )
       run: |
         chmod +x ./.github/workflows/build-test
         ./.github/workflows/build-test mypy
+    - name: Set up Python 3.10
+      if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'schedule'
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    - name: Build (3.10)
+      if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'schedule'
+      shell: bash
+      run: |
+        chmod +x ./.github/workflows/build-test
+        ./.github/workflows/build-test nomypy
+    - uses: actions/upload-artifact@v3
+      if: github.event_name == 'release' || contains(github.ref, 'refs/heads/wheel')
+      with:
+        name: artefacts
+        path: wheelhouse/
+    - name: Install docs dependencies
+      if: (matrix.os == 'ubuntu-22.04') && (github.event_name == 'pull_request' || github.event_name == 'schedule' )
+      run: |
+        pip install -r .github/workflows/docs/requirements.txt
+    - name: Build docs
+      if: (matrix.os == 'ubuntu-22.04') && (github.event_name == 'pull_request' || github.event_name == 'schedule' )
+      timeout-minutes: 20
+      run: |
+        ./.github/workflows/docs/check-build-docs
+
+
+  publish_to_pypi:
+    name: Publish to pypi
+    if: github.event_name == 'release'
+    needs: cutensornet-checks
+    runs-on: ubuntu-22.04
+    steps:
+    - name: Download all wheels
+      uses: actions/download-artifact@v3
+      with:
+        path: wheelhouse
+    - name: Put them all in the dist folder
+      run: |
+        mkdir dist
+        for w in `find wheelhouse/ -type f -name "*.whl"` ; do cp $w dist/ ; done
+    - name: Publish wheels
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        user: __token__
+        password: ${{ secrets.PYPI_PYTKET_CUTENSORNET_API_TOKEN }}
+        verbose: true
+
+  build_docs:
+    name: Build docs
+    if: github.event_name == 'release'
+    needs: publish_to_pypi
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: '0'
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    - name: Download all wheels
+      uses: actions/download-artifact@v3
+      with:
+        path: wheelhouse
+    - name: Install pip, wheel
+      run: pip install -U pip wheel
+    - name: Install extension
+      run: for w in `find wheelhouse/ -type f -name "*.whl"` ; do pip install $w ; done
+    - name: Install docs dependencies
+      run: |
+        pip install -r .github/workflows/docs/requirements.txt
+    - name: Build docs
+      timeout-minutes: 20
+      run: |
+        cd .github/workflows/docs
+        mkdir extensions
+        ./build-docs -d ${GITHUB_WORKSPACE}/.github/workflows/docs/extensions/api
+    - name: Upload docs as artefact
+      uses: actions/upload-pages-artifact@v1
+      with:
+        path: .github/workflows/docs/extensions
+
+  publish_docs:
+    name: Publish docs
+    if: github.event_name == 'release'
+    needs: build_docs
+    runs-on: ubuntu-22.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v2

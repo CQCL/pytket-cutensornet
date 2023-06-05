@@ -1,0 +1,36 @@
+name: Pytket cuTensorNet Docs
+
+on:
+  push:
+    branches:
+      - 'docs/**'
+  schedule:
+    # 04:00 every Tuesday morning
+    - cron: '0 4 * * 2'
+jobs:
+  docs:
+    name: build docs
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v3
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+    - name: Upgrade pip and install wheel
+      run: pip install --upgrade pip wheel
+    - name: Install pytket-cutensornet
+      run: pip install .
+    - name: Install docs dependencies
+      run: |
+        pip install -r .github/workflows/docs/requirements.txt
+    - name: Test building docs
+      timeout-minutes: 20
+      run: |
+        cd .github/workflows/docs
+        mkdir extensions
+        ./build-docs -d ${GITHUB_WORKSPACE}/.github/workflows/docs/extensions
+    - uses: actions/upload-artifact@v3
+      with:
+        name: pytket-extension-docs
+        path: .github/workflows/docs/extensions/

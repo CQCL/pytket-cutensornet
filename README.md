@@ -1,31 +1,41 @@
 # Pytket Extensions
 
-This repository contains the pytket-cuquantum extension, using Quantinuum's
+This repository contains the pytket-cutensornet extension, using Quantinuum's
 [pytket](https://cqcl.github.io/tket/pytket/api/index.html) quantum SDK.
 
-# pytket-cuquantum
+# pytket-cutensornet
 
 [Pytket](https://cqcl.github.io/tket/pytket/api/index.html) is a python module for interfacing
 with tket, a quantum computing toolkit and optimisation compiler developed by Quantinuum.
 
-[cuQuantum](https://docs.nvidia.com/cuda/cuquantum/index.html) SDK is a high-performance library
-aimed at quantum circuit simulations on the NVIDIA GPU chips, consisting of two major components:
- - cuStateVec: a high-performance library for state vector computations.
- - cuTensorNet: a high-performance library for tensor network computations.
+
+[cuTensorNet](https://docs.nvidia.com/cuda/cuquantum/cutensornet/index.html) is a
+high-performance library for tensor network computations, developed by NVIDIA.
+It is part of the [cuQuantum](https://docs.nvidia.com/cuda/cuquantum/index.html) SDK -
+a high-performance library aimed at quantum circuit simulations on the NVIDIA GPU chips,
+consisting of two major components:
+ - `cuStateVec`: a high-performance library for state vector computations.
+ - `cuTensorNet`: a high-performance library for tensor network computations.
 
 Both components have both C and Python API.
 
-`pytket-cuquantum` is an extension to `pytket` that allows `pytket` circuits and expectation values to be
-run on the cuQuantum simulators via interfaces to [cuQuantum Python](https://docs.nvidia.com/cuda/cuquantum/python/index.html).
+`pytket-cutensornet` is an extension to `pytket` that allows `pytket` circuits and
+expectation values to be simulated using `cuTensorNet` via an interface to
+[cuQuantum Python](https://docs.nvidia.com/cuda/cuquantum/python/index.html).
 
-Currently, only an interface to [cuTensorNet](https://docs.nvidia.com/cuda/cuquantum/cutensornet/index.html) (via its [Python API](https://docs.nvidia.com/cuda/cuquantum/python/api/index.html)) is implemented.
+Currently, only single-GPU calculations are supported, but a multi-GPU execution will be
+implemented in the due course using `mpi4py` library.
 
 ## Getting started
 
-`pytket-cuquantum` is available for Python 3.9 and 3.10, on Linux, MacOS and
-Windows. 
+`pytket-cutensornet` is available for Python 3.9, 3.10 and 3.11 on Linux.
+In order to use it, you need access to a Linux machine with either `Volta`, `Ampere`
+or `Hopper` GPU and first install `cuQuantum Python` following their installation
+[instructions](https://docs.nvidia.com/cuda/cuquantum/python/README.html#installation).
+This will include the necessary dependencies such as CUDA toolkit. Then, to install
+`pytket-cutensornet`, run:
 
-Currently only installation in editable mode from source is available (see below).
+```pip install pytket-cutensornet```
 
 ## Bugs, support and feature requests
 
@@ -34,8 +44,7 @@ Please file bugs and feature requests on the Github
 
 ## Development
 
-To install an extension in editable mode, simply change to its subdirectory
-within the `modules` directory, and run:
+To install an extension in editable mode, from its root folder run:
 
 ```shell
 pip install -e .

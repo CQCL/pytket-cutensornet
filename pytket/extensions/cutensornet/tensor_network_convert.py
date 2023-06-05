@@ -1,4 +1,4 @@
-# Copyright 2019-2023 Cambridge Quantum Computing
+# Copyright 2019-2023 Quantinuum
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -442,7 +442,7 @@ class TensorNetwork:
         """
         tn_dagger = TensorNetwork(self._circuit.copy(), adj=True)
         self._logger.debug(
-            f"dagger cuquantum input list: \n{tn_dagger._cuquantum_interleaved}"
+            f"dagger cutensornet input list: \n{tn_dagger._cuquantum_interleaved}"
         )
         return tn_dagger
 

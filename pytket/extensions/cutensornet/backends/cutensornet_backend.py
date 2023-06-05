@@ -1,4 +1,4 @@
-# Copyright 2019-2023 Cambridge Quantum Computing
+# Copyright 2019-2023 Quantinuum
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -19,7 +19,7 @@ import warnings
 try:
     import cuquantum as cq  # type: ignore
 except ImportError:
-    warnings.warn("local settings failed to import cuquantum", ImportWarning)
+    warnings.warn("local settings failed to import cutensornet", ImportWarning)
 from logging import warning
 from typing import List, Union, Optional, Sequence
 from uuid import uuid4
@@ -30,7 +30,7 @@ from pytket.backends import ResultHandle, CircuitStatus, StatusEnum, CircuitNotR
 from pytket.backends.backend import KwargTypes, Backend, BackendResult
 from pytket.backends.backendinfo import BackendInfo
 from pytket.backends.resulthandle import _ResultIdTuple
-from pytket.extensions.cuquantum.tensor_network_convert import (
+from pytket.extensions.cutensornet.tensor_network_convert import (
     TensorNetwork,
     ExpectationValueTensorNetwork,
     tk_to_tensor_network,

@@ -12,10 +12,10 @@ from pytket.transform import Transform  # type: ignore
 try:
     import cuquantum as cq  # type: ignore
 except ImportError:
-    warnings.warn("local settings failed to import cuquantum", ImportWarning)
+    warnings.warn("local settings failed to import cutensornet", ImportWarning)
 from pytket.circuit import Circuit
 
-from pytket.extensions.cuquantum.tensor_network_convert import (  # type: ignore
+from pytket.extensions.cutensornet.tensor_network_convert import (  # type: ignore
     tk_to_tensor_network,
     TensorNetwork,
 )
