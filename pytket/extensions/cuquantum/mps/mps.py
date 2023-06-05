@@ -603,8 +603,11 @@ class MPS:
         """
         self._flush()
 
+        if device_id is None:
+            device_id = self._device_id
+
         # Create a dummy object
-        new_mps = MPS(qubits=[], chi=self.chi, device_id=self._device_id)
+        new_mps = MPS(qubits=[], chi=self.chi, device_id=device_id)
         # Copy all data
         new_mps.fidelity = self.fidelity
         new_mps.tensors = [t.copy() for t in self.tensors]
