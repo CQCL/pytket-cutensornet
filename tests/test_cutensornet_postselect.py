@@ -1,5 +1,5 @@
 import numpy as np
-import cuquantum as cq
+import cuquantum as cq  # type: ignore
 import pytest
 from pytket.circuit import Qubit, Circuit  # type: ignore
 from pytket.pauli import Pauli, QubitPauliString  # type: ignore

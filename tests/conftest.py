@@ -1,5 +1,5 @@
 import pytest
-from pytket.circuit import Circuit, OpType
+from pytket.circuit import Circuit, OpType  # type: ignore
 
 
 @pytest.fixture

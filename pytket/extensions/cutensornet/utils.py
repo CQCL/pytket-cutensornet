@@ -1,9 +1,11 @@
 from numpy.typing import NDArray
 from pytket.backends.backendresult import BackendResult
-from pytket.circuit import Qubit, Circuit
+from pytket.circuit import Qubit, Circuit  # type: ignore
 
 
-def _reorder_qlist(post_select_dict: dict, qlist: list[Qubit]):
+def _reorder_qlist(
+    post_select_dict: dict, qlist: list[Qubit]
+) -> tuple[list[Qubit], Qubit]:
     """Reorder qlist so that post_select_qubit is first in the list.
 
     Args:
@@ -30,7 +32,7 @@ def _reorder_qlist(post_select_dict: dict, qlist: list[Qubit]):
 
 def statevector_postselect(
     qlist: list[Qubit], sv: NDArray, post_select_dict: dict[Qubit, int]
-):
+) -> NDArray:
     """Post selects a statevector. recursively calls itself if there
     are multiple post select qubits. Uses backend result to get statevector
     and permutes so the the post select qubit for each
@@ -70,7 +72,9 @@ def statevector_postselect(
     return statevector_postselect(q_list_reordered, new_sv, post_select_dict)
 
 
-def circuit_statevector_postselect(circ: Circuit, post_select_dict: dict[Qubit, int]):
+def circuit_statevector_postselect(
+    circ: Circuit, post_select_dict: dict[Qubit, int]
+) -> NDArray:
     """Post selects a circuit statevector. recursively calls
     itself if there are multiple post select qubits. Should only be
     used for testing small circuits as it uses the circuit.get_unitary() method.

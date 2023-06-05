@@ -25,7 +25,7 @@ from numpy.typing import NDArray
 from pytket import Qubit  # type: ignore
 from pytket.utils import Graph
 from pytket.pauli import QubitPauliString  # type: ignore
-from pytket.circuit import Circuit, Qubit
+from pytket.circuit import Circuit, Qubit  # type: ignore
 from pytket.utils import permute_rows_cols_in_unitary
 
 
@@ -484,8 +484,8 @@ class TensorNetwork:
 
 
 def _measure_qubit_state(
-    ket: TensorNetwork, qubit_id: Qubit, bit_value: int, loglevel=logging.INFO
-):
+    ket: TensorNetwork, qubit_id: Qubit, bit_value: int, loglevel: int = logging.INFO
+) -> TensorNetwork:
     """Measures a qubit in a tensor network. by appending a measurement
     gate to the tensor network.
     The measurment gate is applied via appending a tensor cap of
@@ -516,8 +516,8 @@ def _measure_qubit_state(
 
 # TODO: Make this compatible with mid circuit measurements and reset
 def measure_qubits_state(
-    ket: TensorNetwork, measurement_dict: dict[Qubit, int], loglevel=logging.INFO
-):
+    ket: TensorNetwork, measurement_dict: dict[Qubit, int], loglevel: int = logging.INFO
+) -> TensorNetwork:
     """Measures a list of qubits in a tensor network. by appending a
     measurement gate to the tensor network.
     The measurment gate is applied via appending a tensor cap
@@ -603,7 +603,7 @@ class PauliOperatorTensorNetwork:
         self._logger.debug(f"Pauli TN: {self.cuquantum_interleaved}")
 
     @property
-    def cuquantum_interleaved(self):
+    def cuquantum_interleaved(self) -> list:
         return self._cuquantum_interleaved
 
 
