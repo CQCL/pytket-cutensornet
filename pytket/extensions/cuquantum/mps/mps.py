@@ -658,6 +658,8 @@ class MPS:
 
     def __exit__(self, exc_type: Any, exc_value: Any, exc_tb: Any) -> None:
         cutn.destroy(self._libhandle)
+        self._libhandle = None
+        self._stream = None
 
     def _apply_1q_gate(self, position: int, gate: Op) -> MPS:
         raise NotImplementedError(

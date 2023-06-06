@@ -11,23 +11,25 @@ def test_init() -> None:
     circ = Circuit(5)
 
     mps_gate = MPSxGate(qubits=circ.qubits, chi=8)
-    assert mps_gate.is_valid()
+    with mps_gate.init_cutensornet():
+        assert mps_gate.is_valid()
 
     mps_mpo = MPSxMPO(qubits=circ.qubits, chi=8)
-    assert mps_mpo.is_valid()
+    with mps_mpo.init_cutensornet():
+        assert mps_mpo.is_valid()
 
 
 def test_trivial_vdot() -> None:
     circ = Circuit(5)
 
     mps_gate = MPSxGate(qubits=circ.qubits, chi=8)
-    mps_gate.is_valid()
     with mps_gate.init_cutensornet():
+        mps_gate.is_valid()
         assert np.isclose(mps_gate.vdot(mps_gate), 1.0)
 
     mps_mpo = MPSxMPO(qubits=circ.qubits, chi=8)
-    mps_mpo.is_valid()
     with mps_mpo.init_cutensornet():
+        mps_mpo.is_valid()
         assert np.isclose(mps_mpo.vdot(mps_mpo), 1.0)
 
 
@@ -49,16 +51,17 @@ def test_1q_gates() -> None:
         assert mps_gate.is_valid()
 
         # Check that all of the amplitudes are correct
-        for b in range(2 ** n_qubits):
+        for b in range(2**n_qubits):
             b_mps = MPSxGate(qubits=circ.qubits, chi=2)
-            bitstring = format(b, f"0{n_qubits}b")
-            for i in range(n_qubits):
-                if bitstring[i] == "1":
-                    b_mps._apply_1q_gate(i, Op.create(OpType.X))
-            assert b_mps.is_valid()
+            with b_mps.init_cutensornet():
+                bitstring = format(b, f"0{n_qubits}b")
+                for i in range(n_qubits):
+                    if bitstring[i] == "1":
+                        b_mps._apply_1q_gate(i, Op.create(OpType.X))
+                assert b_mps.is_valid()
 
-            # Check the amplitude
-            assert np.isclose(mps_gate.vdot(b_mps), unitary[b][0])
+                # Check the amplitude
+                assert np.isclose(b_mps.vdot(mps_gate), unitary[b][0])
 
     mps_mpo = MPSxMPO(qubits=circ.qubits, chi=2)
     with mps_mpo.init_cutensornet():
@@ -68,16 +71,17 @@ def test_1q_gates() -> None:
         assert mps_mpo.is_valid()
 
         # Check that all of the amplitudes are correct
-        for b in range(2 ** n_qubits):
+        for b in range(2**n_qubits):
             b_mps = MPSxGate(qubits=circ.qubits, chi=2)
-            bitstring = format(b, f"0{n_qubits}b")
-            for i in range(n_qubits):
-                if bitstring[i] == "1":
-                    b_mps._apply_1q_gate(i, Op.create(OpType.X))
-            assert b_mps.is_valid()
+            with b_mps.init_cutensornet():
+                bitstring = format(b, f"0{n_qubits}b")
+                for i in range(n_qubits):
+                    if bitstring[i] == "1":
+                        b_mps._apply_1q_gate(i, Op.create(OpType.X))
+                assert b_mps.is_valid()
 
-            # Check the amplitude
-            assert np.isclose(mps_mpo.vdot(b_mps), unitary[b][0])
+                # Check the amplitude
+                assert np.isclose(b_mps.vdot(mps_mpo), unitary[b][0])
 
 
 def test_canonicalise() -> None:
@@ -192,17 +196,18 @@ def test_line_circ_exact() -> None:
         assert mps_gate.is_valid()
 
         # Check that all of the amplitudes are correct
-        for b in range(2 ** n_qubits):
+        for b in range(2**n_qubits):
             b_mps = MPSxGate(qubits=c.qubits, chi=2)
-            bitstring = format(b, f"0{n_qubits}b")
-            for i in range(n_qubits):
-                if bitstring[i] == "1":
-                    b_mps._apply_1q_gate(i, Op.create(OpType.X))
-            assert b_mps.is_valid()
+            with b_mps.init_cutensornet():
+                bitstring = format(b, f"0{n_qubits}b")
+                for i in range(n_qubits):
+                    if bitstring[i] == "1":
+                        b_mps._apply_1q_gate(i, Op.create(OpType.X))
+                assert b_mps.is_valid()
 
-            # Check the amplitudes are similar
-            assert np.isclose(mps_gate.vdot(b_mps), unitary[b][0])
-            assert np.isclose(mps_gate.fidelity, 1.0)
+                # Check the amplitudes are similar
+                assert np.isclose(b_mps.vdot(mps_gate), unitary[b][0])
+                assert np.isclose(mps_gate.fidelity, 1.0)
 
     # Check for MPSxMPO
     mps_mpo = MPSxMPO(qubits=c.qubits, chi=4)
@@ -213,17 +218,18 @@ def test_line_circ_exact() -> None:
         assert mps_mpo.is_valid()
 
         # Check that all of the amplitudes are correct
-        for b in range(2 ** n_qubits):
+        for b in range(2**n_qubits):
             b_mps = MPSxGate(qubits=c.qubits, chi=2)
-            bitstring = format(b, f"0{n_qubits}b")
-            for i in range(n_qubits):
-                if bitstring[i] == "1":
-                    b_mps._apply_1q_gate(i, Op.create(OpType.X))
-            assert b_mps.is_valid()
+            with b_mps.init_cutensornet():
+                bitstring = format(b, f"0{n_qubits}b")
+                for i in range(n_qubits):
+                    if bitstring[i] == "1":
+                        b_mps._apply_1q_gate(i, Op.create(OpType.X))
+                assert b_mps.is_valid()
 
-            # Check the amplitudes are similar
-            assert np.isclose(mps_mpo.vdot(b_mps), unitary[b][0])
-            assert np.isclose(mps_mpo.fidelity, 1.0)
+                # Check the amplitudes are similar
+                assert np.isclose(b_mps.vdot(mps_mpo), unitary[b][0])
+                assert np.isclose(mps_mpo.fidelity, 1.0)
 
 
 def test_line_circ_approx() -> None:
@@ -300,8 +306,8 @@ def test_simulate_volume_circuit() -> None:
 
     # Check for MPSxGate
     mps_gate = simulate(c, "MPSxGate", chi)
-    assert mps_gate.is_valid()
     with mps_gate.init_cutensornet():
+        assert mps_gate.is_valid()
         assert np.isclose(mps_gate.fidelity, 1.0)
 
         # Check that that the state has norm 1
@@ -310,8 +316,8 @@ def test_simulate_volume_circuit() -> None:
 
     # Check for MPSxMPO
     mps_mpo = simulate(c, "MPSxMPO", chi)
-    assert mps_mpo.is_valid()
     with mps_mpo.init_cutensornet():
+        assert mps_mpo.is_valid()
         assert np.isclose(mps_mpo.fidelity, 1.0)
 
         # Check that that the state has norm 1
