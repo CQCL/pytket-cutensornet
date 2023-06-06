@@ -10,23 +10,25 @@ from pytket.extensions.cuquantum.mps import Tensor, MPSxGate, MPSxMPO, simulate
 def test_init() -> None:
     circ = Circuit(5)
 
-    with MPSxGate(qubits=circ.qubits, chi=8) as mps:
-        assert mps.is_valid()
+    mps_gate = MPSxGate(qubits=circ.qubits, chi=8)
+    assert mps_gate.is_valid()
 
-    with MPSxMPO(qubits=circ.qubits, chi=8) as mps:
-        assert mps.is_valid()
+    mps_mpo = MPSxMPO(qubits=circ.qubits, chi=8)
+    assert mps_mpo.is_valid()
 
 
 def test_trivial_vdot() -> None:
     circ = Circuit(5)
 
-    with MPSxGate(qubits=circ.qubits, chi=8) as mps:
-        assert mps.is_valid()
-        assert np.isclose(mps.vdot(mps), 1.0)
+    mps_gate = MPSxGate(qubits=circ.qubits, chi=8)
+    mps_gate.is_valid()
+    with mps_gate.init_cutensornet():
+        assert np.isclose(mps_gate.vdot(mps_gate), 1.0)
 
-    with MPSxMPO(qubits=circ.qubits, chi=8) as mps:
-        assert mps.is_valid()
-        assert np.isclose(mps.vdot(mps), 1.0)
+    mps_mpo = MPSxMPO(qubits=circ.qubits, chi=8)
+    mps_mpo.is_valid()
+    with mps_mpo.init_cutensornet():
+        assert np.isclose(mps_mpo.vdot(mps_mpo), 1.0)
 
 
 def test_1q_gates() -> None:
@@ -39,93 +41,100 @@ def test_1q_gates() -> None:
     circ.TK1(0.6, 0.5, 0.7, 4)
     unitary = circ.get_unitary()
 
-    with MPSxGate(qubits=circ.qubits, chi=2) as mps:
+    mps_gate = MPSxGate(qubits=circ.qubits, chi=2)
+    with mps_gate.init_cutensornet():
         # Apply each of the single qubit gates
         for g in circ.get_commands():
-            mps.apply_gate(g)
-        assert mps.is_valid()
+            mps_gate.apply_gate(g)
+        assert mps_gate.is_valid()
 
         # Check that all of the amplitudes are correct
-        for b in range(2**n_qubits):
-            with MPSxGate(qubits=circ.qubits, chi=2) as b_mps:
-                bitstring = format(b, f"0{n_qubits}b")
-                for i in range(n_qubits):
-                    if bitstring[i] == "1":
-                        b_mps._apply_1q_gate(i, Op.create(OpType.X))
-                assert b_mps.is_valid()
+        for b in range(2 ** n_qubits):
+            b_mps = MPSxGate(qubits=circ.qubits, chi=2)
+            bitstring = format(b, f"0{n_qubits}b")
+            for i in range(n_qubits):
+                if bitstring[i] == "1":
+                    b_mps._apply_1q_gate(i, Op.create(OpType.X))
+            assert b_mps.is_valid()
 
-                # Check the amplitude
-                assert np.isclose(b_mps.vdot(mps), unitary[b][0])
+            # Check the amplitude
+            assert np.isclose(mps_gate.vdot(b_mps), unitary[b][0])
 
-    with MPSxMPO(qubits=circ.qubits, chi=2) as mps:
+    mps_mpo = MPSxMPO(qubits=circ.qubits, chi=2)
+    with mps_mpo.init_cutensornet():
         # Apply each of the single qubit gates
         for g in circ.get_commands():
-            mps.apply_gate(g)
-        assert mps.is_valid()
+            mps_mpo.apply_gate(g)
+        assert mps_mpo.is_valid()
 
         # Check that all of the amplitudes are correct
-        for b in range(2**n_qubits):
-            with MPSxMPO(qubits=circ.qubits, chi=2) as b_mps:
-                bitstring = format(b, f"0{n_qubits}b")
-                for i in range(n_qubits):
-                    if bitstring[i] == "1":
-                        b_mps._apply_1q_gate(i, Op.create(OpType.X))
-                assert b_mps.is_valid()
+        for b in range(2 ** n_qubits):
+            b_mps = MPSxGate(qubits=circ.qubits, chi=2)
+            bitstring = format(b, f"0{n_qubits}b")
+            for i in range(n_qubits):
+                if bitstring[i] == "1":
+                    b_mps._apply_1q_gate(i, Op.create(OpType.X))
+            assert b_mps.is_valid()
 
-                # Check the amplitude
-                assert np.isclose(b_mps.vdot(mps), unitary[b][0])
+            # Check the amplitude
+            assert np.isclose(mps_mpo.vdot(b_mps), unitary[b][0])
 
 
 def test_canonicalise() -> None:
     np.random.seed(1)
     circ = Circuit(5)
 
-    with MPSxGate(qubits=circ.qubits, chi=4) as mps:
+    mps_gate = MPSxGate(qubits=circ.qubits, chi=4)
+    with mps_gate.init_cutensornet():
         # Fill up the tensors with random entries
 
         # Leftmost tensor
-        T_d = cp.empty(shape=(4, 2), dtype=mps._complex_t)
+        T_d = cp.empty(shape=(4, 2), dtype=mps_gate._complex_t)
         for i0 in range(T_d.shape[0]):
             for i1 in range(T_d.shape[1]):
                 T_d[i0][i1] = np.random.rand() + 1j * np.random.rand()
-        mps.tensors[0] = Tensor(T_d, bonds=[1, len(mps)])
+        mps_gate.tensors[0] = Tensor(T_d, bonds=[1, len(mps_gate)])
 
         # Middle tensors
-        for pos in range(1, len(mps) - 1):
-            T_d = cp.empty(shape=(4, 4, 2), dtype=mps._complex_t)
+        for pos in range(1, len(mps_gate) - 1):
+            T_d = cp.empty(shape=(4, 4, 2), dtype=mps_gate._complex_t)
             for i0 in range(T_d.shape[0]):
                 for i1 in range(T_d.shape[1]):
                     for i2 in range(T_d.shape[2]):
                         T_d[i0][i1][i2] = np.random.rand() + 1j * np.random.rand()
-            mps.tensors[pos] = Tensor(T_d, bonds=[pos, pos + 1, pos + len(mps)])
+            mps_gate.tensors[pos] = Tensor(
+                T_d, bonds=[pos, pos + 1, pos + len(mps_gate)]
+            )
 
         # Rightmost tensor
-        T_d = cp.empty(shape=(4, 2), dtype=mps._complex_t)
+        T_d = cp.empty(shape=(4, 2), dtype=mps_gate._complex_t)
         for i0 in range(T_d.shape[0]):
             for i1 in range(T_d.shape[1]):
                 T_d[i0][i1] = np.random.rand() + 1j * np.random.rand()
-        mps.tensors[len(mps) - 1] = Tensor(T_d, bonds=[len(mps) - 1, 2 * len(mps) - 1])
+        mps_gate.tensors[len(mps_gate) - 1] = Tensor(
+            T_d, bonds=[len(mps_gate) - 1, 2 * len(mps_gate) - 1]
+        )
 
-        with mps.copy() as mps_copy:
-            # Calculate the norm of the MPS
-            norm_sq = mps.vdot(mps_copy)
+        mps_copy = mps_gate.copy()
+        # Calculate the norm of the MPS
+        norm_sq = mps_gate.vdot(mps_copy)
 
-            # Canonicalise around center_pos
-            center_pos = 2
-            mps.canonicalise(l_pos=center_pos, r_pos=center_pos)
+        # Canonicalise around center_pos
+        center_pos = 2
+        mps_gate.canonicalise(l_pos=center_pos, r_pos=center_pos)
 
-            # Check that canonicalisation did not change the vector
-            overlap = mps.vdot(mps_copy)
-            assert np.isclose(overlap, norm_sq)
+        # Check that canonicalisation did not change the vector
+        overlap = mps_gate.vdot(mps_copy)
+        assert np.isclose(overlap, norm_sq)
 
         # Check that the corresponding tensors are in orthogonal form
-        for pos in range(len(mps)):
+        for pos in range(len(mps_gate)):
             if pos == center_pos:  # This needs not be in orthogonal form
                 continue
 
-            T_d = mps.tensors[pos].data
-            std_bonds = list(mps.tensors[pos].bonds)
-            conj_bonds = list(mps.tensors[pos].bonds)
+            T_d = mps_gate.tensors[pos].data
+            std_bonds = list(mps_gate.tensors[pos].bonds)
+            conj_bonds = list(mps_gate.tensors[pos].bonds)
 
             if pos < 2:  # Should be in left orthogonal form
                 std_bonds[-2] = -1
@@ -175,44 +184,46 @@ def test_line_circ_exact() -> None:
     # Check that all of the amplitudes are correct
 
     # Check for MPSxGate
-    with MPSxGate(qubits=c.qubits, chi=4) as mps:
+    mps_gate = MPSxGate(qubits=c.qubits, chi=4)
+    with mps_gate.init_cutensornet():
         # Apply each of the gates
         for g in c.get_commands():
-            mps.apply_gate(g)
-        assert mps.is_valid()
+            mps_gate.apply_gate(g)
+        assert mps_gate.is_valid()
 
         # Check that all of the amplitudes are correct
-        for b in range(2**n_qubits):
-            with MPSxGate(qubits=c.qubits, chi=2) as b_mps:
-                bitstring = format(b, f"0{n_qubits}b")
-                for i in range(n_qubits):
-                    if bitstring[i] == "1":
-                        b_mps._apply_1q_gate(i, Op.create(OpType.X))
-                assert b_mps.is_valid()
+        for b in range(2 ** n_qubits):
+            b_mps = MPSxGate(qubits=c.qubits, chi=2)
+            bitstring = format(b, f"0{n_qubits}b")
+            for i in range(n_qubits):
+                if bitstring[i] == "1":
+                    b_mps._apply_1q_gate(i, Op.create(OpType.X))
+            assert b_mps.is_valid()
 
-                # Check the amplitudes are similar
-                assert np.isclose(b_mps.vdot(mps), unitary[b][0])
-                assert np.isclose(mps.fidelity, 1.0)
+            # Check the amplitudes are similar
+            assert np.isclose(mps_gate.vdot(b_mps), unitary[b][0])
+            assert np.isclose(mps_gate.fidelity, 1.0)
 
     # Check for MPSxMPO
-    with MPSxMPO(qubits=c.qubits, chi=4) as mps:
+    mps_mpo = MPSxMPO(qubits=c.qubits, chi=4)
+    with mps_mpo.init_cutensornet():
         # Apply each of the gates
         for g in c.get_commands():
-            mps.apply_gate(g)
-        assert mps.is_valid()
+            mps_mpo.apply_gate(g)
+        assert mps_mpo.is_valid()
 
         # Check that all of the amplitudes are correct
-        for b in range(2**n_qubits):
-            with MPSxMPO(qubits=c.qubits, chi=2) as b_mps:
-                bitstring = format(b, f"0{n_qubits}b")
-                for i in range(n_qubits):
-                    if bitstring[i] == "1":
-                        b_mps._apply_1q_gate(i, Op.create(OpType.X))
-                assert b_mps.is_valid()
+        for b in range(2 ** n_qubits):
+            b_mps = MPSxGate(qubits=c.qubits, chi=2)
+            bitstring = format(b, f"0{n_qubits}b")
+            for i in range(n_qubits):
+                if bitstring[i] == "1":
+                    b_mps._apply_1q_gate(i, Op.create(OpType.X))
+            assert b_mps.is_valid()
 
-                # Check the amplitudes are similar
-                assert np.isclose(b_mps.vdot(mps), unitary[b][0])
-                assert np.isclose(mps.fidelity, 1.0)
+            # Check the amplitudes are similar
+            assert np.isclose(mps_mpo.vdot(b_mps), unitary[b][0])
+            assert np.isclose(mps_mpo.fidelity, 1.0)
 
 
 def test_line_circ_approx() -> None:
@@ -243,26 +254,28 @@ def test_line_circ_approx() -> None:
     # APPROXIMATE CONTRACTION (chi=8 is insufficient for exact)
 
     # Check for MPSxGate
-    with MPSxGate(qubits=c.qubits, chi=8) as mps:
+    mps_gate = MPSxGate(qubits=c.qubits, chi=8)
+    with mps_gate.init_cutensornet():
         # Apply each of the gates
         for g in c.get_commands():
-            mps.apply_gate(g)
-        assert mps.is_valid()
-        assert np.isclose(mps.fidelity, 0.000130, atol=1e-6)
+            mps_gate.apply_gate(g)
+        assert mps_gate.is_valid()
+        assert np.isclose(mps_gate.fidelity, 0.000130, atol=1e-6)
 
         # Check that that the state has norm 1
-        assert np.isclose(mps.vdot(mps), 1.0)
+        assert np.isclose(mps_gate.vdot(mps_gate), 1.0)
 
     # Check for MPSxMPO
-    with MPSxMPO(qubits=c.qubits, chi=8) as mps:
+    mps_mpo = MPSxMPO(qubits=c.qubits, chi=8)
+    with mps_mpo.init_cutensornet():
         # Apply each of the gates
         for g in c.get_commands():
-            mps.apply_gate(g)
-        assert mps.is_valid()
-        assert np.isclose(mps.fidelity, 0.000268, atol=1e-6)
+            mps_mpo.apply_gate(g)
+        assert mps_mpo.is_valid()
+        assert np.isclose(mps_mpo.fidelity, 0.000268, atol=1e-6)
 
         # Check that that the state has norm 1
-        assert np.isclose(mps.vdot(mps), 1.0)
+        assert np.isclose(mps_mpo.vdot(mps_mpo), 1.0)
 
 
 def test_simulate_volume_circuit() -> None:
@@ -286,19 +299,21 @@ def test_simulate_volume_circuit() -> None:
             c.add_unitary2qbox(Unitary2qBox(SU4), *pair)
 
     # Check for MPSxGate
-    with simulate(c, "MPSxGate", chi) as mps:
-        assert mps.is_valid()
-        assert np.isclose(mps.fidelity, 1.0)
+    mps_gate = simulate(c, "MPSxGate", chi)
+    assert mps_gate.is_valid()
+    with mps_gate.init_cutensornet():
+        assert np.isclose(mps_gate.fidelity, 1.0)
 
         # Check that that the state has norm 1
-        assert type(mps) == MPSxGate
-        assert np.isclose(mps.vdot(mps), 1.0)
+        assert type(mps_gate) == MPSxGate
+        assert np.isclose(mps_gate.vdot(mps_gate), 1.0)
 
     # Check for MPSxMPO
-    with simulate(c, "MPSxMPO", chi) as mps:
-        assert mps.is_valid()
-        assert np.isclose(mps.fidelity, 1.0)
+    mps_mpo = simulate(c, "MPSxMPO", chi)
+    assert mps_mpo.is_valid()
+    with mps_mpo.init_cutensornet():
+        assert np.isclose(mps_mpo.fidelity, 1.0)
 
         # Check that that the state has norm 1
-        assert type(mps) == MPSxMPO
-        assert np.isclose(mps.vdot(mps), 1.0)
+        assert type(mps_mpo) == MPSxMPO
+        assert np.isclose(mps_mpo.vdot(mps_mpo), 1.0)

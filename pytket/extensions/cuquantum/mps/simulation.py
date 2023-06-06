@@ -20,9 +20,6 @@ def simulate(circuit: Circuit, algorithm: str, chi: int, **kwargs: Any) -> MPS:
         Similarly, it will route the circuit as appropriate. If you wish to retrieve
         the circuit after these passes were applied, use ``prepare_circuit()``.
 
-        Use as ``with simulate(..) as mps:`` so that cuQuantum
-        handles are automatically destroyed at the end of execution.
-
     Args:
         circuit: The pytket circuit to be simulated.
         algorithm: Choose between "MPSxGate" and "MPSxMPO".

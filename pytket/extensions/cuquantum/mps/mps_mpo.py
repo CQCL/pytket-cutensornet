@@ -266,9 +266,9 @@ class MPSxMPO(MPS):
             svd_config,
             svd_info,
             0,  # 0 means let cuQuantum manage mem itself
-            self._stream.ptr,
+            self._stream.ptr,  # type: ignore
         )
-        self._stream.synchronize()
+        self._stream.synchronize()  # type: ignore
         # TODO: these could be precomputed for all OpTypes and stored in a dictionary
         #   so that we only copy from it rather than apply SVD each time. However,
         #   gates with parameters such as ZZPhase might be a challenge.
