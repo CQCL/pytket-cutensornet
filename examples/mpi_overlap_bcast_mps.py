@@ -84,11 +84,9 @@ for mps in mps_list:
     mps._device_id = device_id
     mps.init_cutensornet()
 
-if rank == root:
-    time1 = MPI.Wtime()
-    print(f"All MPS broadcasted. Time taken: {time1-time0} seconds.\n")
-    print("Calculating overlaps.")
-    time0 = MPI.Wtime()
+time1 = MPI.Wtime()
+print(f"MPS broadcasted to {rank} in {time1-time0} seconds")
+time0 = MPI.Wtime()
 
 # Enumerate all pairs of circuits to be calculated
 pairs = [(i, j) for i in range(n_circs) for j in range(n_circs) if i < j]
@@ -120,6 +118,7 @@ if rank < remainder:
 # Report back to user
 time1 = MPI.Wtime()
 duration = time1 - time0
+print(f"Runtime at {rank} is {duration}")
 totaltime = comm.reduce(duration, op=MPI.SUM, root=root)
 
 if rank == root:

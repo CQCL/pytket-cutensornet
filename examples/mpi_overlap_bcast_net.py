@@ -57,9 +57,14 @@ if rank == root:
     net_list = [TensorNetwork(circ) for circ in circ_list]
     time1 = MPI.Wtime()
     print(f"Net list generated. Time taken: {time1-time0} seconds.\n")
+    time0 = MPI.Wtime()
 
 # Broadcast the list of circuits
 net_list = comm.bcast(net_list, root)
+
+if rank == root:
+    time1 = MPI.Wtime()
+    print(f"Net list broadcasted. Time taken: {time1-time0} seconds.\n")
 
 # Enumerate all pairs of circuits to be calculated
 pairs = [(i, j) for i in range(n_circs) for j in range(n_circs) if i < j]
