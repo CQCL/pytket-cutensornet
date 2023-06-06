@@ -47,6 +47,7 @@ class MPSxMPO(MPS):
         chi: int,
         k: Optional[int] = None,
         float_precision: str = "float64",
+        device_id: Optional[int] = None,
     ):
         """Initialise an MPS on the computational state 0.
 
@@ -68,7 +69,7 @@ class MPSxMPO(MPS):
                 Each complex number is represented using two of these real numbers.
                 Default is 'float64'.
         """
-        super().__init__(qubits, chi, float_precision)
+        super().__init__(qubits, chi, float_precision, device_id)
 
         # Initialise the MPO data structure. This will keep a list of the gates
         # batched for application to the MPS; all of them will be applied at
@@ -85,7 +86,7 @@ class MPSxMPO(MPS):
 
         # Initialise the MPS that we will use as first approximation of the
         # variational algorithm.
-        self._aux_mps = MPSxGate(qubits, chi, float_precision)
+        self._aux_mps = MPSxGate(qubits, chi, float_precision, device_id)
 
         if k is None:
             self.k = 4
