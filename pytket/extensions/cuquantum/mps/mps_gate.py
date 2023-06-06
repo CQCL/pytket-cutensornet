@@ -230,9 +230,9 @@ class MPSxGate(MPS):
             svd_config,
             svd_info,
             0,  # 0 means let cuQuantum manage mem itself
-            self._stream.ptr,
+            self._stream.ptr,  # type: ignore
         )
-        self._stream.synchronize()
+        self._stream.synchronize()  # type: ignore
 
         # Get an error estimate
         discarded_weight_dtype = cutn.tensor_svd_info_get_attribute_dtype(
