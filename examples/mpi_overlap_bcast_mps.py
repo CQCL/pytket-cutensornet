@@ -66,21 +66,22 @@ if rank == root:
 # Contract the MPS of each of the circuits in this process
 this_proc_mps = []
 for circ in this_proc_circs:
-    this_proc_mps.append(simulate(circ, "MPSxGate", chi))  # TODO: This should use `with`
+    this_proc_mps.append(simulate(circ, "MPSxGate", chi, device_id=device_id))
 
 if rank == root:
     time1 = MPI.Wtime()
     print(f"All MPS contracted. Time taken: {time1-time0} seconds.\n")
     print("Broadcasting the MPS of the circuits.")
 
-# Broadcast the list of circuits
+# Broadcast the list of MPS
 time0 = MPI.Wtime()
 for proc_i in range(n_procs):
     mps_list += comm.bcast(this_proc_mps, proc_i)
 # Change device ID
-# TODO this is very flimsy and should be implemented better; most likely via broadcasting a special version of MPS object that does not contain info about libhandle... 
-# TODO or it might just be better not to have libhandle at all in MPS...
-mps_list = [mps.copy(device_id) for mps in mps_list]
+# TODO: this should probably be done using NCCL or CuPy to ensure tensors go to the correct GPU memory
+for mps in mps_list:
+    mps._device_id = device_id
+    mps.init_cutensornet()
 
 if rank == root:
     time1 = MPI.Wtime()
@@ -101,7 +102,7 @@ for k in range(iterations):
     mps1 = mps_list[j]
     overlap = mps0.vdot(mps1)
     # Report back to user
-    print(f"Sample of circuit pair {(i, j)} taken. Overlap: {overlap}")
+    #print(f"Sample of circuit pair {(i, j)} taken. Overlap: {overlap}")
     if rank == root and progress_bar * progress_checkpoint < k:
         print(f"{progress_bar*10}%")
         progress_bar += 1
@@ -113,7 +114,7 @@ if rank < remainder:
     mps1 = mps_list[j]
     overlap = mps0.vdot(mps1)
     # Report back to user
-    print(f"Sample of circuit pair {(i, j)} taken. Overlap: {overlap}")
+    #print(f"Sample of circuit pair {(i, j)} taken. Overlap: {overlap}")
 
 # Report back to user
 time1 = MPI.Wtime()
@@ -121,7 +122,8 @@ duration = time1 - time0
 totaltime = comm.reduce(duration, op=MPI.SUM, root=root)
 
 if rank == root:
-    print(f"\nNumber of circuits: {n_circs}")
+    print(f"\nBroadcasting MPS.")
     print(f"Number of qubits: {n_qubits}")
+    print(f"Number of circuits: {n_circs}")
     print(f"Number of processes used: {n_procs}")
     print(f"Average time per process: {totaltime / n_procs} seconds\n")

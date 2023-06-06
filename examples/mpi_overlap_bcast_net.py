@@ -121,7 +121,8 @@ print(f"Runtime at {rank} is {duration}")
 totaltime = comm.reduce(duration, op=MPI.SUM, root=root)
 
 if rank == root:
-    print(f"\nNumber of circuits: {n_circs}")
+    print(f"\nBroadcasting net.")
     print(f"Number of qubits: {n_qubits}")
+    print(f"Number of circuits: {n_circs}")
     print(f"Number of processes used: {n_procs}")
     print(f"Average time per process: {totaltime / n_procs} seconds\n")
