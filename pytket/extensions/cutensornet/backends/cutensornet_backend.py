@@ -299,7 +299,7 @@ class CuTensorNetBackend(Backend):
         valid_check: bool = True,
     ) -> float:
         """Calculates expectation value of an operator using
-        cuTensorNet contraction where the is a post selection on an ancilla register.
+        cuTensorNet contraction where there is a post selection on an ancilla register.
 
         Args:
             state_circuit: Circuit representing state.
@@ -317,7 +317,7 @@ class CuTensorNetBackend(Backend):
         post_select_qubits = list(post_selection.keys())
         if set(post_select_qubits).issubset(operator.all_qubits):
             raise ValueError(
-                "Post selection qubit must not be a not be a subset of operator qubits"
+                "Post selection qubit must not be a subset of operator qubits"
             )
 
         ket_network = TensorNetwork(state_circuit)
