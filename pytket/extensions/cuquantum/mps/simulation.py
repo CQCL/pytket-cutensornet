@@ -36,12 +36,13 @@ def simulate(circuit: Circuit, algorithm: str, chi: int, **kwargs: Any) -> MPS:
     prep_circ = prepare_circuit(circuit)
 
     float_precision = kwargs.get("float_precision", None)
+    device_id = kwargs.get("device_id", None)
 
     if algorithm == "MPSxGate":
-        mps = MPSxGate(prep_circ.qubits, chi, float_precision)  # type: ignore
+        mps = MPSxGate(prep_circ.qubits, chi, float_precision, device_id)  # type: ignore
     elif algorithm == "MPSxMPO":
         k = kwargs.get("k", None)
-        mps = MPSxMPO(prep_circ.qubits, chi, k, float_precision)  # type: ignore
+        mps = MPSxMPO(prep_circ.qubits, chi, k, float_precision, device_id)  # type: ignore
     else:
         print(f"Unrecognised algorithm: {algorithm}.")
 
