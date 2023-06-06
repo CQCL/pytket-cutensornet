@@ -1,6 +1,6 @@
+import numpy
 from pytket.extensions.cutensornet.utils import circuit_statevector_postselect
 from pytket import Circuit, Qubit  # type: ignore
-import numpy
 
 
 def test_circuit_statevector_postselect() -> None:
