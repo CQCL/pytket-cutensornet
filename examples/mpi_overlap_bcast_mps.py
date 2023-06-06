@@ -3,7 +3,6 @@ from random import random
 
 from cupy.cuda.runtime import getDeviceCount
 from mpi4py import MPI
-import cuquantum as cq
 
 from pytket.circuit import Circuit, fresh_symbol
 
@@ -15,7 +14,7 @@ if len(sys.argv) < 3:
 n_qubits = int(sys.argv[1])
 n_circs = int(sys.argv[2])
 # Set chi for exact contraction
-chi = 2**(n_qubits // 2)
+chi = 2 ** (n_qubits // 2)
 
 root = 0
 comm = MPI.COMM_WORLD
@@ -27,7 +26,9 @@ device_id = rank % getDeviceCount()
 mps_list = []
 
 if n_circs % n_procs != 0:
-    raise RuntimeError("Current version requires that the number of circuits is a multiple of number of processes.")
+    raise RuntimeError(
+        "Current version requires that n_circss is a multiple of n_procs."
+    )
 
 if rank == root:
     print("\nGenerating the circuits.")
@@ -78,7 +79,7 @@ time0 = MPI.Wtime()
 for proc_i in range(n_procs):
     mps_list += comm.bcast(this_proc_mps, proc_i)
 # Change device ID
-# TODO: this should probably be done using NCCL or CuPy to ensure tensors go to the correct GPU memory
+# TODO: I don't think this is moving mem between GPUs on same node. Look into NCCL.
 for mps in mps_list:
     mps._device_id = device_id
     mps.init_cutensornet()
@@ -102,7 +103,7 @@ for k in range(iterations):
     mps1 = mps_list[j]
     overlap = mps0.vdot(mps1)
     # Report back to user
-    #print(f"Sample of circuit pair {(i, j)} taken. Overlap: {overlap}")
+    # print(f"Sample of circuit pair {(i, j)} taken. Overlap: {overlap}")
     if rank == root and progress_bar * progress_checkpoint < k:
         print(f"{progress_bar*10}%")
         progress_bar += 1
@@ -114,7 +115,7 @@ if rank < remainder:
     mps1 = mps_list[j]
     overlap = mps0.vdot(mps1)
     # Report back to user
-    #print(f"Sample of circuit pair {(i, j)} taken. Overlap: {overlap}")
+    # print(f"Sample of circuit pair {(i, j)} taken. Overlap: {overlap}")
 
 # Report back to user
 time1 = MPI.Wtime()
