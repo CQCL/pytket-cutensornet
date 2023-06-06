@@ -483,7 +483,7 @@ class TensorNetwork:
         return tn_concatenated
 
 
-def _measure_qubit_state(
+def measure_qubit_state(
     ket: TensorNetwork, qubit_id: Qubit, bit_value: int, loglevel: int = logging.INFO
 ) -> TensorNetwork:
     """Measures a qubit in a tensor network. by appending a measurement
@@ -511,6 +511,7 @@ def _measure_qubit_state(
 
     sticky_ind = ket.sticky_indices[qubit_id]
     ket._cuquantum_interleaved.extend([cap[bit_value], [sticky_ind]])
+    ket.sticky_indices.pop(qubit_id)
     return ket
 
 
@@ -537,7 +538,7 @@ def measure_qubits_state(
         the extra measurement tensors.
     """
     for qubit_id, bit_value in measurement_dict.items():
-        ket = _measure_qubit_state(ket, qubit_id, bit_value, loglevel)
+        ket = measure_qubit_state(ket, qubit_id, bit_value, loglevel)
     return ket
 
 
