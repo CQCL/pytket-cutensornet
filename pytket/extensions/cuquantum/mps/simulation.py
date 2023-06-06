@@ -45,8 +45,9 @@ def simulate(circuit: Circuit, algorithm: str, chi: int, **kwargs: Any) -> MPS:
     else:
         print(f"Unrecognised algorithm: {algorithm}.")
 
-    for g in prep_circ.get_commands():
-        mps.apply_gate(g)
+    with mps.init_cutensornet():
+        for g in prep_circ.get_commands():
+            mps.apply_gate(g)
 
     return mps
 

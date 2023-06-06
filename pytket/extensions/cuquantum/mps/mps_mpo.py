@@ -13,7 +13,7 @@
 # limitations under the License.
 from __future__ import annotations  # type: ignore
 
-from typing import Optional
+from typing import Optional, Any
 
 import cupy as cp  # type: ignore
 import numpy as np  # type: ignore
@@ -93,6 +93,20 @@ class MPSxMPO(MPS):
             self.k = k
 
         self._mpo_bond_counter = 0
+
+    def init_cutensornet(self) -> MPSxMPO:
+        """Initialise the cuTensorNet library and link it to this MPS object.
+        This is a necessary step before doing any calculation on the MPS.
+
+        Note:
+            Always use as ``with mps.init_cutensornet():`` so that cuTensorNet
+            handles are automatically destroyed at the end of execution.
+        """
+        super().init_cutensornet()
+        self._aux_mps._libhandle = self._libhandle
+        self._aux_mps._stream = self._stream
+
+        return self
 
     def _apply_1q_gate(self, position: int, gate: Op) -> MPSxMPO:
         """Apply the 1-qubit gate to the MPS. This does not increase the
@@ -540,3 +554,13 @@ class MPSxMPO(MPS):
     def _new_bond_id(self) -> Bond:
         self._mpo_bond_counter += 1
         return 2 * len(self) + self._mpo_bond_counter
+
+    def __enter__(self) -> MPSxMPO:
+        return self
+
+    def __exit__(self, exc_type: Any, exc_value: Any, exc_tb: Any) -> None:
+        cutn.destroy(self._libhandle)
+        self._libhandle = None
+        self._stream = None
+        self._aux_mps._libhandle = None
+        self._aux_mps._stream = None
