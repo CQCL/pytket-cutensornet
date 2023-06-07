@@ -22,47 +22,54 @@ rank, n_procs = comm.Get_rank(), comm.Get_size()
 # Assign GPUs uniformly to processes
 device_id = rank % getDeviceCount()
 
-circ_list = None
+circ_list = []
 
-time_start = MPI.Wtime()
+if n_circs % n_procs != 0:
+    raise RuntimeError(
+        "Current version requires that n_circs is a multiple of n_procs."
+    )
 
-# Generate the list of circuits at root
 if rank == root:
-    print("\nGenerating list of circuits.")
+    print("\nGenerating the circuits.")
     time0 = MPI.Wtime()
-    circ_list = []
 
-    # Generate the symbolic circuit
-    sym_circ = Circuit(n_qubits)
-    even_qs = sym_circ.qubits[0::2]
-    odd_qs = sym_circ.qubits[1::2]
+# Generate the list of circuits in parallel
+circs_per_proc = n_circs // n_procs
+this_proc_circs = []
 
-    for q0, q1 in zip(even_qs, odd_qs):
-        sym_circ.TK2(fresh_symbol(), fresh_symbol(), fresh_symbol(), q0, q1)
-    for q in sym_circ.qubits:
-        sym_circ.H(q)
-    for q0, q1 in zip(even_qs[1:], odd_qs):
-        sym_circ.TK2(fresh_symbol(), fresh_symbol(), fresh_symbol(), q0, q1)
-    free_symbols = sym_circ.free_symbols()
+# Generate the symbolic circuit
+sym_circ = Circuit(n_qubits)
+even_qs = sym_circ.qubits[0::2]
+odd_qs = sym_circ.qubits[1::2]
 
-    # Create each of the circuits
-    for i in range(n_circs):
-        symbol_map = {symbol: random() for symbol in free_symbols}
-        my_circ = sym_circ.copy()
-        my_circ.symbol_substitution(symbol_map)
-        circ_list.append(my_circ)
+for q0, q1 in zip(even_qs, odd_qs):
+    sym_circ.TK2(fresh_symbol(), fresh_symbol(), fresh_symbol(), q0, q1)
+for q in sym_circ.qubits:
+    sym_circ.H(q)
+for q0, q1 in zip(even_qs[1:], odd_qs):
+    sym_circ.TK2(fresh_symbol(), fresh_symbol(), fresh_symbol(), q0, q1)
+free_symbols = sym_circ.free_symbols()
+
+# Create each of the circuits
+for _ in range(circs_per_proc):
+    symbol_map = {symbol: random() for symbol in free_symbols}
+    my_circ = sym_circ.copy()
+    my_circ.symbol_substitution(symbol_map)
+    this_proc_circs.append(my_circ)
+
+if rank == root:
     time1 = MPI.Wtime()
     print(f"Circuit list generated. Time taken: {time1-time0} seconds.\n")
+    print("Broadcasting the circuits.")
     sys.stdout.flush()
-    time0 = MPI.Wtime()
 
 # Broadcast the list of circuits
-circ_list = comm.bcast(circ_list, root)
+time0 = MPI.Wtime()
+for proc_i in range(n_procs):
+    circ_list += comm.bcast(this_proc_circs, proc_i)
 
-if rank == root:
-    time1 = MPI.Wtime()
-    print(f"Circuit list broadcasted. Time taken: {time1-time0} seconds.\n")
-    sys.stdout.flush()
+time1 = MPI.Wtime()
+print(f"Circuits broadcasted to {rank} in {time1-time0} seconds")1
 
 # Enumerate all pairs of circuits to be calculated
 pairs = [(i, j) for i in range(n_circs) for j in range(n_circs) if i < j]
