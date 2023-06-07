@@ -76,6 +76,7 @@ def test_expectation_value() -> None:
     c = Circuit(2)
     c.H(0)
     c.CX(0, 1)
+    sv = np.array([c.get_statevector()]).T
     op = QubitPauliOperator(
         {
             QubitPauliString({Qubit(0): Pauli.Z, Qubit(1): Pauli.Z}): 1.0,
@@ -84,10 +85,13 @@ def test_expectation_value() -> None:
             QubitPauliString({Qubit(0): Pauli.Y}): -0.4j,
         }
     )
+    qubit_operator = op.to_sparse_matrix(2).todense()
     b = CuTensorNetBackend()
     c = b.get_compiled_circuit(c)
     expval = b.get_operator_expectation_value(c, op)
-    assert np.isclose(expval, 1.3)
+    print(sv.shape, qubit_operator.shape)
+    sv_expval = (sv.conj().T @ qubit_operator @ sv)[0, 0]
+    assert np.isclose(expval, sv_expval)
 
 
 @pytest.mark.parametrize(
