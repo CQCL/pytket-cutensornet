@@ -30,6 +30,7 @@ from .mps_mpo import (
 )
 
 from .simulation import (
+    ContractionAlg,
     prepare_circuit,
     simulate,
 )
