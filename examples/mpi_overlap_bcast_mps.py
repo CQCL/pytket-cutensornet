@@ -23,6 +23,7 @@ rank, n_procs = comm.Get_rank(), comm.Get_size()
 # Assign GPUs uniformly to processes
 device_id = rank % getDeviceCount()
 
+time_start = MPI.Wtime()
 mps_list = []
 
 if n_circs % n_procs != 0:
@@ -120,6 +121,7 @@ if rank < remainder:
 
 # Report back to user
 time1 = MPI.Wtime()
+time_end = MPI.Wtime()
 duration = time1 - time0
 print(f"Runtime at {rank} is {duration}")
 totaltime = comm.reduce(duration, op=MPI.SUM, root=root)
@@ -130,3 +132,8 @@ if rank == root:
     print(f"Number of circuits: {n_circs}")
     print(f"Number of processes used: {n_procs}")
     print(f"Average time per process: {totaltime / n_procs} seconds\n")
+
+full_duration = time_end - time_start
+actual_walltime = comm.reduce(full_duration, op=MPI.MAX, root=root)
+if rank == root:
+    print(f"\n**Full walltime duration** {actual_walltime} seconds\n")

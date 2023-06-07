@@ -24,6 +24,8 @@ device_id = rank % getDeviceCount()
 
 circ_list = None
 
+time_start = MPI.Wtime()
+
 # Generate the list of circuits at root
 if rank == root:
     print("\nGenerating list of circuits.")
@@ -117,6 +119,7 @@ if rank < remainder:
     # print(f"Sample of circuit pair {(i, j)} taken. Overlap: {overlap}")
 
 time1 = MPI.Wtime()
+time_end = MPI.Wtime()
 
 # Report back to user
 duration = time1 - time0
@@ -129,3 +132,8 @@ if rank == root:
     print(f"Number of circuits: {n_circs}")
     print(f"Number of processes used: {n_procs}")
     print(f"Average time per process: {totaltime / n_procs} seconds\n")
+
+full_duration = time_end - time_start
+actual_walltime = comm.reduce(full_duration, op=MPI.MAX, root=root)
+if rank == root:
+    print(f"\n**Full walltime duration** {actual_walltime} seconds\n")
