@@ -57,7 +57,7 @@ def test_1q_gates() -> None:
         assert mps_gate.is_valid()
 
         # Check that all of the amplitudes are correct
-        for b in range(2 ** n_qubits):
+        for b in range(2**n_qubits):
             b_mps = MPSxGate(qubits=circ.qubits, chi=2)
             with b_mps.init_cutensornet():
                 bitstring = format(b, f"0{n_qubits}b")
@@ -77,7 +77,7 @@ def test_1q_gates() -> None:
         assert mps_mpo.is_valid()
 
         # Check that all of the amplitudes are correct
-        for b in range(2 ** n_qubits):
+        for b in range(2**n_qubits):
             b_mps = MPSxGate(qubits=circ.qubits, chi=2)
             with b_mps.init_cutensornet():
                 bitstring = format(b, f"0{n_qubits}b")
@@ -202,7 +202,7 @@ def test_line_circ_exact() -> None:
         assert mps_gate.is_valid()
 
         # Check that all of the amplitudes are correct
-        for b in range(2 ** n_qubits):
+        for b in range(2**n_qubits):
             b_mps = MPSxGate(qubits=c.qubits, chi=2)
             with b_mps.init_cutensornet():
                 bitstring = format(b, f"0{n_qubits}b")
@@ -224,7 +224,7 @@ def test_line_circ_exact() -> None:
         assert mps_mpo.is_valid()
 
         # Check that all of the amplitudes are correct
-        for b in range(2 ** n_qubits):
+        for b in range(2**n_qubits):
             b_mps = MPSxGate(qubits=c.qubits, chi=2)
             with b_mps.init_cutensornet():
                 bitstring = format(b, f"0{n_qubits}b")
