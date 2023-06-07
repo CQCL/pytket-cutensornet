@@ -23,7 +23,7 @@ rank, n_procs = comm.Get_rank(), comm.Get_size()
 device_id = rank % getDeviceCount()
 
 time_start = MPI.Wtime()
-net_list = None
+net_list = []
 
 if n_circs % n_procs != 0:
     raise RuntimeError(
