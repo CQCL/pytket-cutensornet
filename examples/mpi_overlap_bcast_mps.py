@@ -62,6 +62,7 @@ if rank == root:
     time1 = MPI.Wtime()
     print(f"Circuit list generated. Time taken: {time1-time0} seconds.\n")
     print("Contracting the MPS of the circuits.")
+    sys.stdout.flush()
     time0 = MPI.Wtime()
 
 # Contract the MPS of each of the circuits in this process
@@ -73,6 +74,7 @@ if rank == root:
     time1 = MPI.Wtime()
     print(f"All MPS contracted. Time taken: {time1-time0} seconds.\n")
     print("Broadcasting the MPS of the circuits.")
+    sys.stdout.flush()
 
 # Broadcast the list of MPS
 time0 = MPI.Wtime()
@@ -104,6 +106,7 @@ for k in range(iterations):
     # print(f"Sample of circuit pair {(i, j)} taken. Overlap: {overlap}")
     if rank == root and progress_bar * progress_checkpoint < k:
         print(f"{progress_bar*10}%")
+        sys.stdout.flush()
         progress_bar += 1
 
 if rank < remainder:

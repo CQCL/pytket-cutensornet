@@ -22,9 +22,9 @@ rank, n_procs = comm.Get_rank(), comm.Get_size()
 # Assign GPUs uniformly to processes
 device_id = rank % getDeviceCount()
 
-net_list = None
+circ_list = None
 
-# Generate the list of nets at root
+# Generate the list of circuits at root
 if rank == root:
     print("\nGenerating list of circuits.")
     time0 = MPI.Wtime()
@@ -51,21 +51,15 @@ if rank == root:
         circ_list.append(my_circ)
     time1 = MPI.Wtime()
     print(f"Circuit list generated. Time taken: {time1-time0} seconds.\n")
-
-    # Create the corresponding nets
-    time0 = MPI.Wtime()
-    net_list = [TensorNetwork(circ) for circ in circ_list]
-    time1 = MPI.Wtime()
-    print(f"Net list generated. Time taken: {time1-time0} seconds.\n")
     sys.stdout.flush()
     time0 = MPI.Wtime()
 
 # Broadcast the list of circuits
-net_list = comm.bcast(net_list, root)
+circ_list = comm.bcast(circ_list, root)
 
 if rank == root:
     time1 = MPI.Wtime()
-    print(f"Net list broadcasted. Time taken: {time1-time0} seconds.\n")
+    print(f"Circuit list broadcasted. Time taken: {time1-time0} seconds.\n")
     sys.stdout.flush()
 
 # Enumerate all pairs of circuits to be calculated
@@ -74,8 +68,8 @@ pairs = [(i, j) for i in range(n_circs) for j in range(n_circs) if i < j]
 # Find an efficient contraction path to be used by all contractions
 time0 = MPI.Wtime()
 # Prepare the Network object
-net0 = net_list[0]  # Since all circuits have the same structure
-net1 = net_list[1]  # we use these two as a template
+net0 = TensorNetwork(circ_list[0])  # Since all circuits have the same structure
+net1 = TensorNetwork(circ_list[1])  # we use these two as a template
 overlap_network = cq.Network(*net0.vdot(net1), options={"device_id": device_id})
 # Compute the path on each process with 8 samples for hyperoptimization
 path, info = overlap_network.contract_path(optimize={"samples": 8})
@@ -99,8 +93,8 @@ progress_bar, progress_checkpoint = 0, iterations // 10
 for k in range(iterations):
     # Run contraction
     (i, j) = pairs[k * n_procs + rank]
-    net0 = net_list[i]
-    net1 = net_list[j]
+    net0 = TensorNetwork(circ_list[i])
+    net1 = TensorNetwork(circ_list[j])
     overlap = cq.contract(
         *net0.vdot(net1), options={"device_id": device_id}, optimize={"path": path}
     )
@@ -114,8 +108,8 @@ for k in range(iterations):
 if rank < remainder:
     # Run contraction
     (i, j) = pairs[iterations * n_procs + rank]
-    net0 = net_list[i]
-    net1 = net_list[j]
+    net0 = TensorNetwork(circ_list[i])
+    net1 = TensorNetwork(circ_list[j])
     overlap = cq.contract(
         *net0.vdot(net1), options={"device_id": device_id}, optimize={"path": path}
     )
@@ -130,7 +124,7 @@ print(f"Runtime at {rank} is {duration}")
 totaltime = comm.reduce(duration, op=MPI.SUM, root=root)
 
 if rank == root:
-    print(f"\nBroadcasting net.")
+    print(f"\nBroadcasting circuit.")
     print(f"Number of qubits: {n_qubits}")
     print(f"Number of circuits: {n_circs}")
     print(f"Number of processes used: {n_procs}")
