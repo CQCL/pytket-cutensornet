@@ -22,6 +22,7 @@ rank, n_procs = comm.Get_rank(), comm.Get_size()
 # Assign GPUs uniformly to processes
 device_id = rank % getDeviceCount()
 
+time_start = MPI.Wtime()
 circ_list = []
 
 if n_circs % n_procs != 0:
@@ -69,7 +70,7 @@ for proc_i in range(n_procs):
     circ_list += comm.bcast(this_proc_circs, proc_i)
 
 time1 = MPI.Wtime()
-print(f"Circuits broadcasted to {rank} in {time1-time0} seconds")1
+print(f"Circuits broadcasted to {rank} in {time1-time0} seconds")
 
 # Enumerate all pairs of circuits to be calculated
 pairs = [(i, j) for i in range(n_circs) for j in range(n_circs) if i < j]
