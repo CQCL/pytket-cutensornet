@@ -13,6 +13,7 @@
 # limitations under the License.
 from __future__ import annotations  # type: ignore
 from typing import Any, Optional
+from enum import Enum
 
 import cupy as cp  # type: ignore
 import numpy as np  # type: ignore
@@ -27,6 +28,8 @@ Handle = int
 # An alias for the type of the unique identifiers of each of the bonds
 # of the MPS.
 Bond = int
+# An enum to refer to relative directions within the MPS
+DirectionMPS = Enum("DirectionMPS", ["LEFT", "RIGHT"])
 
 
 class Tensor:
@@ -424,11 +427,11 @@ class MPS:
                 canonicalised.
         """
         for pos in range(l_pos):
-            self.canonicalise_tensor(pos, form="left")
+            self.canonicalise_tensor(pos, form=DirectionMPS.LEFT)
         for pos in reversed(range(r_pos + 1, len(self))):
-            self.canonicalise_tensor(pos, form="right")
+            self.canonicalise_tensor(pos, form=DirectionMPS.RIGHT)
 
-    def canonicalise_tensor(self, pos: int, form: str) -> None:
+    def canonicalise_tensor(self, pos: int, form: DirectionMPS) -> None:
         """Apply the necessary gauge transformations so that the tensor at
         position ``pos`` in the MPS has is in the orthogonal form dictated by
         ``form``.
@@ -442,19 +445,19 @@ class MPS:
                 "Must be called inside a with mps.init_cutensornet() block."
             )
 
-        if form == "left":
+        if form == DirectionMPS.LEFT:
             next_pos = pos + 1
             gauge_bond = pos + 1
             gauge_T_index = 0
             gauge_Q_index = -2
-        elif form == "right":
+        elif form == DirectionMPS.RIGHT:
             next_pos = pos - 1
             gauge_bond = pos
             gauge_T_index = -2
             gauge_Q_index = 0
         else:
             raise RuntimeError(
-                f"Form {form} not recognised. Use either 'left' or 'right'."
+                f"Form {form} not recognised. Use values from DirectionMPS enum."
             )
 
         # Gather the details from the MPS tensor at this position
@@ -467,7 +470,7 @@ class MPS:
 
         # Decide the shape of the Q and R tensors
         if pos == 0:
-            if form == "right":
+            if form == DirectionMPS.RIGHT:
                 raise RuntimeError(
                     "The leftmost tensor cannot be in right orthogonal form."
                 )
@@ -478,7 +481,7 @@ class MPS:
             R_shape = [new_dim, v_dims[0]]
 
         elif pos == len(self) - 1:
-            if form == "left":
+            if form == DirectionMPS.LEFT:
                 raise RuntimeError(
                     "The rightmost tensor cannot be in left orthogonal form."
                 )
@@ -489,13 +492,13 @@ class MPS:
             R_shape = [v_dims[0], new_dim]
 
         else:
-            if form == "left":
+            if form == DirectionMPS.LEFT:
                 new_dim = min(v_dims[0] * p_dim, v_dims[1])
                 Q_bonds = [v_bonds[0], -1, p_bond]
                 Q_shape = [v_dims[0], new_dim, p_dim]
                 R_bonds = [-1, v_bonds[1]]
                 R_shape = [new_dim, v_dims[1]]
-            elif form == "right":
+            elif form == DirectionMPS.RIGHT:
                 new_dim = min(v_dims[1] * p_dim, v_dims[0])
                 Q_bonds = [-1, v_bonds[1], p_bond]
                 Q_shape = [new_dim, v_dims[1], p_dim]

@@ -21,7 +21,7 @@ import cuquantum as cq  # type: ignore
 import cuquantum.cutensornet as cutn  # type: ignore
 
 from pytket.circuit import Op, Qubit  # type: ignore
-from .mps import Tensor, Bond, MPS
+from .mps import DirectionMPS, Bond, Tensor, MPS
 from .mps_gate import MPSxGate
 
 
@@ -357,21 +357,24 @@ class MPSxMPO(MPS):
         l_cached_tensors: list[Tensor] = []
         r_cached_tensors: list[Tensor] = []
 
-        def update_sweep_cache(pos: int, direction: str) -> None:
-            """Given a position in the MPS and a sweeping direction ('left'
-            or 'right'), calculate the tensor of the partial contraction
+        def update_sweep_cache(pos: int, direction: DirectionMPS) -> None:
+            """Given a position in the MPS and a sweeping direction (see
+            ``DirectionMPS``), calculate the tensor of the partial contraction
             of all MPS-MPO-vMPS* columns from ``pos`` towards ``direction``.
             Update the cache accordingly. Applies canonicalisation on the vMPS
             tensor before contracting.
             """
-            if direction not in ["left", "right"]:
-                raise RuntimeError("Unrecognised sweeping direction.")
 
             # Canonicalise the tensor at ``pos``
-            if direction == "left":
-                self._aux_mps.canonicalise_tensor(pos, form="right")
-            elif direction == "right":
-                self._aux_mps.canonicalise_tensor(pos, form="left")
+            if direction == DirectionMPS.LEFT:
+                self._aux_mps.canonicalise_tensor(pos, form=DirectionMPS.RIGHT)
+            elif direction == DirectionMPS.RIGHT:
+                self._aux_mps.canonicalise_tensor(pos, form=DirectionMPS.LEFT)
+
+            else:
+                raise RuntimeError(
+                    f"Unrecognised sweeping direction. Use values from DirectionMPS."
+                )
 
             # Get the interleaved representation
             interleaved_rep = [
@@ -391,17 +394,17 @@ class MPSxMPO(MPS):
             interleaved_rep[-1][-1] = -self._aux_mps.get_physical_bond(pos)
 
             # Also contract the previous (cached) tensor during the sweep
-            if direction == "left":
+            if direction == DirectionMPS.LEFT:
                 if pos != len(self) - 1:  # Otherwise, there is nothing cached yet
                     interleaved_rep.append(r_cached_tensors[-1].data)
                     interleaved_rep.append(r_cached_tensors[-1].bonds)
-            elif direction == "right":
+            elif direction == DirectionMPS.RIGHT:
                 if pos != 0:  # Otherwise, there is nothing cached yet
                     interleaved_rep.append(l_cached_tensors[-1].data)
                     interleaved_rep.append(l_cached_tensors[-1].bonds)
 
             # Figure out the ID of the bonds of the contracted tensor
-            if direction == "left":
+            if direction == DirectionMPS.LEFT:
                 # Take the left virtual bond of both of the MPS
                 T_bonds = [
                     -self._aux_mps.get_virtual_bonds(pos)[0],
@@ -410,7 +413,7 @@ class MPSxMPO(MPS):
                 # Take the left bond of each of the MPO tensors
                 for mpo_tensor in self._mpo[pos]:
                     T_bonds.append(mpo_tensor.bonds[1])
-            elif direction == "right":
+            elif direction == DirectionMPS.RIGHT:
                 # Take the right virtual bond of both of the MPS
                 T_bonds = [
                     -self._aux_mps.get_virtual_bonds(pos)[-1],
@@ -427,9 +430,9 @@ class MPSxMPO(MPS):
                 cq.contract(*interleaved_rep),
                 T_bonds,
             )
-            if direction == "left":
+            if direction == DirectionMPS.LEFT:
                 r_cached_tensors.append(T)
-            elif direction == "right":
+            elif direction == DirectionMPS.RIGHT:
                 l_cached_tensors.append(T)
 
         def update_variational_tensor(
@@ -487,7 +490,7 @@ class MPSxMPO(MPS):
         # Begin by doing a sweep towards the left that does not update
         # the variational tensors, but simply loads up the ``r_cached_tensors``
         for pos in reversed(range(1, len(self))):
-            update_sweep_cache(pos, direction="left")
+            update_sweep_cache(pos, direction=DirectionMPS.LEFT)
 
         prev_fidelity = -1.0  # Dummy value
         sweep_fidelity = 0.0  # Dummy value
@@ -499,15 +502,15 @@ class MPSxMPO(MPS):
             raise RuntimeError(f"Unsupported precision {self._real_t}")
 
         # Repeat sweeps until the fidelity converges
-        sweep_direction = "right"
+        sweep_direction = DirectionMPS.RIGHT
         while not np.isclose(prev_fidelity, sweep_fidelity, atol=tolerance):
             prev_fidelity = sweep_fidelity
 
-            if sweep_direction == "right":
+            if sweep_direction == DirectionMPS.RIGHT:
                 update_variational_tensor(
                     pos=0, left_tensor=None, right_tensor=r_cached_tensors.pop()
                 )
-                update_sweep_cache(pos=0, direction="right")
+                update_sweep_cache(pos=0, direction=DirectionMPS.RIGHT)
 
                 for pos in range(1, len(self) - 1):
                     sweep_fidelity = update_variational_tensor(
@@ -515,19 +518,19 @@ class MPSxMPO(MPS):
                         left_tensor=l_cached_tensors[-1],
                         right_tensor=r_cached_tensors.pop(),
                     )
-                    update_sweep_cache(pos, direction="right")
+                    update_sweep_cache(pos, direction=DirectionMPS.RIGHT)
                 # The last variational tensor is not updated;
                 # it'll be the first in the next sweep
 
-                sweep_direction = "left"
+                sweep_direction = DirectionMPS.LEFT
 
-            elif sweep_direction == "left":
+            elif sweep_direction == DirectionMPS.LEFT:
                 update_variational_tensor(
                     pos=len(self) - 1,
                     left_tensor=l_cached_tensors.pop(),
                     right_tensor=None,
                 )
-                update_sweep_cache(pos=len(self) - 1, direction="left")
+                update_sweep_cache(pos=len(self) - 1, direction=DirectionMPS.LEFT)
 
                 for pos in reversed(range(1, len(self) - 1)):
                     sweep_fidelity = update_variational_tensor(
@@ -535,11 +538,11 @@ class MPSxMPO(MPS):
                         left_tensor=l_cached_tensors.pop(),
                         right_tensor=r_cached_tensors[-1],
                     )
-                    update_sweep_cache(pos, direction="left")
+                    update_sweep_cache(pos, direction=DirectionMPS.LEFT)
                 # The last variational tensor is not updated;
                 # it'll be the first in the next sweep
 
-                sweep_direction = "right"
+                sweep_direction = DirectionMPS.RIGHT
 
         # Clear out the MPO
         self._mpo = [list() for _ in range(len(self))]

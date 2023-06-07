@@ -16,6 +16,7 @@
 from .mps import (
     Handle,
     Bond,
+    DirectionMPS,
     Tensor,
     MPS,
 )
