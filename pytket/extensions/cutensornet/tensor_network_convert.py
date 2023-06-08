@@ -651,7 +651,7 @@ class ExpectationValueTensorNetwork:
             A tensor network representing expectation value in the interleaved format
             (list).
         """
-        tn_concatenated = self._bra.cuquantum_interleaved
+        tn_concatenated = self._bra.cuquantum_interleaved.copy()
         tn_concatenated.extend(self._operator.cuquantum_interleaved)
         tn_concatenated.extend(self._ket.cuquantum_interleaved)
         return tn_concatenated

@@ -89,7 +89,6 @@ def test_expectation_value() -> None:
     b = CuTensorNetBackend()
     c = b.get_compiled_circuit(c)
     expval = b.get_operator_expectation_value(c, op)
-    print(sv.shape, qubit_operator.shape)
     sv_expval = (sv.conj().T @ qubit_operator @ sv)[0, 0]
     assert np.isclose(expval, sv_expval)
 
