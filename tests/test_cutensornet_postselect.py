@@ -59,7 +59,6 @@ def test_postselect_qubits_state(circuit: Circuit, postselect_dict: dict) -> Non
     tn = TensorNetwork(circuit)
     ten_net = measure_qubits_state(tn, postselect_dict)
     result_cu = cq.contract(*ten_net.cuquantum_interleaved).flatten()
-    print(result_cu)
     assert np.allclose(result_cu, sv)
 
 
