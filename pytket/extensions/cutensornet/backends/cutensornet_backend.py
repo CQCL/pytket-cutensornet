@@ -236,8 +236,9 @@ class CuTensorNetBackend(Backend):
         post_selection: Optional[Union[None, dict[Qubit, int]]] = None,
         valid_check: bool = True,
     ) -> float:
-        """Calculates expectation value of an operator using
-        cuTensorNet contraction where there is the option to do post selection on an ancilla register.
+        """Calculates expectation value of an operator using cuTensorNet contraction.
+
+        Has an option to do post selection on an ancilla register.
 
         Args:
             state_circuit: Circuit representing state.
@@ -252,25 +253,23 @@ class CuTensorNetBackend(Backend):
         if valid_check:
             self._check_all_circuits([state_circuit])
 
+        expectation = 0
+
+        ket_network = TensorNetwork(state_circuit)
+        bra_network = ket_network.dagger()
+
         if post_selection is not None:
             post_select_qubits = list(post_selection.keys())
             if set(post_select_qubits).issubset(operator.all_qubits):
                 raise ValueError(
                     "Post selection qubit must not be a subset of operator qubits"
                 )
-
-        expectation = 0
+            ket_network = measure_qubits_state(ket_network, post_selection)
+            bra_network = measure_qubits_state(
+                bra_network, post_selection
+            )  # This needed because dagger does not work with post selection
 
         for qos, coeff in operator._dict.items():
-            ket_network = TensorNetwork(state_circuit)
-            bra_network = ket_network.dagger()
-
-            if post_selection is not None:
-                ket_network = measure_qubits_state(ket_network, post_selection)
-                bra_network = measure_qubits_state(
-                    bra_network, post_selection
-                )  # This needed because dagger does not work with post selection
-
             expectation_value_network = ExpectationValueTensorNetwork(
                 bra_network, qos, ket_network
             )

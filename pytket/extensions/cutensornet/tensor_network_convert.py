@@ -115,8 +115,8 @@ class TensorNetwork:
 
         Note:
            The returned map values are lists and may contain more than one
-            representation - for >1-qubit gates, different topologies (e.g. upward and
-            downward) are taken into account.
+           representation - for >1-qubit gates, different topologies (e.g. upward and
+           downward) are taken into account.
         """
         name_set = {com.op.get_name() for com in self._circuit.get_commands()}
         gate_tensors = defaultdict(list)
@@ -185,7 +185,7 @@ class TensorNetwork:
 
         Returns:
             List of tensors representing circuit gates (tensor network nodes) in the
-             reversed order of circuit graph nodes.
+            reversed order of circuit graph nodes.
         """
         self._gate_tensors = self._get_gate_tensors(adj=adj)
         node_tensors = []
@@ -261,8 +261,8 @@ class TensorNetwork:
 
         Returns:
             A list of lists of tensor network nodes edges (tensors dimensions) indices
-             and a list of outward ("sticky") indices along which there will be no
-             contraction.
+            and a list of outward ("sticky") indices along which there will be no
+            contraction.
         """
         sign = -1 if adj else 1
         self._logger.debug(f"Network nodes: \n{net.nodes(data=True)}")
@@ -424,7 +424,7 @@ class TensorNetwork:
 
         Returns:
             A list of interleaved tensors (ndarrays) and lists of corresponding edges
-             indices.
+            indices.
         """
         tn_interleaved = []
         for tensor, indices in zip(self._node_tensors, self._node_tensor_indices):
@@ -438,7 +438,7 @@ class TensorNetwork:
 
         Returns:
             A new TensorNetwork object, containing an adjoint representation of the
-             input object.
+            input object.
         """
         tn_dagger = TensorNetwork(self._circuit.copy(), adj=True)
         self._logger.debug(
@@ -460,7 +460,7 @@ class TensorNetwork:
 
         Returns:
             A tensor network in an interleaved form, representing an overlap of two
-             circuits.
+            circuits.
         """
         if set(self.sticky_indices.keys()) != set(tn_other.sticky_indices.keys()):
             raise RuntimeError("The two tensor networks are incompatible!")
@@ -486,8 +486,9 @@ class TensorNetwork:
 def measure_qubit_state(
     ket: TensorNetwork, qubit_id: Qubit, bit_value: int, loglevel: int = logging.INFO
 ) -> TensorNetwork:
-    """Measures a qubit in a tensor network. by appending a measurement
-    gate to the tensor network.
+    """Measures a qubit in a tensor network.
+
+    Does so by appending a measurement gate to the tensor network.
     The measurment gate is applied via appending a tensor cap of
     the form:  0: [1, 0] or 1: [0, 1] to the interleaved einsum input.
     Therefor removing one of the open indices of the tensor network.
@@ -519,12 +520,13 @@ def measure_qubit_state(
 def measure_qubits_state(
     ket: TensorNetwork, measurement_dict: dict[Qubit, int], loglevel: int = logging.INFO
 ) -> TensorNetwork:
-    """Measures a list of qubits in a tensor network. by appending a
-    measurement gate to the tensor network.
+    """Measures a list of qubits in a tensor network.
+
+    Does so by appending a measurement gate to the tensor network.
     The measurment gate is applied via appending a tensor cap
     of the form:  0: [1, 0] or 1: [0, 1] to the interleaved einsum input.
     Therefor removing the open indices of the tensor network corresponding
-      to the measured qubits.
+    to the measured qubits.
 
     Args:
         ket: a TensorNetwork object representing a quantum state.
@@ -647,7 +649,7 @@ class ExpectationValueTensorNetwork:
 
         Returns:
             A tensor network representing expectation value in the interleaved format
-             (list).
+            (list).
         """
         tn_concatenated = self._bra.cuquantum_interleaved
         tn_concatenated.extend(self._operator.cuquantum_interleaved)
@@ -663,6 +665,6 @@ def tk_to_tensor_network(tkc: Circuit) -> List[Union[NDArray, List]]:
 
     Returns:
         A tensor network representing the input circuit in the interleaved format
-         (list).
+        (list).
     """
     return TensorNetwork(tkc).cuquantum_interleaved

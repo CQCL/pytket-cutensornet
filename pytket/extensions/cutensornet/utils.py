@@ -13,9 +13,8 @@ def _reorder_qlist(
         qlist (list): List of qubits
 
     Returns:
-        tuple: Tuple containing: q_list_reordered (list): List of qubits
-        reordered so that post_select_qubit is first in
-        the list. q (Qubit): The post select qubit
+        Tuple containing a list of qubits reordered so that `post_select_qubit` is first
+        in the list, and the post select qubit.
     """
 
     post_select_q = list(post_select_dict.keys())[0]
@@ -33,18 +32,19 @@ def _reorder_qlist(
 def statevector_postselect(
     qlist: list[Qubit], sv: NDArray, post_select_dict: dict[Qubit, int]
 ) -> NDArray:
-    """Post selects a statevector. recursively calls itself if there
-    are multiple post select qubits. Uses backend result to get statevector
-    and permutes so the the post select qubit for each
-    iteration is first in the list.
+    """Post selects a statevector.
+
+    Recursively calls itself if there are multiple post select qubits.
+    Uses backend result to get statevecto and permutes so the the post select qubit for
+    each iteration is first in the list.
 
     Args:
-        qlist (list): List of qubits
-        sv (npt.NDArray): Statevector
-        post_select_dict (dict): Dictionary of post selection qubit and value
+        qlist: List of qubits.
+        sv: Statevector.
+        post_select_dict: Dictionary of post selection qubit and value.
 
     Returns:
-        npt.NDArray: Post selected statevector
+        Post selected statevector.
     """
 
     n = len(qlist)
@@ -80,11 +80,11 @@ def circuit_statevector_postselect(
     used for testing small circuits as it uses the circuit.get_unitary() method.
 
     Args:
-        circ (Circuit): Circuit
-        post_select_dict (dict): Dictionary of post selection qubit and value
+        circ: Circuit.
+        post_select_dict: Dictionary of post selection qubit and value.
 
     Returns:
-        npt.NDArray: Post selected statevector
+        Post selected statevector.
     """
 
     return statevector_postselect(

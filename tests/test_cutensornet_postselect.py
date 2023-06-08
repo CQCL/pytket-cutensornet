@@ -81,7 +81,6 @@ def test_postselect_qubits_state(circuit: Circuit, postselect_dict: dict) -> Non
 def test_expectation_value_postselect_2q(
     circuit_2q: Circuit, postselect_dict: dict
 ) -> None:
-    postselect_dict = {Qubit("q", 1): 0}
     op = QubitPauliOperator(
         {
             QubitPauliString({Qubit(0): Pauli.Z}): 1.0,
