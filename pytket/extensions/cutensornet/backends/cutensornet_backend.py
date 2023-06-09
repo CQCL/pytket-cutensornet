@@ -48,6 +48,15 @@ from pytket.passes import (  # type: ignore
 )
 from pytket.utils.operators import QubitPauliOperator
 
+import cupy as cp
+from cupy.cuda import nccl
+from cupy.cuda.runtime import getDeviceCount
+from mpi4py import MPI
+from cupyx.distributed import NCCLBackend, init_process_group
+
+import pandas as pd
+
+from pathlib import Path
 
 # TODO: this is temporary - probably don't need it eventually?
 def _sq(a: Expr, b: Expr, c: Expr) -> Circuit:
@@ -262,9 +271,49 @@ class CuTensorNetBackend(Backend):
                 numeric_coeff = complex(coeff.evalf())  # type: ignore
             else:
                 numeric_coeff = complex(coeff)
+
             expectation_term = numeric_coeff * cq.contract(
                 *expectation_value_network.cuquantum_interleaved
             )
+            expectation += expectation_term
+        return expectation.real
+
+    def get_operator_expectation_value_sliced(
+        self,
+        state_circuit: Circuit,
+        operator: QubitPauliOperator,
+        max_n_slices: int,
+        exp_name: str,
+        valid_check: bool = True,
+    ) -> float:
+        """Calculates expectation value of an operator using cuTensorNet contraction.
+
+        Args:
+            state_circuit: Circuit representing state.
+            operator: Operator which expectation value is to be calculated.
+            valid_check: Whether to perform circuit validity check.
+
+        Returns:
+            Real part of the expectation value.
+        """
+        if valid_check:
+            self._check_all_circuits([state_circuit])
+
+        state_circuit.replace_implicit_wire_swaps()
+
+        expectation = 0
+        for qos, coeff in operator._dict.items():
+            ket_network = TensorNetwork(state_circuit)
+            bra_network = ket_network.dagger()
+            expectation_value_network = ExpectationValueTensorNetwork(
+                bra_network, qos, ket_network
+            )
+            if isinstance(coeff, Expr):
+                numeric_coeff = complex(coeff.evalf())  # type: ignore
+            else:
+                numeric_coeff = complex(coeff)
+
+            expectation_term = numeric_coeff * slice_contract_nccl(expectation_value_network, max_n_slices, exp_name)
             expectation += expectation_term
         return expectation.real
 
@@ -345,3 +394,76 @@ class CuTensorNetBackend(Backend):
             )
             expectation += expectation_term
         return expectation.real
+    
+
+def slice_contract_nccl(tensor_network: TensorNetwork, max_n_slices: int, exp_name:str):
+
+    root = 0
+    comm_mpi = MPI.COMM_WORLD
+    rank, size = comm_mpi.Get_rank(), comm_mpi.Get_size()
+
+    print(size)
+
+    device_id = rank % getDeviceCount()
+    cp.cuda.Device(device_id).use()
+
+    network = cq.Network(*tensor_network.cuquantum_interleaved)
+
+    time0 = MPI.Wtime()
+    path, info = network.contract_path(optimize={'samples': 20, 'slicing': {'min_slices': max(max_n_slices, size)}})
+
+    # Select the best path from all ranks. Note that we still use the MPI communicator here for simplicity.
+    opt_cost, sender = comm_mpi.allreduce(sendobj=(info.opt_cost, rank), op=MPI.MINLOC)
+    time1 = MPI.Wtime()
+    if rank == root:
+        print(f"Process {sender} has the path with the lowest FLOP count {opt_cost}.")
+
+    # Broadcast info from the sender to all other ranks.
+    info = comm_mpi.bcast(info, sender)
+
+    # Set path and slices.
+    path, info = network.contract_path(optimize={'path': info.path, 'slicing': info.slices})
+    
+    # Calculate this process's share of the slices.
+    num_slices = info.num_slices
+    chunk, extra = num_slices // size, num_slices % size
+    slice_begin = rank * chunk + min(rank, extra)
+    slice_end = num_slices if rank == size - 1 else (rank + 1) * chunk + min(rank + 1, extra)
+    slices = range(slice_begin, slice_end)
+
+    time2 = MPI.Wtime()
+
+    print(f"Process {rank} is processing slice range: {slices}.")
+
+    # Create dataframe for info with nameds column strings
+  
+    #Where does auutotune come in?
+
+    # Contract the group of slices the process is responsible for.
+    result = network.contract(slices=slices)
+
+    result = comm_mpi.reduce(sendobj=result, op=MPI.SUM)
+
+    time3 = MPI.Wtime()
+
+    info.total_time = time3 - time0
+    info.slicing_time = time1 - time0
+    info.repotiming_slice_path_time = time2 - time1
+    info.contract_slices_time = time3 - time2
+
+    print(info)
+
+    path = Path("./results")
+    path.mkdir(parents=True, exist_ok=True)
+
+    df =pd.DataFrame([info])
+
+    df['total_time'] = time3 - time0
+    df['slicing_time'] = time1 - time0
+    df['repotiming_slice_path_time'] = time2 - time1
+    df['contract_slices_time'] = time3 - time2
+
+    df.to_pickle(path / f'{exp_name}.pkl')
+    df.to_csv(path / f'{exp_name}.csv')
+
+    return result
