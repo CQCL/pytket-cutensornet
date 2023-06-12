@@ -272,7 +272,7 @@ class CuTensorNetBackend(Backend):
             else:
                 numeric_coeff = complex(coeff)
 
-            expectation_term = numeric_coeff * cq.contract(
+            expectation_term = cq.contract(
                 *expectation_value_network.cuquantum_interleaved
             )
             expectation += expectation_term
@@ -313,8 +313,9 @@ class CuTensorNetBackend(Backend):
             else:
                 numeric_coeff = complex(coeff)
 
-            expectation_term = numeric_coeff * slice_contract_nccl(expectation_value_network, max_n_slices, exp_name)
-            expectation += expectation_term
+            expectation_term = slice_contract_nccl(expectation_value_network, max_n_slices, exp_name)
+            print('expect', expectation_term)
+            # expectation += expectation_term
         return expectation.real
 
     def get_circuit_overlap(
@@ -402,10 +403,10 @@ def slice_contract_nccl(tensor_network: TensorNetwork, max_n_slices: int, exp_na
     comm_mpi = MPI.COMM_WORLD
     rank, size = comm_mpi.Get_rank(), comm_mpi.Get_size()
 
-    print(size)
+    print(size, rank)
 
-    device_id = rank % getDeviceCount()
-    cp.cuda.Device(device_id).use()
+    # device_id = rank % getDeviceCount()
+    # cp.cuda.Device(device_id).use()
 
     network = cq.Network(*tensor_network.cuquantum_interleaved)
 
@@ -421,8 +422,12 @@ def slice_contract_nccl(tensor_network: TensorNetwork, max_n_slices: int, exp_na
     # Broadcast info from the sender to all other ranks.
     info = comm_mpi.bcast(info, sender)
 
+    # print(f"Process {rank} is processing slice range: {info.slices}.")
+
     # Set path and slices.
     path, info = network.contract_path(optimize={'path': info.path, 'slicing': info.slices})
+
+    # print(f"Process {rank} is processing path: {path}.")
     
     # Calculate this process's share of the slices.
     num_slices = info.num_slices
@@ -431,27 +436,23 @@ def slice_contract_nccl(tensor_network: TensorNetwork, max_n_slices: int, exp_na
     slice_end = num_slices if rank == size - 1 else (rank + 1) * chunk + min(rank + 1, extra)
     slices = range(slice_begin, slice_end)
 
+    # print(f"Process {rank} is processing slice range: {slices}.")
+
     time2 = MPI.Wtime()
 
-    print(f"Process {rank} is processing slice range: {slices}.")
-
+    # print(f"Process {rank} is processing slice range: {slices}.")
+# 
     # Create dataframe for info with nameds column strings
   
     #Where does auutotune come in?
 
     # Contract the group of slices the process is responsible for.
     result = network.contract(slices=slices)
+    print(f"Process {rank} is done with contraction. Result: {result}.")
 
-    result = comm_mpi.reduce(sendobj=result, op=MPI.SUM)
+    results = comm_mpi.reduce(sendobj=result, op=MPI.SUM)
 
     time3 = MPI.Wtime()
-
-    info.total_time = time3 - time0
-    info.slicing_time = time1 - time0
-    info.repotiming_slice_path_time = time2 - time1
-    info.contract_slices_time = time3 - time2
-
-    print(info)
 
     path = Path("./results")
     path.mkdir(parents=True, exist_ok=True)
@@ -466,4 +467,81 @@ def slice_contract_nccl(tensor_network: TensorNetwork, max_n_slices: int, exp_na
     df.to_pickle(path / f'{exp_name}.pkl')
     df.to_csv(path / f'{exp_name}.csv')
 
-    return result
+    # print('result',result)
+
+    return results
+
+
+
+
+# from tensor_network import TensorNetwork
+# import pickle
+
+# from cupy.cuda.runtime import getDeviceCount
+# from mpi4py import MPI
+# import numpy as np
+
+# import cuquantum as cq
+
+# def load_pickle(path):
+#     with open(path, "rb") as handle:
+#         obj = pickle.load(handle)
+#     return obj
+
+# root = 0
+# comm = MPI.COMM_WORLD
+
+# rank, size = comm.Get_rank(), comm.Get_size()
+
+# time0 = MPI.Wtime()
+
+# # Read in a pytket circuit (same on each process)
+# circuit = load_pickle("./18_in_36_k_1_ansatz_circuit.pickle")
+
+# # Set the operand data (same on all processes).
+# ket = TensorNetwork(circuit)
+# ovl = ket.vdot(ket)
+# if rank == root: print(f"Contracting {int(len(ovl)/2)} tensors.")
+
+# # Assign the device for each process.
+# device_id = rank % getDeviceCount()
+
+# # Create network object.
+# network = cq.Network(*ovl, options={'device_id' : device_id})
+
+# # Compute the path on all ranks with 8 samples for hyperoptimization. Force slicing to enable parallel contraction.
+# path, info = network.contract_path(optimize={'samples': 4, 'slicing': {'min_slices': max(16, size)}})
+
+# # Select the best path from all ranks.
+# opt_cost, sender = comm.allreduce(sendobj=(info.opt_cost, rank), op=MPI.MINLOC)
+# if rank == root: print(f"Process {sender} has the path with the lowest FLOP count {opt_cost}.")
+
+# # Broadcast info from the sender to all other ranks.
+# info = comm.bcast(info, sender)
+
+# # Set path and slices.
+# path, info = network.contract_path(optimize={'path': info.path, 'slicing': info.slices})
+
+# time1 = MPI.Wtime()
+# duration = time1 - time0
+# print(f"Optimising contraction path at {rank} took {duration} sec.")
+
+# # Calculate this process's share of the slices.
+# num_slices = info.num_slices
+# chunk, extra = num_slices // size, num_slices % size
+# slice_begin = rank * chunk + min(rank, extra)
+# slice_end = num_slices if rank == size - 1 else (rank + 1) * chunk + min(rank + 1, extra)
+# slices = range(slice_begin, slice_end)
+
+# print(f"Process {rank} is processing slice range: {slices}.")
+
+# # Contract the group of slices the process is responsible for.
+# result = network.contract(slices=slices)
+
+# # Sum the partial contribution from each process on root.
+# result = comm.reduce(sendobj=result, op=MPI.SUM, root=root)
+# if rank == root: print(f"Result: {result}")
+
+# time2 = MPI.Wtime()
+# duration = time2 - time1
+# print(f"Contraction at {rank} took {duration} sec.")

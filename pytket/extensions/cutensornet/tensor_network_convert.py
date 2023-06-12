@@ -27,7 +27,7 @@ from pytket.utils import Graph
 from pytket.pauli import QubitPauliString  # type: ignore
 from pytket.circuit import Circuit, Qubit  # type: ignore
 from pytket.utils import permute_rows_cols_in_unitary
-import cupy as cp
+# import cupy as np
 import cuquantum as cq 
 
 
@@ -430,7 +430,7 @@ class TensorNetwork:
         """
         tn_interleaved = []
         for tensor, indices in zip(self._node_tensors, self._node_tensor_indices):
-            tn_interleaved.append(cp.asarray(tensor,  dtype="complex128"))
+            tn_interleaved.append(tensor)
             tn_interleaved.append(indices)
         self._logger.debug(f"cuQuantum input list: \n{input}")
         return tn_interleaved
@@ -467,7 +467,7 @@ class TensorNetwork:
         if set(self.sticky_indices.keys()) != set(tn_other.sticky_indices.keys()):
             raise RuntimeError("The two tensor networks are incompatible!")
         tn_other_adj = tn_other.dagger()
-        i_mat = cp.array([[1, 0], [0, 1]], dtype="complex128")
+        i_mat = np.array([[1, 0], [0, 1]], dtype="complex128")
         sticky_index_pairs = []
         for q in self.sticky_indices:
             sticky_index_pairs.append(
@@ -506,8 +506,8 @@ def _measure_qubit_state(
     """
 
     cap = {
-        0: cp.array([1, 0], dtype="complex128"),
-        1: cp.array([0, 1], dtype="complex128"),
+        0: np.array([1, 0], dtype="complex128"),
+        1: np.array([0, 1], dtype="complex128"),
     }
 
     sticky_ind = ket.sticky_indices[qubit_id]
@@ -543,10 +543,10 @@ def measure_qubits_state(
 
 class PauliOperatorTensorNetwork:
     PAULI = {
-        "X": cp.array([[0, 1], [1, 0]], dtype="complex128"),
-        "Y": cp.array([[0, -1j], [1j, 0]], dtype="complex128"),
-        "Z": cp.array([[1, 0], [0, -1]], dtype="complex128"),
-        "I": cp.array([[1, 0], [0, 1]], dtype="complex128"),
+        "X": np.array([[0, 1], [1, 0]], dtype="complex128"),
+        "Y": np.array([[0, -1j], [1j, 0]], dtype="complex128"),
+        "Z": np.array([[1, 0], [0, -1]], dtype="complex128"),
+        "I": np.array([[1, 0], [0, 1]], dtype="complex128"),
     }
 
     def __init__(
