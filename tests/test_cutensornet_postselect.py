@@ -76,7 +76,7 @@ def test_postselect_qubits_state(circuit: Circuit, postselect_dict: dict) -> Non
         pytest.lazy_fixture("q2_lcu3"),  # type: ignore
     ],
 )
-@pytest.mark.parametrize("postselect_dict", [{Qubit("q", 0): 0}, {Qubit("q", 0): 1}])
+@pytest.mark.parametrize("postselect_dict", [{Qubit("q", 1): 0}, {Qubit("q", 1): 1}])
 def test_expectation_value_postselect_2q(
     circuit_2q: Circuit, postselect_dict: dict
 ) -> None:
