@@ -280,7 +280,6 @@ class CuTensorNetBackend(Backend):
             expectation_term = numeric_coeff * cq.contract(
                 *expectation_value_network.cuquantum_interleaved
             )
-            print(expectation_term)
             expectation += expectation_term
         return expectation.real
 
