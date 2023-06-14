@@ -530,8 +530,8 @@ def measure_qubits_state(
 
     Args:
         ket: a TensorNetwork object representing a quantum state.
-        measurement_dict: a dictionary of qubit ids and their
-        corresponding bit values to be assigned to the measured qubits.
+        measurement_dict: a dictionary of qubit ids and their corresponding bit values
+         to be assigned to the measured qubits.
         loglevel: logging level.
 
     Returns:
