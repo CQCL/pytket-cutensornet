@@ -76,6 +76,7 @@ def test_expectation_value() -> None:
     c = Circuit(2)
     c.H(0)
     c.CX(0, 1)
+    sv = np.array([c.get_statevector()]).T
     op = QubitPauliOperator(
         {
             QubitPauliString({Qubit(0): Pauli.Z, Qubit(1): Pauli.Z}): 1.0,
@@ -84,10 +85,12 @@ def test_expectation_value() -> None:
             QubitPauliString({Qubit(0): Pauli.Y}): -0.4j,
         }
     )
+    qubit_operator = op.to_sparse_matrix(2).todense()
     b = CuTensorNetBackend()
     c = b.get_compiled_circuit(c)
     expval = b.get_operator_expectation_value(c, op)
-    assert np.isclose(expval, 1.3)
+    sv_expval = (sv.conj().T @ qubit_operator @ sv)[0, 0]
+    assert np.isclose(expval, sv_expval)
 
 
 @pytest.mark.parametrize(
@@ -101,8 +104,12 @@ def test_expectation_value() -> None:
         pytest.lazy_fixture("q2_x0cx01cx10"),  # type: ignore
         pytest.lazy_fixture("q2_v0cx01cx10"),  # type: ignore
         pytest.lazy_fixture("q2_hadamard_test"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu1"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu2"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu3"),  # type: ignore
         pytest.lazy_fixture("q3_v0cx02"),  # type: ignore
         pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
+        pytest.lazy_fixture("q4_lcu1"),  # type: ignore
     ],
 )
 def test_compile_convert_statevec_overlap(circuit: Circuit) -> None:
