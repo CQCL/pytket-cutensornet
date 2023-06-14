@@ -233,7 +233,7 @@ class CuTensorNetBackend(Backend):
         self,
         state_circuit: Circuit,
         operator: QubitPauliOperator,
-        post_selection: Optional[Union[None, dict[Qubit, int]]] = None,
+        post_selection: Optional[dict[Qubit, int]] = None,
         valid_check: bool = True,
     ) -> float:
         """Calculates expectation value of an operator using cuTensorNet contraction.
