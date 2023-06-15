@@ -103,6 +103,7 @@ class CuTensorNetBackend(Backend):
                     OpType.Ry,
                     OpType.Rz,
                     OpType.ZZMax,
+                    OpType.SWAP,
                 }
             ),
         ]
@@ -252,6 +253,8 @@ class CuTensorNetBackend(Backend):
         """
         if valid_check:
             self._check_all_circuits([state_circuit])
+
+        state_circuit.replace_implicit_wire_swaps()
 
         expectation = 0
 

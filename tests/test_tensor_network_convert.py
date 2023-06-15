@@ -52,10 +52,14 @@ def circuit_overlap_contract(circuit_ket: Circuit) -> float:
         pytest.lazy_fixture("q2_lcu3"),  # type: ignore
         pytest.lazy_fixture("q3_v0cx02"),  # type: ignore
         pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
+        pytest.lazy_fixture("q3_pauli_gadget0"),  # type: ignore
+        pytest.lazy_fixture("q3_pauli_gadget1"),  # type: ignore
         pytest.lazy_fixture("q4_lcu1"),  # type: ignore
     ],
 )
 def test_convert_statevec_overlap(circuit: Circuit) -> None:
+    print(circuit.get_commands())
+    circuit.flatten_registers()
     tn = tk_to_tensor_network(circuit)
     result_cu = state_contract(tn, circuit.n_qubits).flatten().round(10)
     state_vector = np.array([circuit.get_statevector()])

@@ -497,7 +497,6 @@ def measure_qubit_state(
         ket: a TensorNetwork object representing a quantum state.
         qubit_id: a qubit id.
         bit_value: a bit value to be assigned to the measured qubit.
-        loglevel: logging level.
 
     Returns:
         A TensorNetwork object representing a quantum state after the
@@ -545,8 +544,6 @@ def measure_qubits_state(
 
 
 class PauliOperatorTensorNetwork:
-    """Handles a tensor network representing a Pauli operator string."""
-
     PAULI = {
         "X": np.array([[0, 1], [1, 0]], dtype="complex128"),
         "Y": np.array([[0, -1j], [1j, 0]], dtype="complex128"),
@@ -609,7 +606,6 @@ class PauliOperatorTensorNetwork:
 
     @property
     def cuquantum_interleaved(self) -> list:
-        """Returns an interleaved format of the circuit tensor network."""
         return self._cuquantum_interleaved
 
 
