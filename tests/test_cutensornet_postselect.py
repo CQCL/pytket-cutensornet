@@ -87,6 +87,7 @@ def test_postselect_qubits_state(circuit: Circuit, postselect_dict: dict) -> Non
 def test_expectation_value_postselect_2q(
     circuit_2q: Circuit, postselect_dict: dict
 ) -> None:
+    circuit_2q.flatten_registers()
     op = QubitPauliOperator(
         {
             QubitPauliString({Qubit(0): Pauli.Z}): 1.0,
@@ -134,7 +135,7 @@ def test_expectation_value_postselect_3q_lcu(circuit_3q: Circuit) -> None:
     sv = np.array([circuit_statevector_postselect(c.copy(), postselect_dict.copy())]).T
     sv = sv * np.exp(1j * np.pi * c.phase)
     sv_exp = (sv.conj().T @ op_matrix @ sv)[0, 0]
-    ten_exp = b.get_operator_expectation_value_postselect(c.copy(), op, postselect_dict)
+    ten_exp = b.get_operator_expectation_value(c.copy(), op, postselect_dict)
     assert np.isclose(ten_exp, sv_exp)
 
 
@@ -182,7 +183,7 @@ def test_expectation_value_postselect_5q_lcu(circuit_lcu_5q: Circuit) -> None:
     c = b.get_compiled_circuit(circuit_lcu_5q.copy())
     p0_dict = post_select
     p0_dict.update({Qubit("a", 0): 1})
-    p0_exp = b.get_operator_expectation_value_postselect(c.copy(), op, p0_dict)
+    p0_exp = b.get_operator_expectation_value(c.copy(), op, p0_dict)
 
     op_matrix = op.to_sparse_matrix(2).todense()
     sv = np.array([circuit_statevector_postselect(circuit_lcu_5q, p0_dict.copy())]).T
