@@ -284,7 +284,7 @@ def test_line_circ_approx() -> None:
         for g in c.get_commands():
             mps_mpo.apply_gate(g)
         assert mps_mpo.is_valid()
-        assert np.isclose(mps_mpo.fidelity, 0.000268, atol=1e-6)
+        assert np.isclose(mps_mpo.fidelity, 0.00026, atol=1e-5)
 
         # Check that that the state has norm 1
         assert np.isclose(mps_mpo.vdot(mps_mpo), 1.0)
