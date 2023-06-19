@@ -352,13 +352,16 @@ class MPS:
             )
         return self
 
-    def vdot(self, mps: MPS) -> complex:
-        """Obtain the inner product of the two MPS. It can be used to
-        compute the norm of an MPS as ``mps.vdot(mps)``. The tensors
-        within the MPS are not affected.
+    def vdot(self, other: MPS) -> complex:
+        """Obtain the inner product of the two MPS: ``<self|other>``. It can be used
+        to compute the squared norm of an MPS ``mps`` as ``mps.vdot(mps)``.
+        The tensors within the MPS are not modified.
+
+        Notes:
+            The state that is conjugated is `self`.
 
         Args:
-            mps: The other MPS to compare against.
+            other: The other MPS to compare against.
 
         Return:
             The resulting complex number.
@@ -371,25 +374,25 @@ class MPS:
                 "Must be called inside a with mps.init_cutensornet() block."
             )
 
-        if len(self) != len(mps):
+        if len(self) != len(other):
             raise RuntimeError("Number of tensors do not match.")
         for i in range(len(self)):
-            if self.get_physical_dimension(i) != mps.get_physical_dimension(i):
+            if self.get_physical_dimension(i) != other.get_physical_dimension(i):
                 raise RuntimeError(
                     f"Physical bond dimension at position {i} do not match."
                 )
-        if self.qubit_position != mps.qubit_position:
+        if self.qubit_position != other.qubit_position:
             raise RuntimeError(
                 "The qubit labels or their position on the MPS do not match."
             )
 
         self._flush()
-        mps._flush()
+        other._flush()
 
         # The two MPS will be contracted from left to right, storing the
         # ``partial_result`` tensor.
         partial_result = cq.contract(
-            self.tensors[0].data.conj(), [-1, 0], mps.tensors[0].data, [1, 0], [-1, 1]
+            self.tensors[0].data.conj(), [-1, 0], other.tensors[0].data, [1, 0], [-1, 1]
         )
         # Contract all tensors in the middle
         for pos in range(1, len(self) - 1):
@@ -398,7 +401,7 @@ class MPS:
                 [-pos, pos],
                 self.tensors[pos].data.conj(),
                 [-pos, -(pos + 1), 0],
-                mps.tensors[pos].data,
+                other.tensors[pos].data,
                 [pos, pos + 1, 0],
                 [-(pos + 1), pos + 1],
             )
@@ -408,7 +411,7 @@ class MPS:
             [-(len(self) - 1), len(self) - 1],
             self.tensors[-1].data.conj(),
             [-(len(self) - 1), 0],
-            mps.tensors[-1].data,
+            other.tensors[-1].data,
             [len(self) - 1, 0],
             [],  # No open bonds remain; this is just a scalar
         )
