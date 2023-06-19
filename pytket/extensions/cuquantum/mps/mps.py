@@ -40,6 +40,8 @@ class Tensor:
         data (cupy.ndarray): The entries of the tensor arranged in a CuPy ndarray.
         bonds (list[Bond]): A list of IDs for each bond, matching the same order
             as in ``self.data.shape`` (which provides the dimension of each).
+        canonical_form (Optional[DirectionMPS]): If in canonical form, indicate
+            which one; else None.
     """
 
     def __init__(self, data: cp.ndarray, bonds: list[Bond]):
@@ -52,6 +54,7 @@ class Tensor:
         """
         self.data = data
         self.bonds = bonds
+        self.canonical_form: Optional[DirectionMPS] = None
 
     def get_tensor_descriptor(self, libhandle: Any) -> Handle:
         """Return the cuQuantum tensor descriptor.
@@ -125,7 +128,9 @@ class Tensor:
         Returns:
             A deep copy of the Tensor.
         """
-        return Tensor(self.data.copy(), self.bonds.copy())
+        other = Tensor(self.data.copy(), self.bonds.copy())
+        other.canonical_form = self.canonical_form
+        return other
 
 
 class MPS:
@@ -333,6 +338,8 @@ class MPS:
 
         if len(positions) == 1:
             self._apply_1q_gate(positions[0], gate.op)
+            # NOTE: if the tensor was in canonical form, it remains being so,
+            #   since it is guaranteed that the gate is unitary.
 
         elif len(positions) == 2:
             dist = positions[1] - positions[0]
@@ -344,6 +351,9 @@ class MPS:
                     + f"This is not satisfied by {gate}."
                 )
             self._apply_2q_gate(positions, gate.op)
+            # The tensors will in general no longer be in canonical form.
+            self.tensors[positions[0]].canonical_form = None
+            self.tensors[positions[1]].canonical_form = None
 
         else:
             raise RuntimeError(
@@ -441,8 +451,13 @@ class MPS:
 
         Args:
             position: The position of the tensor to canonicalise.
-            form: Either ``'left'`` or ``'right'``.
+            form: LEFT form means that its conjugate transpose is its inverse if
+                connected to its left bond and physical bond. Similarly for RIGHT.
         """
+        if form == self.tensors[pos].canonical_form:
+            # Tensor already in canonical form, nothing needs to be done
+            return None
+
         if self._libhandle is None:
             raise RuntimeError(
                 "Must be called inside a with mps.init_cutensornet() block."
@@ -549,8 +564,10 @@ class MPS:
         # Update self.tensors
         self.tensors[pos].data = Q_d
         self.tensors[pos].bonds = Q_bonds
+        self.tensors[pos].canonical_form = form
         self.tensors[next_pos].data = Tnext_d
         self.tensors[next_pos].bonds = Tnext_bonds
+        self.tensors[next_pos].canonical_form = None
 
         # Destroy descriptors
         cutn.destroy_tensor_descriptor(T_desc)
