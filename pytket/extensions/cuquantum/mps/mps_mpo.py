@@ -32,6 +32,7 @@ class MPSxMPO(MPS):
 
         Attributes:
         chi (int): The maximum allowed dimension of a virtual bond.
+        truncation_fidelity (float): The target fidelity of SVD truncation.
         tensors (list[Tensor]): A list of tensors in the MPS; tensors[0] is
             the leftmost and tensors[len(self)-1] is the rightmost; tensors[i]
             and tensors[i+1] are connected in the MPS via a bond.
@@ -44,22 +45,25 @@ class MPSxMPO(MPS):
     def __init__(
         self,
         qubits: list[Qubit],
-        chi: int,
+        chi: Optional[int] = None,
+        truncation_fidelity: Optional[float] = None,
         k: Optional[int] = None,
         float_precision: str = "float64",
         device_id: Optional[int] = None,
     ):
         """Initialise an MPS on the computational state 0.
 
-        Note:
-            Use as ``with MPSxMPO(..) as mps:`` so that cuQuantum
-            handles are automatically destroyed at the end of execution.
-
         Args:
             qubits: The list of qubits of the circuit the MPS will simulate.
-            chi: The maximum value the dimension of the virtual bonds
-                is allowed to take. Higher implies better approximation but
-                more computational resources.
+            chi: The maximum value allowed for the dimension of the virtual
+                bonds. Higher implies better approximation but more
+                computational resources. If not provided, ``chi`` will be set
+                to ``2**(len(qubits) // 2)``, which is enough for exact contraction.
+            truncation_fidelity: Every time a 2-qubit gate is applied, the virtual
+                bond will be truncated to the minimum dimension that satisfies
+                ``|<psi|phi>|^2 >= trucantion_fidelity``, where ``|psi>`` and ``|phi>``
+                are the states before and after truncation (if both are normalised).
+                If not provided, it will default to its maximum value 1.
             k: The maximum number of layers the MPO is allowed to have before
                 being contracted. Increasing this might increase fidelity, but
                 it will also increase resource requirements exponentially.
@@ -69,7 +73,7 @@ class MPSxMPO(MPS):
                 Each complex number is represented using two of these real numbers.
                 Default is 'float64'.
         """
-        super().__init__(qubits, chi, float_precision, device_id)
+        super().__init__(qubits, chi, truncation_fidelity, float_precision, device_id)
 
         # Initialise the MPO data structure. This will keep a list of the gates
         # batched for application to the MPS; all of them will be applied at
@@ -86,7 +90,9 @@ class MPSxMPO(MPS):
 
         # Initialise the MPS that we will use as first approximation of the
         # variational algorithm.
-        self._aux_mps = MPSxGate(qubits, chi, float_precision, device_id)
+        self._aux_mps = MPSxGate(
+            qubits, chi, truncation_fidelity, float_precision, device_id
+        )
 
         if k is None:
             self.k = 4

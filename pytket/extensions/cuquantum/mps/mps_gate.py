@@ -28,6 +28,7 @@ class MPSxGate(MPS):
 
         Attributes:
         chi (int): The maximum allowed dimension of a virtual bond.
+        truncation_fidelity (float): The target fidelity of SVD truncation.
         tensors (list[Tensor]): A list of tensors in the MPS; tensors[0] is
             the leftmost and tensors[len(self)-1] is the rightmost; tensors[i]
             and tensors[i+1] are connected in the MPS via a bond.
@@ -107,10 +108,10 @@ class MPSxGate(MPS):
                 self.get_virtual_dimensions(r_pos)[1],
             )
 
-        # Truncation will be required if new_dim is larger than chi
-        truncating = new_dim > self.chi
+        # Truncation will be required if `new_dim` is larger than `chi`
+        # or if set by `truncation_fidelity`
+        truncating = new_dim > self.chi or self.truncation_fidelity < 1
         if truncating:
-            new_dim = self.chi
             # If truncation required, convert to canonical form before
             # contracting. Avoids the need to apply gauge transformations
             # to the larger tensor resulting from the contraction.
@@ -162,6 +163,8 @@ class MPSxGate(MPS):
         R = self.tensors[r_pos]
         r_shape = list(R.data.shape)
 
+        if self.chi < new_dim:
+            new_dim = self.chi
         if new_dim != r_shape[0]:
             # We need to change the shape of the tensors
             l_shape[-2] = new_dim
@@ -177,9 +180,72 @@ class MPSxGate(MPS):
         L_desc = L.get_tensor_descriptor(self._libhandle)
         R_desc = R.get_tensor_descriptor(self._libhandle)
 
-        # Configure SVD parameters
+        # Create SVDConfig with default configuration
         svd_config = cutn.create_tensor_svd_config(self._libhandle)
+        # Create SVDInfo to record truncation information
+        svd_info = cutn.create_tensor_svd_info(self._libhandle)
 
+        if self.truncation_fidelity < 1:
+            # Carry out SVD decomposition first with NO truncation
+            # to figure out where to apply the dimension cutoff.
+            #
+            # NOTE: Unfortunately, it looks like there is no option
+            # in the cuTensorNet API to ask for a cutoff in terms of
+            # `discarded_weight`; ABS_CUTOFF and REL_CUTOFF aren't it.
+            # It'd be best to request them to add this feature.
+            #
+            # TODO: Benchmark if this workflow that does two SVDs on
+            # the same tensor is slower than if I were to do the
+            # tensor reshaping, normalisation of S and contraction myself.
+            # It's likely, since SVD is costly, but this is simpler.
+
+            cutn.tensor_svd(
+                self._libhandle,
+                T_desc,
+                T.data.data.ptr,
+                L_desc,
+                L.data.data.ptr,
+                S_d.data.ptr,
+                R_desc,
+                R.data.data.ptr,
+                svd_config,
+                svd_info,
+                0,  # 0 means let cuQuantum manage mem itself
+                self._stream.ptr,  # type: ignore
+            )
+            self._stream.synchronize()  # type: ignore
+
+            # Use the fact that the entries of S_d are sorted in decreasing
+            # order and calculate the number of singular values `new_dim` to
+            # keep so that
+            #                             sum([s**2 for s in S'])
+            #   truncation_fidelity  <=  -------------------------
+            #                             sum([s**2 for s in S])
+            #
+            # where S is the list of original singular values and S' is the set of
+            # singular values that remain after truncation (before normalisation).
+            denom = float(sum(cp.square(S_d)))  # Element-wise squaring
+            numer = 0.0
+            new_dim = 0
+
+            while self.truncation_fidelity > numer / denom:
+                numer += float(S_d[new_dim] ** 2)
+                new_dim += 1
+
+            # We need to change the shape of the tensors
+            l_shape[-2] = new_dim
+            L.data = cp.empty(l_shape, dtype=self._complex_t)
+            r_shape[0] = new_dim
+            R.data = cp.empty(r_shape, dtype=self._complex_t)
+            S_d = cp.empty(new_dim, dtype=self._real_t)
+
+            # Create new tensor descriptors
+            cutn.destroy_tensor_descriptor(L_desc)
+            cutn.destroy_tensor_descriptor(R_desc)
+            L_desc = L.get_tensor_descriptor(self._libhandle)
+            R_desc = R.get_tensor_descriptor(self._libhandle)
+
+        # Configure SVD parameters
         svd_config_attributes = [
             # TensorSVDPartition.US asks that cuTensorNet automatically
             # contracts the tensor of singular values (S) into one of the
@@ -214,8 +280,6 @@ class MPSxGate(MPS):
                 value.ctypes.data,
                 value.dtype.itemsize,
             )
-        # Create SVDInfo to record truncation information
-        svd_info = cutn.create_tensor_svd_info(self._libhandle)
 
         # Apply SVD decomposition; truncation will be applied if needed
         cutn.tensor_svd(
@@ -257,6 +321,8 @@ class MPSxGate(MPS):
         #
         # We multiply the fidelity of the current step to the overall fidelity
         # to keep track of a lower bound for the fidelity.
+        if self.truncation_fidelity < 1:
+            assert self.truncation_fidelity <= 1.0 - float(discarded_weight)
         self.fidelity *= 1.0 - float(discarded_weight)
 
         # Destroy handles

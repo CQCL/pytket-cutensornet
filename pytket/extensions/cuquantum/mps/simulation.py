@@ -16,9 +16,7 @@ from .mps_mpo import MPSxMPO
 ContractionAlg = Enum("ContractionAlg", ["MPSxGate", "MPSxMPO"])
 
 
-def simulate(
-    circuit: Circuit, algorithm: ContractionAlg, chi: int, **kwargs: Any
-) -> MPS:
+def simulate(circuit: Circuit, algorithm: ContractionAlg, **kwargs: Any) -> MPS:
     """Simulate the given circuit and return the ``MPS`` representing the final state.
 
     Note:
@@ -29,8 +27,7 @@ def simulate(
     Args:
         circuit: The pytket circuit to be simulated.
         algorithm: Choose between the values of the ``ContractionAlg`` enum.
-        chi: The maximum virtual bond dimension.
-        **kwargs: Any extra argument accepted by the initialisers of the chosen
+        **kwargs: Any argument accepted by the initialisers of the chosen
             ``algorithm`` class can be passed as a keyword argument. See the
             documentation of the corresponding class for details.
 
@@ -41,14 +38,20 @@ def simulate(
 
     prep_circ = prepare_circuit(circuit)
 
+    chi = kwargs.get("chi", None)
+    truncation_fidelity = kwargs.get("truncation_fidelity", None)
     float_precision = kwargs.get("float_precision", None)
     device_id = kwargs.get("device_id", None)
 
     if algorithm == ContractionAlg.MPSxGate:
-        mps = MPSxGate(prep_circ.qubits, chi, float_precision, device_id)  # type: ignore
+        mps = MPSxGate(  # type: ignore
+            prep_circ.qubits, chi, truncation_fidelity, float_precision, device_id
+        )
     elif algorithm == ContractionAlg.MPSxMPO:
         k = kwargs.get("k", None)
-        mps = MPSxMPO(prep_circ.qubits, chi, k, float_precision, device_id)  # type: ignore
+        mps = MPSxMPO(  # type: ignore
+            prep_circ.qubits, chi, truncation_fidelity, k, float_precision, device_id
+        )
     else:
         print(f"Unrecognised algorithm: {algorithm}.")
 

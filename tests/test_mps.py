@@ -1,3 +1,4 @@
+import random  # type: ignore
 import cuquantum as cq  # type: ignore
 import cupy as cp  # type: ignore
 import numpy as np  # type: ignore
@@ -16,11 +17,11 @@ from pytket.extensions.cuquantum.mps import (
 def test_init() -> None:
     circ = Circuit(5)
 
-    mps_gate = MPSxGate(qubits=circ.qubits, chi=8)
+    mps_gate = MPSxGate(qubits=circ.qubits)
     with mps_gate.init_cutensornet():
         assert mps_gate.is_valid()
 
-    mps_mpo = MPSxMPO(qubits=circ.qubits, chi=8)
+    mps_mpo = MPSxMPO(qubits=circ.qubits)
     with mps_mpo.init_cutensornet():
         assert mps_mpo.is_valid()
 
@@ -28,12 +29,12 @@ def test_init() -> None:
 def test_trivial_vdot() -> None:
     circ = Circuit(5)
 
-    mps_gate = MPSxGate(qubits=circ.qubits, chi=8)
+    mps_gate = MPSxGate(qubits=circ.qubits)
     with mps_gate.init_cutensornet():
         mps_gate.is_valid()
         assert np.isclose(mps_gate.vdot(mps_gate), 1.0)
 
-    mps_mpo = MPSxMPO(qubits=circ.qubits, chi=8)
+    mps_mpo = MPSxMPO(qubits=circ.qubits)
     with mps_mpo.init_cutensornet():
         mps_mpo.is_valid()
         assert np.isclose(mps_mpo.vdot(mps_mpo), 1.0)
@@ -94,7 +95,7 @@ def test_canonicalise() -> None:
     np.random.seed(1)
     circ = Circuit(5)
 
-    mps_gate = MPSxGate(qubits=circ.qubits, chi=4)
+    mps_gate = MPSxGate(qubits=circ.qubits)
     with mps_gate.init_cutensornet():
         # Fill up the tensors with random entries
 
@@ -190,11 +191,11 @@ def test_line_circ_exact() -> None:
 
     unitary = c.get_unitary()
 
-    # EXACT CONTRACTION (chi=4 is enough for n_qubits=5)
+    # EXACT CONTRACTION (do not limit chi)
     # Check that all of the amplitudes are correct
 
     # Check for MPSxGate
-    mps_gate = MPSxGate(qubits=c.qubits, chi=4)
+    mps_gate = MPSxGate(qubits=c.qubits)
     with mps_gate.init_cutensornet():
         # Apply each of the gates
         for g in c.get_commands():
@@ -203,7 +204,7 @@ def test_line_circ_exact() -> None:
 
         # Check that all of the amplitudes are correct
         for b in range(2**n_qubits):
-            b_mps = MPSxGate(qubits=c.qubits, chi=2)
+            b_mps = MPSxGate(qubits=c.qubits)
             with b_mps.init_cutensornet():
                 bitstring = format(b, f"0{n_qubits}b")
                 for i in range(n_qubits):
@@ -216,7 +217,7 @@ def test_line_circ_exact() -> None:
                 assert np.isclose(mps_gate.fidelity, 1.0)
 
     # Check for MPSxMPO
-    mps_mpo = MPSxMPO(qubits=c.qubits, chi=4)
+    mps_mpo = MPSxMPO(qubits=c.qubits)
     with mps_mpo.init_cutensornet():
         # Apply each of the gates
         for g in c.get_commands():
@@ -225,7 +226,7 @@ def test_line_circ_exact() -> None:
 
         # Check that all of the amplitudes are correct
         for b in range(2**n_qubits):
-            b_mps = MPSxGate(qubits=c.qubits, chi=2)
+            b_mps = MPSxGate(qubits=c.qubits)
             with b_mps.init_cutensornet():
                 bitstring = format(b, f"0{n_qubits}b")
                 for i in range(n_qubits):
@@ -241,8 +242,9 @@ def test_line_circ_exact() -> None:
 def test_line_circ_approx() -> None:
     # Simulate a circuit with only nearest neighbour interactions
     np.random.seed(1)
-    n_qubits = 30
-    layers = 30
+    random.seed(1)
+    n_qubits = 20
+    layers = 20
 
     c = Circuit(n_qubits)
 
@@ -263,36 +265,45 @@ def test_line_circ_approx() -> None:
         for pair in qubit_pairs:
             c.CX(pair[0], pair[1])
 
-    # APPROXIMATE CONTRACTION (chi=8 is insufficient for exact)
+    # APPROXIMATE CONTRACTION (for finite gate fidelity)
 
     # Check for MPSxGate
-    mps_gate = MPSxGate(qubits=c.qubits, chi=8)
-    with mps_gate.init_cutensornet():
-        # Apply each of the gates
-        for g in c.get_commands():
-            mps_gate.apply_gate(g)
-        assert mps_gate.is_valid()
-        assert np.isclose(mps_gate.fidelity, 0.000130, atol=1e-6)
+    mps_gate = simulate(c, ContractionAlg.MPSxGate, truncation_fidelity=0.99)
+    assert np.isclose(mps_gate.fidelity, 0.45129, atol=1e-5)
 
-        # Check that that the state has norm 1
+    with mps_gate.init_cutensornet():
+        assert mps_gate.is_valid()
         assert np.isclose(mps_gate.vdot(mps_gate), 1.0)
 
     # Check for MPSxMPO
-    mps_mpo = MPSxMPO(qubits=c.qubits, chi=8)
-    with mps_mpo.init_cutensornet():
-        # Apply each of the gates
-        for g in c.get_commands():
-            mps_mpo.apply_gate(g)
-        assert mps_mpo.is_valid()
-        assert np.isclose(mps_mpo.fidelity, 0.00026, atol=1e-5)
+    mps_mpo = simulate(c, ContractionAlg.MPSxMPO, truncation_fidelity=0.99)
+    assert np.isclose(mps_mpo.fidelity, 0.66917, atol=1e-5)
 
-        # Check that that the state has norm 1
+    with mps_mpo.init_cutensornet():
+        assert mps_mpo.is_valid()
+        assert np.isclose(mps_mpo.vdot(mps_mpo), 1.0)
+
+    # APPROXIMATE CONTRACTION (chi=8 is insufficient for exact)
+
+    # Check for MPSxGate
+    mps_gate = simulate(c, ContractionAlg.MPSxGate, chi=8)
+    assert np.isclose(mps_gate.fidelity, 0.05830, atol=1e-5)
+
+    with mps_gate.init_cutensornet():
+        assert mps_gate.is_valid()
+        assert np.isclose(mps_gate.vdot(mps_gate), 1.0)
+
+    # Check for MPSxMPO
+    mps_mpo = simulate(c, ContractionAlg.MPSxMPO, chi=8)
+    assert np.isclose(mps_mpo.fidelity, 0.08466, atol=1e-5)
+
+    with mps_mpo.init_cutensornet():
+        assert mps_mpo.is_valid()
         assert np.isclose(mps_mpo.vdot(mps_mpo), 1.0)
 
 
 def test_simulate_volume_circuit() -> None:
     n_qubits = 6
-    chi = 8  # This is enough for exact
     np.random.seed(1)
 
     # Generate quantum volume circuit
@@ -310,8 +321,8 @@ def test_simulate_volume_circuit() -> None:
             SU4 = np.matrix(SU4)
             c.add_unitary2qbox(Unitary2qBox(SU4), *pair)
 
-    # Check for MPSxGate
-    mps_gate = simulate(c, ContractionAlg.MPSxGate, chi)
+    # Check for MPSxGate, exact contraction
+    mps_gate = simulate(c, ContractionAlg.MPSxGate)
     with mps_gate.init_cutensornet():
         assert mps_gate.is_valid()
         assert np.isclose(mps_gate.fidelity, 1.0)
@@ -320,8 +331,8 @@ def test_simulate_volume_circuit() -> None:
         assert type(mps_gate) == MPSxGate
         assert np.isclose(mps_gate.vdot(mps_gate), 1.0)
 
-    # Check for MPSxMPO
-    mps_mpo = simulate(c, ContractionAlg.MPSxMPO, chi)
+    # Check for MPSxMPO, exact contraction
+    mps_mpo = simulate(c, ContractionAlg.MPSxMPO)
     with mps_mpo.init_cutensornet():
         assert mps_mpo.is_valid()
         assert np.isclose(mps_mpo.fidelity, 1.0)
