@@ -5,7 +5,7 @@ import numpy as np  # type: ignore
 from scipy.stats import unitary_group  # type: ignore
 
 from pytket.circuit import Op, OpType, Circuit, Unitary2qBox  # type: ignore
-from pytket.extensions.cuquantum.mps import (
+from pytket.extensions.cutensornet.mps import (
     Tensor,
     MPSxGate,
     MPSxMPO,
