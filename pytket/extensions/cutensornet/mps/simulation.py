@@ -52,8 +52,6 @@ def simulate(circuit: Circuit, algorithm: ContractionAlg, **kwargs: Any) -> MPS:
         mps = MPSxMPO(  # type: ignore
             prep_circ.qubits, chi, truncation_fidelity, k, float_precision, device_id
         )
-    else:
-        print(f"Unrecognised algorithm: {algorithm}.")
 
     # Sort the gates so there isn't much overhead from canonicalising back and forth.
     sorted_gates = get_sorted_gates(prep_circ)
