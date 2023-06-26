@@ -12,16 +12,25 @@ from .mps import MPS
 from .mps_gate import MPSxGate
 from .mps_mpo import MPSxMPO
 
-ContractionAlg = Enum("ContractionAlg", ["MPSxGate", "MPSxMPO"])
+
+class ContractionAlg(Enum):
+    """An enum to refer to the MPS contraction algorithm.
+
+    Values:
+    **MPSxGate**: Use a gate-by-gate approach, see the ``MPSxGate`` class.
+    **MPSxMPO**: Use a batched-gate (DMRG-like) approach, see the ``MPSxMPO`` class.
+    """
+    MPSxGate = 0
+    MPSxMPO = 1
 
 
 def simulate(circuit: Circuit, algorithm: ContractionAlg, **kwargs: Any) -> MPS:
     """Simulate the given circuit and return the ``MPS`` representing the final state.
 
     Note:
-        If ``circuit`` contains circuit boxes, this method will decompose them.
-        Similarly, it will route the circuit as appropriate. If you wish to retrieve
-        the circuit after these passes were applied, use ``prepare_circuit()``.
+        This method will add SWAP gates to the circuit as appropriate to guarantee
+        that all two-qubit gates act between nearest-neighbours in a line. If you
+        wish to retrieve the circuit after this pass, use ``prepare_circuit()``.
 
     Args:
         circuit: The pytket circuit to be simulated.
@@ -71,9 +80,8 @@ def get_amplitude(mps: MPS, state: int) -> complex:
 
     Args:
         mps: The MPS to get the amplitude from.
-        state: The integer of the bitstring representing the state.
-            The qubits in the bitstring are ordered in increasing
-            lexicographic order.
+        state: The integer whose bitstring describes the computational state.
+            The qubits in the bitstring are ordered in increasing lexicographic order.
 
     Returns:
         The amplitude of the computational state in the MPS.

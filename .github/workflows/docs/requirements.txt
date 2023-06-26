@@ -3,3 +3,4 @@ sphinx_autodoc_annotation
 sphinx-autodoc-typehints>=1.19.3
 sphinx_book_theme >= 1.0.1, <2.0
 sphinx-copybutton
+enum-tools[sphinx]

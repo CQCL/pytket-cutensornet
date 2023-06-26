@@ -39,6 +39,10 @@ Bond = int
 
 class DirectionMPS(Enum):
     """An enum to refer to relative directions within the MPS.
+
+    Values:
+    **LEFT**
+    **RIGHT**
     """
     LEFT = 0
     RIGHT = 1
@@ -542,16 +546,16 @@ class MPS:
         The tensors within the MPS are not modified.
 
         Notes:
-            The state that is conjugated is `self`.
+            The state that is conjugated is ``self``.
 
         Args:
             other: The other MPS to compare against.
 
-        Return:
-            The resulting complex number.
-
         Raise:
             RuntimeError: If number of tensors or dimensions do not match.
+
+        Return:
+            The resulting complex number.
         """
         if self._libhandle is None:
             raise RuntimeError(

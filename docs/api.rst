@@ -31,4 +31,12 @@ Matrix Product State (MPS)
         .. automethod:: get_tensor_descriptor
         .. automethod:: copy
 
-    .. autoclass:: DirectionMPS
+    .. autoclass:: DirectionMPS()
+
+    .. autoclass:: ContractionAlg()
+
+    .. automethod:: simulate
+
+    .. automethod:: prepare_circuit
+
+    .. automethod:: get_amplitude
