@@ -150,8 +150,8 @@ class MPS:
         tensors (list[Tensor]): A list of tensors in the MPS; tensors[0] is
             the leftmost and tensors[len(self)-1] is the rightmost; tensors[i]
             and tensors[i+1] are connected in the MPS via a bond.
-        qubit_position (dict[Qubit, int]): A dictionary mapping circuit qubits
-            to the position its tensor is at in the MPS.
+        qubit_position (dict[pytket.circuit.Qubit, int]): A dictionary mapping circuit
+            qubits to the position its tensor is at in the MPS.
         fidelity (float): A lower bound of the fidelity, obtained by multiplying
             the fidelities after each contraction. The fidelity of a contraction
             corresponds to |<psi|phi>|^2 where |psi> and |phi> are the states

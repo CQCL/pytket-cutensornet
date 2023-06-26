@@ -18,3 +18,8 @@ Matrix Product State (MPS)
 
         .. automethod:: __init__
         .. automethod:: is_valid
+
+    .. autoclass:: Tensor
+
+        .. automethod:: __init__
+        .. automethod:: copy
