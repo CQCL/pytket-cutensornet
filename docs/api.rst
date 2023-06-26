@@ -17,9 +17,18 @@ Matrix Product State (MPS)
     .. autoclass:: MPS()
 
         .. automethod:: __init__
+        .. automethod:: init_cutensornet
+        .. automethod:: apply_gate
+        .. automethod:: vdot
+        .. automethod:: canonicalise
         .. automethod:: is_valid
+        .. automethod:: __len__
+        .. automethod:: copy
 
     .. autoclass:: Tensor()
 
         .. automethod:: __init__
+        .. automethod:: get_tensor_descriptor
         .. automethod:: copy
+
+    .. autoclass:: DirectionMPS

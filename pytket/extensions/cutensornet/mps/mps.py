@@ -35,13 +35,18 @@ Handle = int
 # An alias for the type of the unique identifiers of each of the bonds
 # of the MPS.
 Bond = int
-# An enum to refer to relative directions within the MPS
-DirectionMPS = Enum("DirectionMPS", ["LEFT", "RIGHT"])
+
+
+class DirectionMPS(Enum):
+    """An enum to refer to relative directions within the MPS.
+    """
+    LEFT = 0
+    RIGHT = 1
 
 
 class Tensor:
-    """Class for the management of tensors via CuPy and cuQuantum.
-    It abstracts away some of the low-level API of cuQuantum.
+    """Class for the management of tensors via CuPy and cuTensorNet.
+    It abstracts away some of the low-level API of cuTensorNet.
 
     Attributes:
         data (cupy.ndarray): The entries of the tensor arranged in a CuPy ndarray.
@@ -52,8 +57,7 @@ class Tensor:
     """
 
     def __init__(self, data: cp.ndarray, bonds: list[Bond]):
-        """Standard initialisation.
-
+        """
         Args:
             data: The entries of the tensor arranged in a CuPy ndarray.
             bonds: A list of IDs for each bond, matching the same order
@@ -64,7 +68,7 @@ class Tensor:
         self.canonical_form: Optional[DirectionMPS] = None
 
     def get_tensor_descriptor(self, libhandle: Any) -> Handle:
-        """Return the cuQuantum tensor descriptor.
+        """Return the cuTensorNet tensor descriptor.
 
         Note:
             The user is responsible of destroying the descriptor once
@@ -141,8 +145,7 @@ class Tensor:
 
 
 class MPS:
-    """Parent class for state-based simulation using Matrix Product State
-    representation.
+    """Represents a state as a Matrix Product State.
 
     Attributes:
         chi (int): The maximum allowed dimension of a virtual bond.
@@ -170,7 +173,7 @@ class MPS:
         float_precision: Optional[str] = None,
         device_id: Optional[int] = None,
     ):
-        """Initialise an MPS on the computational state 0.
+        """Initialise an MPS on the computational state ``|0>``.
 
         Args:
             qubits: The list of qubits of the circuit the MPS will simulate.
@@ -272,7 +275,7 @@ class MPS:
         self.tensors.append(Tensor(r_tensor, [n_tensors - 1, 2 * n_tensors - 1]))
 
     def is_valid(self) -> bool:
-        """Verify that the MPS does not exceed the dimension limit (chi) of
+        """Verify that the MPS does not exceed the dimension limit ``chi`` of
         the virtual bonds, that physical bonds have dimension 2 and that
         the virtual bonds are connected in a line.
 
@@ -674,9 +677,9 @@ class MPS:
         """
         Args:
             device_id: The identifier of the GPU where the copy is meant to be kept.
-                If not provided, the same device will be used.
+                If not provided, the same device as ``self`` will be used.
         Returns:
-            A deep copy of the MPS
+            A deep copy of the MPS.
         """
         self._flush()
 
