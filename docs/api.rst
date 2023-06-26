@@ -12,5 +12,5 @@ Full tensor network contraction
 Matrix Product State (MPS)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. automodule:: pytket.extensions.cutensornet
+.. automodule:: pytket.extensions.cutensornet.mps
     :members: MPS, MPSxGate, MPSxMPO, simulate, get_amplitude
