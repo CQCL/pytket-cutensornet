@@ -12,6 +12,9 @@ Full tensor network contraction
 Matrix Product State (MPS)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. autoclass:: pytket.extensions.cutensornet.mps.MPS
+.. automodule:: pytket.extensions.cutensornet.mps
 
-    .. automethod:: MPS.is_valid
+    .. autoclass:: MPS
+
+        .. automethod:: __init__
+        .. automethod:: is_valid
