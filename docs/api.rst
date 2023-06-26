@@ -25,9 +25,15 @@ Matrix Product State (MPS)
         .. automethod:: __len__
         .. automethod:: copy
 
-    .. autoclass:: MPSxGate
+    .. autoclass:: MPSxGate()
+        :show-inheritance:
 
-    .. autoclass:: MPSxMPO
+        .. automethod:: __init__
+
+    .. autoclass:: MPSxMPO()
+        :show-inheritance:
+
+        .. automethod:: __init__
 
     .. autoenum:: ContractionAlg()
         :members:
