@@ -39,10 +39,6 @@ Bond = int
 
 class DirectionMPS(Enum):
     """An enum to refer to relative directions within the MPS.
-
-    Values:
-    **LEFT**
-    **RIGHT**
     """
     LEFT = 0
     RIGHT = 1

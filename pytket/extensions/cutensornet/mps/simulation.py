@@ -15,13 +15,9 @@ from .mps_mpo import MPSxMPO
 
 class ContractionAlg(Enum):
     """An enum to refer to the MPS contraction algorithm.
-
-    Values:
-    **MPSxGate**: Use a gate-by-gate approach, see the ``MPSxGate`` class.
-    **MPSxMPO**: Use a batched-gate (DMRG-like) approach, see the ``MPSxMPO`` class.
     """
-    MPSxGate = 0
-    MPSxMPO = 1
+    MPSxGate = 0  # doc: Use a gate-by-gate approach, see ``MPSxGate`` class.
+    MPSxMPO = 1  # doc: Use a batched-gate (DMRG-like) approach, see ``MPSxMPO`` class.
 
 
 def simulate(circuit: Circuit, algorithm: ContractionAlg, **kwargs: Any) -> MPS:
