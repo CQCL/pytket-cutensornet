@@ -14,12 +14,12 @@ Matrix Product State (MPS)
 
 .. automodule:: pytket.extensions.cutensornet.mps
 
-    .. autoclass:: MPS
+    .. autoclass:: MPS()
 
         .. automethod:: __init__
         .. automethod:: is_valid
 
-    .. autoclass:: Tensor
+    .. autoclass:: Tensor()
 
         .. automethod:: __init__
         .. automethod:: copy
