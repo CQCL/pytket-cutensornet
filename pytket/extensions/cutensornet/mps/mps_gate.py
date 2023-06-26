@@ -13,10 +13,16 @@
 # limitations under the License.
 from __future__ import annotations  # type: ignore
 
-import cupy as cp  # type: ignore
 import numpy as np  # type: ignore
-import cuquantum as cq  # type: ignore
-import cuquantum.cutensornet as cutn  # type: ignore
+try:
+    import cupy as cp  # type: ignore
+except ImportError:
+    warnings.warn("local settings failed to import cupy", ImportWarning)
+try:
+    import cuquantum as cq  # type: ignore
+    import cuquantum.cutensornet as cutn  # type: ignore
+except ImportError:
+    warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
 from pytket.circuit import Op  # type: ignore
 from .mps import Tensor, MPS

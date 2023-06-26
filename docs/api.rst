@@ -14,4 +14,4 @@ Matrix Product State (MPS)
 
 .. autoclass:: pytket.extensions.cutensornet.mps.MPS
 
-    .. automethod:: MPS.__init__
+    .. automethod:: MPS.is_valid
