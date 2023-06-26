@@ -5,14 +5,27 @@ API documentation
 Full tensor network contraction
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. automodule:: pytket.extensions.cutensornet
-    :members: TensorNetwork, PauliOperatorTensorNetwork, ExpectationValueTensorNetwork, measure_qubits_state, tk_to_tensor_network, CuTensorNetBackend
+.. autoclass:: pytket.extensions.cutensornet.TensorNetwork
+    :members:
+
+.. automethod:: tk_to_tensor_network
+
+.. automethod:: measure_qubits_state
+
+.. autoclass:: pytket.extensions.cutensornet.PauliOperatorTensorNetwork
+    :members:
+
+.. autoclass:: pytket.extensions.cutensornet.ExpectationValueTensorNetwork
+    :members:
+
+.. autoclass:: pytket.extensions.cutensornet.CuTensorNetBackend
 
 
 Matrix Product State (MPS)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 .. autoclass:: pytket.extensions.cutensornet.mps.MPS
+    :members:
 
 .. autoclass:: DirectionMPS
 
@@ -22,6 +35,6 @@ Matrix Product State (MPS)
 
 .. autoclass:: MPSxMPO
 
-..automethod:: simulate
+.. automethod:: simulate
 
-..automethod:: get_amplitude
+.. automethod:: get_amplitude
