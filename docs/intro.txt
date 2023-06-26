@@ -1,26 +1,20 @@
 pytket-cutensornet
 ==================
 
+``pytket-cutensornet`` is an extension to ``pytket`` that allows ``pytket`` circuits and
+expectation values to be simulated using ``cuTensorNet`` via an interface to
+`cuTensorNet <https://docs.nvidia.com/cuda/cuquantum/cutensornet/index.html>`_.
+
 `cuTensorNet <https://docs.nvidia.com/cuda/cuquantum/cutensornet/index.html>`_ is a
 high-performance library for tensor network computations, developed by NVIDIA.
 It is part of the `cuQuantum <https://docs.nvidia.com/cuda/cuquantum/index.html>`_ SDK -
-a high-performance library aimed at quantum circuit simulations on the NVIDIA GPU chips,
-consisting of two major components:
-
-* ``cuStateVec``: a high-performance library for state vector computations.
-* ``cuTensorNet``: a high-performance library for tensor network computations.
-
-Both components have both C and Python API.
-
-``pytket-cutensornet`` is an extension to ``pytket`` that allows ``pytket`` circuits and
-expectation values to be simulated using ``cuTensorNet`` via an interface to
-`cuQuantum Python <https://docs.nvidia.com/cuda/cuquantum/python/index.html>`_.
+a high-performance library aimed at quantum circuit simulations on the NVIDIA GPU chips.
 
 Currently, only single-GPU calculations are supported, but a multi-GPU execution will be
 implemented in the due course using ``mpi4py`` library.
 
 ``pytket-cutensornet`` is available for Python 3.9, 3.10 and 3.11 on Linux.
-In order to use it, you need access to a Linux machine with either ``Volta``, ```Ampere``
+In order to use it, you need access to a Linux machine with either ``Volta``, ``Ampere``
 or ``Hopper`` GPU and first install ``cuQuantum Python`` following their installation
 `instructions  <https://docs.nvidia.com/cuda/cuquantum/python/README.html#installation>`_.
 This will include the necessary dependencies such as CUDA toolkit. Then, to install

@@ -12,5 +12,16 @@ Full tensor network contraction
 Matrix Product State (MPS)
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-.. automodule:: pytket.extensions.cutensornet.mps
-    :members: MPS, MPSxGate, MPSxMPO, simulate, get_amplitude, DirectionMPS, ContractionAlg
+.. autoclass:: MPS
+
+.. autoclass:: DirectionMPS
+
+.. autoclass:: ContractionAlg
+
+.. autoclass:: MPSxGate
+
+.. autoclass:: MPSxMPO
+
+..automethod:: simulate
+
+..automethod:: get_amplitude
