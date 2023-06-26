@@ -1,15 +1,17 @@
 import random  # type: ignore
+import pytest
+
 import cuquantum as cq  # type: ignore
 import cupy as cp  # type: ignore
 import numpy as np  # type: ignore
-from scipy.stats import unitary_group  # type: ignore
 
-from pytket.circuit import Op, OpType, Circuit, Unitary2qBox  # type: ignore
+from pytket.circuit import Circuit  # type: ignore
 from pytket.extensions.cutensornet.mps import (
     Tensor,
     MPSxGate,
     MPSxMPO,
     simulate,
+    get_amplitude,
     ContractionAlg,
 )
 
@@ -24,71 +26,6 @@ def test_init() -> None:
     mps_mpo = MPSxMPO(qubits=circ.qubits)
     with mps_mpo.init_cutensornet():
         assert mps_mpo.is_valid()
-
-
-def test_trivial_vdot() -> None:
-    circ = Circuit(5)
-
-    mps_gate = MPSxGate(qubits=circ.qubits)
-    with mps_gate.init_cutensornet():
-        mps_gate.is_valid()
-        assert np.isclose(mps_gate.vdot(mps_gate), 1.0)
-
-    mps_mpo = MPSxMPO(qubits=circ.qubits)
-    with mps_mpo.init_cutensornet():
-        mps_mpo.is_valid()
-        assert np.isclose(mps_mpo.vdot(mps_mpo), 1.0)
-
-
-def test_1q_gates() -> None:
-    n_qubits = 5
-    circ = Circuit(n_qubits)
-    circ.H(0)
-    circ.S(1)
-    circ.Rz(0.3, 2)
-    circ.Ry(0.1, 3)
-    circ.TK1(0.6, 0.5, 0.7, 4)
-    unitary = circ.get_unitary()
-
-    mps_gate = MPSxGate(qubits=circ.qubits, chi=2)
-    with mps_gate.init_cutensornet():
-        # Apply each of the single qubit gates
-        for g in circ.get_commands():
-            mps_gate.apply_gate(g)
-        assert mps_gate.is_valid()
-
-        # Check that all of the amplitudes are correct
-        for b in range(2**n_qubits):
-            b_mps = MPSxGate(qubits=circ.qubits, chi=2)
-            with b_mps.init_cutensornet():
-                bitstring = format(b, f"0{n_qubits}b")
-                for i in range(n_qubits):
-                    if bitstring[i] == "1":
-                        b_mps._apply_1q_gate(i, Op.create(OpType.X))
-                assert b_mps.is_valid()
-
-                # Check the amplitude
-                assert np.isclose(b_mps.vdot(mps_gate), unitary[b][0])
-
-    mps_mpo = MPSxMPO(qubits=circ.qubits, chi=2)
-    with mps_mpo.init_cutensornet():
-        # Apply each of the single qubit gates
-        for g in circ.get_commands():
-            mps_mpo.apply_gate(g)
-        assert mps_mpo.is_valid()
-
-        # Check that all of the amplitudes are correct
-        for b in range(2**n_qubits):
-            b_mps = MPSxGate(qubits=circ.qubits, chi=2)
-            with b_mps.init_cutensornet():
-                bitstring = format(b, f"0{n_qubits}b")
-                for i in range(n_qubits):
-                    if bitstring[i] == "1":
-                        b_mps._apply_1q_gate(i, Op.create(OpType.X))
-                assert b_mps.is_valid()
-
-                # Check the amplitude
-                assert np.isclose(b_mps.vdot(mps_mpo), unitary[b][0])
 
 
 def test_canonicalise() -> None:
@@ -164,111 +101,143 @@ def test_canonicalise() -> None:
                         assert np.isclose(result[i][j], 0)
 
 
-def test_line_circ_exact() -> None:
-    # Simulate a circuit with only nearest neighbour interactions
-    np.random.seed(1)
-    n_qubits = 5
-    layers = 30
+@pytest.mark.parametrize(
+    "circuit",
+    [
+        pytest.lazy_fixture("q5_empty"),  # type: ignore
+        pytest.lazy_fixture("q2_x0"),  # type: ignore
+        pytest.lazy_fixture("q2_x1"),  # type: ignore
+        pytest.lazy_fixture("q2_v0"),  # type: ignore
+        pytest.lazy_fixture("q2_x0cx01"),  # type: ignore
+        pytest.lazy_fixture("q2_x1cx10x1"),  # type: ignore
+        pytest.lazy_fixture("q2_x0cx01cx10"),  # type: ignore
+        pytest.lazy_fixture("q2_v0cx01cx10"),  # type: ignore
+        pytest.lazy_fixture("q2_hadamard_test"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu1"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu2"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu3"),  # type: ignore
+        pytest.lazy_fixture("q3_v0cx02"),  # type: ignore
+        pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
+        # pytest.lazy_fixture("q4_lcu1"),  # MPS doesn't support n-qubit gates with n>2
+        pytest.lazy_fixture("q5_h0s1rz2ry3tk4tk13"),  # type: ignore
+        pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
+        pytest.lazy_fixture("q6_qvol"),  # type: ignore
+    ],
+)
+@pytest.mark.parametrize(
+    "algorithm",
+    [
+        ContractionAlg.MPSxGate,
+        ContractionAlg.MPSxMPO,
+    ],
+)
+def test_exact_circ_sim(circuit: Circuit, algorithm: ContractionAlg) -> None:
+    state = circuit.get_statevector()
+    n_qubits = len(circuit.qubits)
 
-    c = Circuit(n_qubits)
-
-    for i in range(layers):
-        # Layer of TK1 gates
-        for q in range(n_qubits):
-            c.TK1(np.random.rand(), np.random.rand(), np.random.rand(), q)
-
-        # Layer of CX gates
-        offset = np.mod(i, 2)  # Even layers connect (q0,q1), odd (q1,q2)
-        qubit_pairs = [
-            [c.qubits[i], c.qubits[i + 1]] for i in range(offset, n_qubits - 1, 2)
-        ]
-        # Direction of each CX gate is random
-        for pair in qubit_pairs:
-            np.random.shuffle(pair)
-
-        for pair in qubit_pairs:
-            c.CX(pair[0], pair[1])
-
-    unitary = c.get_unitary()
-
-    # EXACT CONTRACTION (do not limit chi)
-    # Check that all of the amplitudes are correct
-
-    # Check for MPSxGate
-    mps_gate = MPSxGate(qubits=c.qubits)
-    with mps_gate.init_cutensornet():
-        # Apply each of the gates
-        for g in c.get_commands():
-            mps_gate.apply_gate(g)
-        assert mps_gate.is_valid()
-
-        # Check that all of the amplitudes are correct
-        for b in range(2**n_qubits):
-            b_mps = MPSxGate(qubits=c.qubits)
-            with b_mps.init_cutensornet():
-                bitstring = format(b, f"0{n_qubits}b")
-                for i in range(n_qubits):
-                    if bitstring[i] == "1":
-                        b_mps._apply_1q_gate(i, Op.create(OpType.X))
-                assert b_mps.is_valid()
-
-                # Check the amplitudes are similar
-                assert np.isclose(b_mps.vdot(mps_gate), unitary[b][0])
-                assert np.isclose(mps_gate.fidelity, 1.0)
-
-    # Check for MPSxMPO
-    mps_mpo = MPSxMPO(qubits=c.qubits)
-    with mps_mpo.init_cutensornet():
-        # Apply each of the gates
-        for g in c.get_commands():
-            mps_mpo.apply_gate(g)
-        assert mps_mpo.is_valid()
+    mps = simulate(circuit, algorithm)
+    with mps.init_cutensornet():
+        assert mps.is_valid()
+        # Check that there was no approximation
+        assert np.isclose(mps.fidelity, 1.0)
+        # Check that overlap is 1
+        assert np.isclose(mps.vdot(mps), 1.0)
 
         # Check that all of the amplitudes are correct
         for b in range(2**n_qubits):
-            b_mps = MPSxGate(qubits=c.qubits)
-            with b_mps.init_cutensornet():
-                bitstring = format(b, f"0{n_qubits}b")
-                for i in range(n_qubits):
-                    if bitstring[i] == "1":
-                        b_mps._apply_1q_gate(i, Op.create(OpType.X))
-                assert b_mps.is_valid()
-
-                # Check the amplitudes are similar
-                assert np.isclose(b_mps.vdot(mps_mpo), unitary[b][0])
-                assert np.isclose(mps_mpo.fidelity, 1.0)
+            assert np.isclose(
+                np.exp(1j * np.pi * circuit.phase) * get_amplitude(mps, b), state[b]
+            )
 
 
-def test_line_circ_approx() -> None:
-    # Simulate a circuit with only nearest neighbour interactions
-    np.random.seed(1)
+@pytest.mark.parametrize(
+    "circuit",
+    [
+        pytest.lazy_fixture("q5_empty"),  # type: ignore
+        pytest.lazy_fixture("q2_x0"),  # type: ignore
+        pytest.lazy_fixture("q2_x1"),  # type: ignore
+        pytest.lazy_fixture("q2_v0"),  # type: ignore
+        pytest.lazy_fixture("q2_x0cx01"),  # type: ignore
+        pytest.lazy_fixture("q2_x1cx10x1"),  # type: ignore
+        pytest.lazy_fixture("q2_x0cx01cx10"),  # type: ignore
+        pytest.lazy_fixture("q2_v0cx01cx10"),  # type: ignore
+        pytest.lazy_fixture("q2_hadamard_test"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu1"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu2"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu3"),  # type: ignore
+        pytest.lazy_fixture("q3_v0cx02"),  # type: ignore
+        pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
+        # pytest.lazy_fixture("q4_lcu1"),  # MPS doesn't support n-qubit gates with n>2
+        pytest.lazy_fixture("q5_h0s1rz2ry3tk4tk13"),  # type: ignore
+        pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
+        pytest.lazy_fixture("q6_qvol"),  # type: ignore
+    ],
+)
+@pytest.mark.parametrize(
+    "algorithm",
+    [
+        ContractionAlg.MPSxGate,
+        ContractionAlg.MPSxMPO,
+    ],
+)
+def test_approx_circ_sim_gate_fid(circuit: Circuit, algorithm: ContractionAlg) -> None:
+    mps = simulate(circuit, algorithm, truncation_fidelity=0.99)
+    with mps.init_cutensornet():
+        assert mps.is_valid()
+        # Check that overlap is 1
+        assert np.isclose(mps.vdot(mps), 1.0)
+
+
+@pytest.mark.parametrize(
+    "circuit",
+    [
+        pytest.lazy_fixture("q5_empty"),  # type: ignore
+        pytest.lazy_fixture("q2_x0"),  # type: ignore
+        pytest.lazy_fixture("q2_x1"),  # type: ignore
+        pytest.lazy_fixture("q2_v0"),  # type: ignore
+        pytest.lazy_fixture("q2_x0cx01"),  # type: ignore
+        pytest.lazy_fixture("q2_x1cx10x1"),  # type: ignore
+        pytest.lazy_fixture("q2_x0cx01cx10"),  # type: ignore
+        pytest.lazy_fixture("q2_v0cx01cx10"),  # type: ignore
+        pytest.lazy_fixture("q2_hadamard_test"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu1"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu2"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu3"),  # type: ignore
+        pytest.lazy_fixture("q3_v0cx02"),  # type: ignore
+        pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
+        # pytest.lazy_fixture("q4_lcu1"),  # MPS doesn't support n-qubit gates with n>2
+        pytest.lazy_fixture("q5_h0s1rz2ry3tk4tk13"),  # type: ignore
+        pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
+        pytest.lazy_fixture("q6_qvol"),  # type: ignore
+    ],
+)
+@pytest.mark.parametrize(
+    "algorithm",
+    [
+        ContractionAlg.MPSxGate,
+        ContractionAlg.MPSxMPO,
+    ],
+)
+def test_approx_circ_sim_chi(circuit: Circuit, algorithm: ContractionAlg) -> None:
+    mps = simulate(circuit, algorithm, chi=4)
+    with mps.init_cutensornet():
+        assert mps.is_valid()
+        # Check that overlap is 1
+        assert np.isclose(mps.vdot(mps), 1.0)
+
+
+@pytest.mark.parametrize(
+    "circuit",
+    [
+        pytest.lazy_fixture("q20_line_circ_20_layers"),  # type: ignore
+    ],
+)
+def test_circ_approx_explicit(circuit: Circuit) -> None:
     random.seed(1)
-    n_qubits = 20
-    layers = 20
 
-    c = Circuit(n_qubits)
-
-    for i in range(layers):
-        # Layer of TK1 gates
-        for q in range(n_qubits):
-            c.TK1(np.random.rand(), np.random.rand(), np.random.rand(), q)
-
-        # Layer of CX gates
-        offset = np.mod(i, 2)  # Even layers connect (q0,q1), odd (q1,q2)
-        qubit_pairs = [
-            [c.qubits[i], c.qubits[i + 1]] for i in range(offset, n_qubits - 1, 2)
-        ]
-        # Direction of each CX gate is random
-        for pair in qubit_pairs:
-            np.random.shuffle(pair)
-
-        for pair in qubit_pairs:
-            c.CX(pair[0], pair[1])
-
-    # APPROXIMATE CONTRACTION (for finite gate fidelity)
-
+    # Finite gate fidelity
     # Check for MPSxGate
-    mps_gate = simulate(c, ContractionAlg.MPSxGate, truncation_fidelity=0.99)
+    mps_gate = simulate(circuit, ContractionAlg.MPSxGate, truncation_fidelity=0.99)
     assert np.isclose(mps_gate.fidelity, 0.45129, atol=1e-5)
 
     with mps_gate.init_cutensornet():
@@ -276,17 +245,16 @@ def test_line_circ_approx() -> None:
         assert np.isclose(mps_gate.vdot(mps_gate), 1.0)
 
     # Check for MPSxMPO
-    mps_mpo = simulate(c, ContractionAlg.MPSxMPO, truncation_fidelity=0.99)
+    mps_mpo = simulate(circuit, ContractionAlg.MPSxMPO, truncation_fidelity=0.99)
     assert np.isclose(mps_mpo.fidelity, 0.66917, atol=1e-5)
 
     with mps_mpo.init_cutensornet():
         assert mps_mpo.is_valid()
         assert np.isclose(mps_mpo.vdot(mps_mpo), 1.0)
 
-    # APPROXIMATE CONTRACTION (chi=8 is insufficient for exact)
-
+    # Fixed virtual bond dimension
     # Check for MPSxGate
-    mps_gate = simulate(c, ContractionAlg.MPSxGate, chi=8)
+    mps_gate = simulate(circuit, ContractionAlg.MPSxGate, chi=8)
     assert np.isclose(mps_gate.fidelity, 0.05830, atol=1e-5)
 
     with mps_gate.init_cutensornet():
@@ -294,49 +262,9 @@ def test_line_circ_approx() -> None:
         assert np.isclose(mps_gate.vdot(mps_gate), 1.0)
 
     # Check for MPSxMPO
-    mps_mpo = simulate(c, ContractionAlg.MPSxMPO, chi=8)
+    mps_mpo = simulate(circuit, ContractionAlg.MPSxMPO, chi=8)
     assert np.isclose(mps_mpo.fidelity, 0.08466, atol=1e-5)
 
     with mps_mpo.init_cutensornet():
         assert mps_mpo.is_valid()
-        assert np.isclose(mps_mpo.vdot(mps_mpo), 1.0)
-
-
-def test_simulate_volume_circuit() -> None:
-    n_qubits = 6
-    np.random.seed(1)
-
-    # Generate quantum volume circuit
-    depth = n_qubits
-    c = Circuit(n_qubits)
-
-    for _ in range(depth):
-        qubits = np.random.permutation([i for i in range(n_qubits)])
-        qubit_pairs = [[qubits[i], qubits[i + 1]] for i in range(0, n_qubits - 1, 2)]
-
-        for pair in qubit_pairs:
-            # Generate random 4x4 unitary matrix.
-            SU4 = unitary_group.rvs(4)  # random unitary in SU4
-            SU4 = SU4 / (np.linalg.det(SU4) ** 0.25)
-            SU4 = np.matrix(SU4)
-            c.add_unitary2qbox(Unitary2qBox(SU4), *pair)
-
-    # Check for MPSxGate, exact contraction
-    mps_gate = simulate(c, ContractionAlg.MPSxGate)
-    with mps_gate.init_cutensornet():
-        assert mps_gate.is_valid()
-        assert np.isclose(mps_gate.fidelity, 1.0)
-
-        # Check that that the state has norm 1
-        assert type(mps_gate) == MPSxGate
-        assert np.isclose(mps_gate.vdot(mps_gate), 1.0)
-
-    # Check for MPSxMPO, exact contraction
-    mps_mpo = simulate(c, ContractionAlg.MPSxMPO)
-    with mps_mpo.init_cutensornet():
-        assert mps_mpo.is_valid()
-        assert np.isclose(mps_mpo.fidelity, 1.0)
-
-        # Check that that the state has norm 1
-        assert type(mps_mpo) == MPSxMPO
         assert np.isclose(mps_mpo.vdot(mps_mpo), 1.0)
