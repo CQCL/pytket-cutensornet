@@ -33,11 +33,11 @@ from .mps_gate import MPSxGate
 
 
 class MPSxMPO(MPS):
-    """Class for state-based simulation using an Matrix Product State (MPS)
-    representation with MPS-MPO contraction, using a DMRG-like approach
-    following the approach described in: https://arxiv.org/abs/2207.05612.
+    """Implements a batched--gate contraction algorithm (DMRG-like) to calculate
+    the output state of a circuit as an ``MPS``. The algorithm is described
+    in: https://arxiv.org/abs/2207.05612.
 
-        Attributes:
+    Attributes:
         chi (int): The maximum allowed dimension of a virtual bond.
         truncation_fidelity (float): The target fidelity of SVD truncation.
         tensors (list[Tensor]): A list of tensors in the MPS; tensors[0] is

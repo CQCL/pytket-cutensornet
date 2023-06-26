@@ -31,4 +31,4 @@ from .mps_mpo import (
     MPSxMPO,
 )
 
-from .simulation import ContractionAlg, simulate, get_amplitude
+from .simulation import ContractionAlg, simulate, get_amplitude, prepare_circuit

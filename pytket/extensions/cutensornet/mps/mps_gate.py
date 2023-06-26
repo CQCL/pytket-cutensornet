@@ -30,10 +30,11 @@ from .mps import Tensor, MPS
 
 
 class MPSxGate(MPS):
-    """Class for state-based simulation using an Matrix Product State (MPS)
-    representation, with gate-by-gate contraction.
+    """Implements a gate-by-gate contraction algorithm to calculate the output state
+    of a circuit as an ``MPS``. The algorithm is described in:
+    https://arxiv.org/abs/2002.07730
 
-        Attributes:
+    Attributes:
         chi (int): The maximum allowed dimension of a virtual bond.
         truncation_fidelity (float): The target fidelity of SVD truncation.
         tensors (list[Tensor]): A list of tensors in the MPS; tensors[0] is
