@@ -377,11 +377,6 @@ class MPSxMPO(MPS):
             elif direction == DirectionMPS.RIGHT:
                 self._aux_mps.canonicalise_tensor(pos, form=DirectionMPS.LEFT)
 
-            else:
-                raise RuntimeError(
-                    f"Unrecognised sweeping direction. Use values from DirectionMPS."
-                )
-
             # Get the interleaved representation
             interleaved_rep = [
                 # The (conjugated) tensor of the variational MPS
@@ -513,7 +508,7 @@ class MPSxMPO(MPS):
             prev_fidelity = sweep_fidelity
 
             if sweep_direction == DirectionMPS.RIGHT:
-                update_variational_tensor(
+                sweep_fidelity = update_variational_tensor(
                     pos=0, left_tensor=None, right_tensor=r_cached_tensors.pop()
                 )
                 update_sweep_cache(pos=0, direction=DirectionMPS.RIGHT)
@@ -531,7 +526,7 @@ class MPSxMPO(MPS):
                 sweep_direction = DirectionMPS.LEFT
 
             elif sweep_direction == DirectionMPS.LEFT:
-                update_variational_tensor(
+                sweep_fidelity = update_variational_tensor(
                     pos=len(self) - 1,
                     left_tensor=l_cached_tensors.pop(),
                     right_tensor=None,

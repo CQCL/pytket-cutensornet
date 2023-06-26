@@ -2,8 +2,7 @@ from typing import Any
 from enum import Enum
 from random import choice  # type: ignore
 
-from pytket.circuit import Circuit, Command, Qubit  # type: ignore
-from pytket.passes import DecomposeBoxes  # type: ignore
+from pytket.circuit import Circuit, Command, Qubit, Op, OpType  # type: ignore
 from pytket.transform import Transform  # type: ignore
 from pytket.architecture import Architecture  # type: ignore
 from pytket.passes import DefaultMappingPass  # type: ignore
@@ -36,7 +35,7 @@ def simulate(circuit: Circuit, algorithm: ContractionAlg, **kwargs: Any) -> MPS:
         of the circuit.
     """
 
-    prep_circ = prepare_circuit(circuit)
+    prep_circ, qubit_map = prepare_circuit(circuit)
 
     chi = kwargs.get("chi", None)
     truncation_fidelity = kwargs.get("truncation_fidelity", None)
@@ -61,10 +60,40 @@ def simulate(circuit: Circuit, algorithm: ContractionAlg, **kwargs: Any) -> MPS:
         for g in sorted_gates:
             mps.apply_gate(g)
 
+    # Finally, restore the original name of the qubits
+    mps.qubit_position = {qubit_map[q]: i for q, i in mps.qubit_position.items()}
+
     return mps
 
 
-def prepare_circuit(circuit: Circuit) -> Circuit:
+def get_amplitude(mps: MPS, state: int) -> complex:
+    """Return the amplitude of the chosen computational state.
+
+    Args:
+        mps: The MPS to get the amplitude from.
+        state: The integer of the bitstring representing the state.
+            The qubits in the bitstring are ordered in increasing
+            lexicographic order.
+
+    Returns:
+        The amplitude of the computational state in the MPS.
+    """
+    if mps._libhandle is None:
+        raise RuntimeError("Must be called inside a with mps.init_cutensornet() block.")
+
+    mps_qubits = list(mps.qubit_position.keys())
+    bra_mps = MPSxGate(mps_qubits)
+    bra_mps._libhandle = mps._libhandle
+
+    ilo_qubits = sorted(mps_qubits)
+    for i, q in enumerate(ilo_qubits):
+        if state & 2 ** (len(mps_qubits) - i - 1):
+            pos = bra_mps.qubit_position[q]
+            bra_mps._apply_1q_gate(pos, Op.create(OpType.X))
+    return bra_mps.vdot(mps)
+
+
+def prepare_circuit(circuit: Circuit) -> tuple[Circuit, dict[Qubit, Qubit]]:
     """Return an equivalent circuit with the appropriate structure to be simulated by
     an ``MPS`` algorithm.
 
@@ -72,14 +101,11 @@ def prepare_circuit(circuit: Circuit) -> Circuit:
         circuit: The circuit to be simulated.
 
     Returns:
-        An equivalent circuit with the appropriate structure.
+        A tuple with an equivalent circuit with the appropriate structure. And a
+        map of qubit names at the end of the circuit to their corresponding
+        original names.
     """
-
     prep_circ = circuit.copy()
-
-    # Compile down to 1-qubit and 2-qubit gates with no implicit swaps
-    DecomposeBoxes().apply(prep_circ)
-    prep_circ.replace_implicit_wire_swaps()
 
     # Implement it in a line architecture
     cu = CompilationUnit(prep_circ)
@@ -88,7 +114,9 @@ def prepare_circuit(circuit: Circuit) -> Circuit:
     prep_circ = cu.circuit
     Transform.DecomposeBRIDGE().apply(prep_circ)
 
-    return prep_circ
+    qubit_map = {arch_q: orig_q for orig_q, arch_q in cu.final_map.items()}
+
+    return (prep_circ, qubit_map)
 
 
 def get_sorted_gates(circuit: Circuit) -> list[Command]:

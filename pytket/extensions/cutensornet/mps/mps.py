@@ -384,72 +384,6 @@ class MPS:
             )
         return self
 
-    def vdot(self, other: MPS) -> complex:
-        """Obtain the inner product of the two MPS: ``<self|other>``. It can be used
-        to compute the squared norm of an MPS ``mps`` as ``mps.vdot(mps)``.
-        The tensors within the MPS are not modified.
-
-        Notes:
-            The state that is conjugated is `self`.
-
-        Args:
-            other: The other MPS to compare against.
-
-        Return:
-            The resulting complex number.
-
-        Raise:
-            RuntimeError: If number of tensors or dimensions do not match.
-        """
-        if self._libhandle is None:
-            raise RuntimeError(
-                "Must be called inside a with mps.init_cutensornet() block."
-            )
-
-        if len(self) != len(other):
-            raise RuntimeError("Number of tensors do not match.")
-        for i in range(len(self)):
-            if self.get_physical_dimension(i) != other.get_physical_dimension(i):
-                raise RuntimeError(
-                    f"Physical bond dimension at position {i} do not match."
-                )
-        if self.qubit_position != other.qubit_position:
-            raise RuntimeError(
-                "The qubit labels or their position on the MPS do not match."
-            )
-
-        self._flush()
-        other._flush()
-
-        # The two MPS will be contracted from left to right, storing the
-        # ``partial_result`` tensor.
-        partial_result = cq.contract(
-            self.tensors[0].data.conj(), [-1, 0], other.tensors[0].data, [1, 0], [-1, 1]
-        )
-        # Contract all tensors in the middle
-        for pos in range(1, len(self) - 1):
-            partial_result = cq.contract(
-                partial_result,
-                [-pos, pos],
-                self.tensors[pos].data.conj(),
-                [-pos, -(pos + 1), 0],
-                other.tensors[pos].data,
-                [pos, pos + 1, 0],
-                [-(pos + 1), pos + 1],
-            )
-        # Finally, contract the last tensor
-        result = cq.contract(
-            partial_result,
-            [-(len(self) - 1), len(self) - 1],
-            self.tensors[-1].data.conj(),
-            [-(len(self) - 1), 0],
-            other.tensors[-1].data,
-            [len(self) - 1, 0],
-            [],  # No open bonds remain; this is just a scalar
-        )
-
-        return complex(result)
-
     def canonicalise(self, l_pos: int, r_pos: int) -> None:
         """Apply the necessary gauge transformations so that all MPS tensors
         to the left of position ``l_pos`` are in left orthogonal form and
@@ -495,10 +429,6 @@ class MPS:
             gauge_bond = pos
             gauge_T_index = -2
             gauge_Q_index = 0
-        else:
-            raise RuntimeError(
-                f"Form {form} not recognised. Use values from DirectionMPS enum."
-            )
 
         # Gather the details from the MPS tensor at this position
         T = self.tensors[pos]
@@ -595,6 +525,72 @@ class MPS:
         cutn.destroy_tensor_descriptor(T_desc)
         cutn.destroy_tensor_descriptor(Q_desc)
         cutn.destroy_tensor_descriptor(R_desc)
+
+    def vdot(self, other: MPS) -> complex:
+        """Obtain the inner product of the two MPS: ``<self|other>``. It can be used
+        to compute the squared norm of an MPS ``mps`` as ``mps.vdot(mps)``.
+        The tensors within the MPS are not modified.
+
+        Notes:
+            The state that is conjugated is `self`.
+
+        Args:
+            other: The other MPS to compare against.
+
+        Return:
+            The resulting complex number.
+
+        Raise:
+            RuntimeError: If number of tensors or dimensions do not match.
+        """
+        if self._libhandle is None:
+            raise RuntimeError(
+                "Must be called inside a with mps.init_cutensornet() block."
+            )
+
+        if len(self) != len(other):
+            raise RuntimeError("Number of tensors do not match.")
+        for i in range(len(self)):
+            if self.get_physical_dimension(i) != other.get_physical_dimension(i):
+                raise RuntimeError(
+                    f"Physical bond dimension at position {i} do not match."
+                )
+        if self.qubit_position != other.qubit_position:
+            raise RuntimeError(
+                "The qubit labels or their position on the MPS do not match."
+            )
+
+        self._flush()
+        other._flush()
+
+        # The two MPS will be contracted from left to right, storing the
+        # ``partial_result`` tensor.
+        partial_result = cq.contract(
+            self.tensors[0].data.conj(), [-1, 0], other.tensors[0].data, [1, 0], [-1, 1]
+        )
+        # Contract all tensors in the middle
+        for pos in range(1, len(self) - 1):
+            partial_result = cq.contract(
+                partial_result,
+                [-pos, pos],
+                self.tensors[pos].data.conj(),
+                [-pos, -(pos + 1), 0],
+                other.tensors[pos].data,
+                [pos, pos + 1, 0],
+                [-(pos + 1), pos + 1],
+            )
+        # Finally, contract the last tensor
+        result = cq.contract(
+            partial_result,
+            [-(len(self) - 1), len(self) - 1],
+            self.tensors[-1].data.conj(),
+            [-(len(self) - 1), 0],
+            other.tensors[-1].data,
+            [len(self) - 1, 0],
+            [],  # No open bonds remain; this is just a scalar
+        )
+
+        return complex(result)
 
     def get_virtual_bonds(self, position: int) -> list[Bond]:
         """Return the unique identifiers of the virtual bonds
