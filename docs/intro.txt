@@ -10,6 +10,12 @@ high-performance library for tensor network computations, developed by NVIDIA.
 It is part of the `cuQuantum <https://docs.nvidia.com/cuda/cuquantum/index.html>`_ SDK -
 a high-performance library aimed at quantum circuit simulations on the NVIDIA GPU chips.
 
+We provide two core functionalities:
+
+* *Full tensor network contraction*: use ``tk_to_tensor_network`` to translate a ``pytket`` circuit to a ``TensorNetwork`` and obtain expectation values and amplitudes via full tensor network contraction using ``cuQuantum``'s optimised contraction path.
+
+* *Matrix Product State (MPS)*: use ``simulate`` to simulate a ``pytket`` circuit, returning an ``MPS`` representation of the output state, of which you can then ``get_amplitude`` or calculate inner products with other MPS via ``vdot``.
+
 Currently, only single-GPU calculations are supported, but a multi-GPU execution will be
 implemented in the due course using ``mpi4py`` library.
 
