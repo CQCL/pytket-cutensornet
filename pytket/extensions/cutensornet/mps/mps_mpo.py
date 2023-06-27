@@ -17,6 +17,7 @@ import warnings
 from typing import Optional, Any
 
 import numpy as np  # type: ignore
+
 try:
     import cupy as cp  # type: ignore
 except ImportError:

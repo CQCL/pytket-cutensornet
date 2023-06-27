@@ -17,6 +17,7 @@ from typing import Any, Optional
 from enum import Enum
 
 import numpy as np  # type: ignore
+
 try:
     import cupy as cp  # type: ignore
 except ImportError:
@@ -38,8 +39,8 @@ Bond = int
 
 
 class DirectionMPS(Enum):
-    """An enum to refer to relative directions within the MPS.
-    """
+    """An enum to refer to relative directions within the MPS."""
+
     LEFT = 0
     RIGHT = 1
 
