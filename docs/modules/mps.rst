@@ -3,8 +3,9 @@ Matrix Product State (MPS)
 
 .. automodule:: pytket.extensions.cutensornet.mps
 
+
 Simulation
-----------
+~~~~~~~~~~
 
     .. autoenum:: ContractionAlg()
         :members:
@@ -13,8 +14,9 @@ Simulation
 
     .. automethod:: pytket.extensions.cutensornet.mps.get_amplitude
 
+
 Classes
--------
+~~~~~~~
 
     .. autoclass:: MPS()
 
@@ -43,10 +45,11 @@ Classes
         .. automethod:: get_tensor_descriptor
         .. automethod:: copy
 
-    .. autoenum:: DirectionMPS()
-        :members:
 
 Miscellaneous
--------------
+~~~~~~~~~~~~~
+
+    .. autoenum:: DirectionMPS()
+        :members:
 
     .. automethod:: pytket.extensions.cutensornet.mps.prepare_circuit
