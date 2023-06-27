@@ -3,6 +3,19 @@ Matrix Product State (MPS)
 
 .. automodule:: pytket.extensions.cutensornet.mps
 
+Simulation
+----------
+
+    .. autoenum:: ContractionAlg()
+        :members:
+
+    .. automethod:: pytket.extensions.cutensornet.mps.simulate
+
+    .. automethod:: pytket.extensions.cutensornet.mps.get_amplitude
+
+Classes
+-------
+
     .. autoclass:: MPS()
 
         .. automethod:: __init__
@@ -11,8 +24,8 @@ Matrix Product State (MPS)
         .. automethod:: vdot
         .. automethod:: canonicalise
         .. automethod:: is_valid
-        .. automethod:: __len__
         .. automethod:: copy
+        .. automethod:: __len__
 
     .. autoclass:: MPSxGate()
         :show-inheritance:
@@ -24,15 +37,6 @@ Matrix Product State (MPS)
 
         .. automethod:: __init__
 
-    .. autoenum:: ContractionAlg()
-        :members:
-
-    .. automethod:: pytket.extensions.cutensornet.mps.simulate
-
-    .. automethod:: pytket.extensions.cutensornet.mps.get_amplitude
-
-    .. automethod:: pytket.extensions.cutensornet.mps.prepare_circuit
-
     .. autoclass:: Tensor()
 
         .. automethod:: __init__
@@ -41,3 +45,8 @@ Matrix Product State (MPS)
 
     .. autoenum:: DirectionMPS()
         :members:
+
+Miscellaneous
+-------------
+
+    .. automethod:: pytket.extensions.cutensornet.mps.prepare_circuit

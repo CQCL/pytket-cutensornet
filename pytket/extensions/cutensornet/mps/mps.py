@@ -151,15 +151,15 @@ class MPS:
     Attributes:
         chi (int): The maximum allowed dimension of a virtual bond.
         truncation_fidelity (float): The target fidelity of SVD truncation.
-        tensors (list[Tensor]): A list of tensors in the MPS; tensors[0] is
-            the leftmost and tensors[len(self)-1] is the rightmost; tensors[i]
-            and tensors[i+1] are connected in the MPS via a bond.
+        tensors (list[Tensor]): A list of tensors in the MPS; ``tensors[0]`` is
+            the leftmost and ``tensors[len(self)-1]`` is the rightmost; ``tensors[i]``
+            and ``tensors[i+1]`` are connected in the MPS via a bond.
         qubit_position (dict[pytket.circuit.Qubit, int]): A dictionary mapping circuit
             qubits to the position its tensor is at in the MPS.
         fidelity (float): A lower bound of the fidelity, obtained by multiplying
             the fidelities after each contraction. The fidelity of a contraction
-            corresponds to |<psi|phi>|^2 where |psi> and |phi> are the states
-            before and after truncation (assuming both are normalised).
+            corresponds to ``|<psi|phi>|^2`` where ``|psi>`` and ``|phi>`` are the
+            states before and after truncation (assuming both are normalised).
     """
 
     # Some (non-doc) comments on how bond identifiers are numbered:
@@ -176,27 +176,27 @@ class MPS:
     ):
         """Initialise an MPS on the computational state ``|0>``.
 
+        Notes:
+            Providing both a custom ``chi`` and ``truncation_fidelity`` will raise an
+            exception. Choose one or the other (or neither, for exact simulation).
+
         Args:
-            qubits: The list of qubits of the circuit the MPS will simulate.
+            qubits: The list of qubits in the circuit to be simulated.
             chi: The maximum value allowed for the dimension of the virtual
                 bonds. Higher implies better approximation but more
                 computational resources. If not provided, ``chi`` will be set
                 to ``2**(len(qubits) // 2)``, which is enough for exact contraction.
-            truncation_fidelity: Every time a 2-qubit gate is applied, the virtual
+            truncation_fidelity: Every time a two-qubit gate is applied, the virtual
                 bond will be truncated to the minimum dimension that satisfies
                 ``|<psi|phi>|^2 >= trucantion_fidelity``, where ``|psi>`` and ``|phi>``
-                are the states before and after truncation (if both are normalised).
+                are the states before and after truncation (both normalised).
                 If not provided, it will default to its maximum value 1.
-            float_precision: Either 'float32' for single precision (32 bits per
-                real number) or 'float64' for double precision (64 bits per real).
+            float_precision: Either `'float32'` for single precision (32 bits per
+                real number) or `'float64'` for double precision (64 bits per real).
                 Each complex number is represented using two of these real numbers.
-                Default is 'float64'.
+                Default is `'float64'`.
             device_id: The identifier of the GPU where this MPS is meant to be run.
                 If not provided, the default ``cupy.cuda.Device()`` will be used.
-
-        Notes:
-            Providing both a custom ``chi`` and ``truncation_fidelity`` will raise an
-            exception. You must choose one or the other.
         """
         if chi is not None and truncation_fidelity is not None:
             raise Exception("Cannot fix both chi and truncation_fidelity.")
