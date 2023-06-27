@@ -21,6 +21,7 @@ extensions = [
     "sphinx.ext.mathjax",
     "sphinx.ext.napoleon",
     "sphinx_copybutton",
+    "enum_tools.autoenum",
 ]
 
 pygments_style = "borland"

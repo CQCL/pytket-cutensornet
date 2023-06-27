@@ -12,13 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from __future__ import annotations  # type: ignore
+import warnings
 
 from typing import Optional, Any
 
-import cupy as cp  # type: ignore
 import numpy as np  # type: ignore
-import cuquantum as cq  # type: ignore
-import cuquantum.cutensornet as cutn  # type: ignore
+
+try:
+    import cupy as cp  # type: ignore
+except ImportError:
+    warnings.warn("local settings failed to import cupy", ImportWarning)
+try:
+    import cuquantum as cq  # type: ignore
+    import cuquantum.cutensornet as cutn  # type: ignore
+except ImportError:
+    warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
 from pytket.circuit import Op, Qubit  # type: ignore
 from .mps import DirectionMPS, Bond, Tensor, MPS
@@ -26,20 +34,9 @@ from .mps_gate import MPSxGate
 
 
 class MPSxMPO(MPS):
-    """Class for state-based simulation using an Matrix Product State (MPS)
-    representation with MPS-MPO contraction, using a DMRG-like approach
-    following the approach described in: https://arxiv.org/abs/2207.05612.
-
-        Attributes:
-        chi (int): The maximum allowed dimension of a virtual bond.
-        truncation_fidelity (float): The target fidelity of SVD truncation.
-        tensors (list[Tensor]): A list of tensors in the MPS; tensors[0] is
-            the leftmost and tensors[len(self)-1] is the rightmost; tensors[i]
-            and tensors[i+1] are connected in the MPS via a bond.
-        fidelity (float):  A lower bound of the fidelity, obtained by multiplying
-            the fidelities after each contraction. The fidelity of a contraction
-            corresponds to |<psi|phi>|^2 where |psi> and |phi> are the states
-            before and after truncation (assuming both are normalised).
+    """Implements a batched--gate contraction algorithm (DMRG-like) to calculate
+    the output state of a circuit as an ``MPS``. The algorithm is described
+    in: https://arxiv.org/abs/2207.05612.
     """
 
     def __init__(

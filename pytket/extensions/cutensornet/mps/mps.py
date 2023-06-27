@@ -12,13 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from __future__ import annotations  # type: ignore
+import warnings
 from typing import Any, Optional
 from enum import Enum
 
-import cupy as cp  # type: ignore
 import numpy as np  # type: ignore
-import cuquantum as cq  # type: ignore
-import cuquantum.cutensornet as cutn  # type: ignore
+
+try:
+    import cupy as cp  # type: ignore
+except ImportError:
+    warnings.warn("local settings failed to import cupy", ImportWarning)
+try:
+    import cuquantum as cq  # type: ignore
+    import cuquantum.cutensornet as cutn  # type: ignore
+except ImportError:
+    warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
 from pytket.circuit import Command, Op, Qubit  # type: ignore
 
@@ -28,13 +36,18 @@ Handle = int
 # An alias for the type of the unique identifiers of each of the bonds
 # of the MPS.
 Bond = int
-# An enum to refer to relative directions within the MPS
-DirectionMPS = Enum("DirectionMPS", ["LEFT", "RIGHT"])
+
+
+class DirectionMPS(Enum):
+    """An enum to refer to relative directions within the MPS."""
+
+    LEFT = 0
+    RIGHT = 1
 
 
 class Tensor:
-    """Class for the management of tensors via CuPy and cuQuantum.
-    It abstracts away some of the low-level API of cuQuantum.
+    """Class for the management of tensors via CuPy and cuTensorNet.
+    It abstracts away some of the low-level API of cuTensorNet.
 
     Attributes:
         data (cupy.ndarray): The entries of the tensor arranged in a CuPy ndarray.
@@ -45,8 +58,7 @@ class Tensor:
     """
 
     def __init__(self, data: cp.ndarray, bonds: list[Bond]):
-        """Standard initialisation.
-
+        """
         Args:
             data: The entries of the tensor arranged in a CuPy ndarray.
             bonds: A list of IDs for each bond, matching the same order
@@ -57,14 +69,14 @@ class Tensor:
         self.canonical_form: Optional[DirectionMPS] = None
 
     def get_tensor_descriptor(self, libhandle: Any) -> Handle:
-        """Return the cuQuantum tensor descriptor.
+        """Return the cuTensorNet tensor descriptor.
 
         Note:
             The user is responsible of destroying the descriptor once
             not in use (see ``cuquantum.cutensornet.destroy_tensor_descriptor``).
 
         Args:
-            libhandle: The cuQuantum library handle.
+            libhandle: The cuTensorNet library handle.
 
         Returns:
             The handle to the tensor descriptor.
@@ -134,21 +146,20 @@ class Tensor:
 
 
 class MPS:
-    """Parent class for state-based simulation using Matrix Product State
-    representation.
+    """Represents a state as a Matrix Product State.
 
     Attributes:
         chi (int): The maximum allowed dimension of a virtual bond.
         truncation_fidelity (float): The target fidelity of SVD truncation.
-        tensors (list[Tensor]): A list of tensors in the MPS; tensors[0] is
-            the leftmost and tensors[len(self)-1] is the rightmost; tensors[i]
-            and tensors[i+1] are connected in the MPS via a bond.
-        qubit_position (dict[Qubit, int]): A dictionary mapping circuit qubits
-            to the position its tensor is at in the MPS.
+        tensors (list[Tensor]): A list of tensors in the MPS; ``tensors[0]`` is
+            the leftmost and ``tensors[len(self)-1]`` is the rightmost; ``tensors[i]``
+            and ``tensors[i+1]`` are connected in the MPS via a bond.
+        qubit_position (dict[pytket.circuit.Qubit, int]): A dictionary mapping circuit
+            qubits to the position its tensor is at in the MPS.
         fidelity (float): A lower bound of the fidelity, obtained by multiplying
             the fidelities after each contraction. The fidelity of a contraction
-            corresponds to |<psi|phi>|^2 where |psi> and |phi> are the states
-            before and after truncation (assuming both are normalised).
+            corresponds to ``|<psi|phi>|^2`` where ``|psi>`` and ``|phi>`` are the
+            states before and after truncation (assuming both are normalised).
     """
 
     # Some (non-doc) comments on how bond identifiers are numbered:
@@ -163,29 +174,29 @@ class MPS:
         float_precision: Optional[str] = None,
         device_id: Optional[int] = None,
     ):
-        """Initialise an MPS on the computational state 0.
+        """Initialise an MPS on the computational state ``|0>``.
+
+        Notes:
+            Providing both a custom ``chi`` and ``truncation_fidelity`` will raise an
+            exception. Choose one or the other (or neither, for exact simulation).
 
         Args:
-            qubits: The list of qubits of the circuit the MPS will simulate.
+            qubits: The list of qubits in the circuit to be simulated.
             chi: The maximum value allowed for the dimension of the virtual
                 bonds. Higher implies better approximation but more
                 computational resources. If not provided, ``chi`` will be set
                 to ``2**(len(qubits) // 2)``, which is enough for exact contraction.
-            truncation_fidelity: Every time a 2-qubit gate is applied, the virtual
+            truncation_fidelity: Every time a two-qubit gate is applied, the virtual
                 bond will be truncated to the minimum dimension that satisfies
                 ``|<psi|phi>|^2 >= trucantion_fidelity``, where ``|psi>`` and ``|phi>``
-                are the states before and after truncation (if both are normalised).
+                are the states before and after truncation (both normalised).
                 If not provided, it will default to its maximum value 1.
-            float_precision: Either 'float32' for single precision (32 bits per
-                real number) or 'float64' for double precision (64 bits per real).
+            float_precision: Either `'float32'` for single precision (32 bits per
+                real number) or `'float64'` for double precision (64 bits per real).
                 Each complex number is represented using two of these real numbers.
-                Default is 'float64'.
+                Default is `'float64'`.
             device_id: The identifier of the GPU where this MPS is meant to be run.
                 If not provided, the default ``cupy.cuda.Device()`` will be used.
-
-        Notes:
-            Providing both a custom ``chi`` and ``truncation_fidelity`` will raise an
-            exception. You must choose one or the other.
         """
         if chi is not None and truncation_fidelity is not None:
             raise Exception("Cannot fix both chi and truncation_fidelity.")
@@ -265,7 +276,7 @@ class MPS:
         self.tensors.append(Tensor(r_tensor, [n_tensors - 1, 2 * n_tensors - 1]))
 
     def is_valid(self) -> bool:
-        """Verify that the MPS does not exceed the dimension limit (chi) of
+        """Verify that the MPS does not exceed the dimension limit ``chi`` of
         the virtual bonds, that physical bonds have dimension 2 and that
         the virtual bonds are connected in a line.
 
@@ -532,16 +543,16 @@ class MPS:
         The tensors within the MPS are not modified.
 
         Notes:
-            The state that is conjugated is `self`.
+            The state that is conjugated is ``self``.
 
         Args:
             other: The other MPS to compare against.
 
-        Return:
-            The resulting complex number.
-
         Raise:
             RuntimeError: If number of tensors or dimensions do not match.
+
+        Return:
+            The resulting complex number.
         """
         if self._libhandle is None:
             raise RuntimeError(
@@ -667,9 +678,9 @@ class MPS:
         """
         Args:
             device_id: The identifier of the GPU where the copy is meant to be kept.
-                If not provided, the same device will be used.
+                If not provided, the same device as ``self`` will be used.
         Returns:
-            A deep copy of the MPS
+            A deep copy of the MPS.
         """
         self._flush()
 
