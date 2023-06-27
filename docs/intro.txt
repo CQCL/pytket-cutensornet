@@ -2,12 +2,11 @@ pytket-cutensornet
 ==================
 
 ``pytket-cutensornet`` is an extension to ``pytket`` that allows ``pytket`` circuits and
-expectation values to be simulated using ``cuTensorNet`` via an interface to
-`cuTensorNet <https://docs.nvidia.com/cuda/cuquantum/cutensornet/index.html>`_.
+expectation values to be simulated using `cuTensorNet <https://docs.nvidia.com/cuda/cuquantum/cutensornet/index.html>`_.
 
 `cuTensorNet <https://docs.nvidia.com/cuda/cuquantum/cutensornet/index.html>`_ is a
 high-performance library for tensor network computations, developed by NVIDIA.
-It is part of the `cuQuantum <https://docs.nvidia.com/cuda/cuquantum/index.html>`_ SDK -
+It is part of the `cuQuantum <https://docs.nvidia.com/cuda/cuquantum/index.html>`_ SDK --
 a high-performance library aimed at quantum circuit simulations on the NVIDIA GPU chips.
 
 We provide two core functionalities:
