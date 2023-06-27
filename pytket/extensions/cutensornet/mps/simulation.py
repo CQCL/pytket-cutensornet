@@ -29,9 +29,9 @@ def simulate(circuit: Circuit, algorithm: ContractionAlg, **kwargs: Any) -> MPS:
         The input ``circuit`` must be composed of one-qubit and two-qubit gates only.
         Any gateset supported by ``pytket`` can be used.
 
-        This method will add SWAP gates to the circuit as appropriate to guarantee
-        that all two-qubit gates act between nearest-neighbours in a line. If you
-        wish to retrieve the circuit after this pass, use ``prepare_circuit()``.
+        Two-qubit gates must act between adjacent qubits, i.e. on ``circuit.qubits[i]``
+        and ``circuit.qubits[i+1]`` for any ``i``. If this is not satisfied by your
+        circuit, consider using ``prepare_circuit()`` on it.
 
     Args:
         circuit: The pytket circuit to be simulated.
@@ -45,8 +45,6 @@ def simulate(circuit: Circuit, algorithm: ContractionAlg, **kwargs: Any) -> MPS:
         of the circuit.
     """
 
-    prep_circ, qubit_map = prepare_circuit(circuit)
-
     chi = kwargs.get("chi", None)
     truncation_fidelity = kwargs.get("truncation_fidelity", None)
     float_precision = kwargs.get("float_precision", None)
@@ -54,24 +52,21 @@ def simulate(circuit: Circuit, algorithm: ContractionAlg, **kwargs: Any) -> MPS:
 
     if algorithm == ContractionAlg.MPSxGate:
         mps = MPSxGate(  # type: ignore
-            prep_circ.qubits, chi, truncation_fidelity, float_precision, device_id
+            circuit.qubits, chi, truncation_fidelity, float_precision, device_id
         )
     elif algorithm == ContractionAlg.MPSxMPO:
         k = kwargs.get("k", None)
         mps = MPSxMPO(  # type: ignore
-            prep_circ.qubits, chi, truncation_fidelity, k, float_precision, device_id
+            circuit.qubits, chi, truncation_fidelity, k, float_precision, device_id
         )
 
     # Sort the gates so there isn't much overhead from canonicalising back and forth.
-    sorted_gates = get_sorted_gates(prep_circ)
+    sorted_gates = get_sorted_gates(circuit)
 
     # Apply the gates
     with mps.init_cutensornet():
         for g in sorted_gates:
             mps.apply_gate(g)
-
-    # Finally, restore the original name of the qubits
-    mps.qubit_position = {qubit_map[q]: i for q, i in mps.qubit_position.items()}
 
     return mps
 
@@ -105,6 +100,11 @@ def get_amplitude(mps: MPS, state: int) -> complex:
 def prepare_circuit(circuit: Circuit) -> tuple[Circuit, dict[Qubit, Qubit]]:
     """Return an equivalent circuit with the appropriate structure to be simulated by
     an ``MPS`` algorithm.
+
+    Note:
+        The qubits in the output circuit will be renamed. Implicit SWAPs may be added
+        to the circuit, meaning that the logical qubit held at the ``node[i]`` qubit
+        at the beginning of the circuit may differ from the one it holds at the end.
 
     Args:
         circuit: The circuit to be simulated.
@@ -185,7 +185,12 @@ def get_sorted_gates(circuit: Circuit) -> list[Command]:
                 break
             prev_q = q
         # Choose the shortest distance
-        if left_distance is None:
+        if left_distance is None and right_distance is None:
+            raise RuntimeError(
+                "Some two-qubit gate in the circuit is not acting between",
+                "nearest neighbour qubits. Consider using prepare_circuit().",
+            )
+        elif left_distance is None:
             current_qubit = circuit.qubits[q_index + right_distance]
         elif right_distance is None:
             current_qubit = circuit.qubits[q_index - left_distance]

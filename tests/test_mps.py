@@ -12,6 +12,7 @@ from pytket.extensions.cutensornet.mps import (
     MPSxMPO,
     simulate,
     get_amplitude,
+    prepare_circuit,
     ContractionAlg,
 )
 
@@ -132,10 +133,11 @@ def test_canonicalise() -> None:
     ],
 )
 def test_exact_circ_sim(circuit: Circuit, algorithm: ContractionAlg) -> None:
-    state = circuit.get_statevector()
+    prep_circ, _ = prepare_circuit(circuit)
     n_qubits = len(circuit.qubits)
+    state = prep_circ.get_statevector()
 
-    mps = simulate(circuit, algorithm)
+    mps = simulate(prep_circ, algorithm)
     with mps.init_cutensornet():
         assert mps.is_valid()
         # Check that there was no approximation
@@ -181,7 +183,8 @@ def test_exact_circ_sim(circuit: Circuit, algorithm: ContractionAlg) -> None:
     ],
 )
 def test_approx_circ_sim_gate_fid(circuit: Circuit, algorithm: ContractionAlg) -> None:
-    mps = simulate(circuit, algorithm, truncation_fidelity=0.99)
+    prep_circ, _ = prepare_circuit(circuit)
+    mps = simulate(prep_circ, algorithm, truncation_fidelity=0.99)
     with mps.init_cutensornet():
         assert mps.is_valid()
         # Check that overlap is 1
@@ -219,7 +222,8 @@ def test_approx_circ_sim_gate_fid(circuit: Circuit, algorithm: ContractionAlg) -
     ],
 )
 def test_approx_circ_sim_chi(circuit: Circuit, algorithm: ContractionAlg) -> None:
-    mps = simulate(circuit, algorithm, chi=4)
+    prep_circ, _ = prepare_circuit(circuit)
+    mps = simulate(prep_circ, algorithm, chi=4)
     with mps.init_cutensornet():
         assert mps.is_valid()
         # Check that overlap is 1
@@ -238,7 +242,7 @@ def test_circ_approx_explicit(circuit: Circuit) -> None:
     # Finite gate fidelity
     # Check for MPSxGate
     mps_gate = simulate(circuit, ContractionAlg.MPSxGate, truncation_fidelity=0.99)
-    assert np.isclose(mps_gate.fidelity, 0.45129, atol=1e-5)
+    assert np.isclose(mps_gate.fidelity, 0.45205, atol=1e-5)
 
     with mps_gate.init_cutensornet():
         assert mps_gate.is_valid()
@@ -246,7 +250,7 @@ def test_circ_approx_explicit(circuit: Circuit) -> None:
 
     # Check for MPSxMPO
     mps_mpo = simulate(circuit, ContractionAlg.MPSxMPO, truncation_fidelity=0.99)
-    assert np.isclose(mps_mpo.fidelity, 0.66917, atol=1e-5)
+    assert np.isclose(mps_mpo.fidelity, 0.65705, atol=1e-5)
 
     with mps_mpo.init_cutensornet():
         assert mps_mpo.is_valid()
@@ -255,7 +259,7 @@ def test_circ_approx_explicit(circuit: Circuit) -> None:
     # Fixed virtual bond dimension
     # Check for MPSxGate
     mps_gate = simulate(circuit, ContractionAlg.MPSxGate, chi=8)
-    assert np.isclose(mps_gate.fidelity, 0.05830, atol=1e-5)
+    assert np.isclose(mps_gate.fidelity, 0.05895, atol=1e-5)
 
     with mps_gate.init_cutensornet():
         assert mps_gate.is_valid()
@@ -263,7 +267,7 @@ def test_circ_approx_explicit(circuit: Circuit) -> None:
 
     # Check for MPSxMPO
     mps_mpo = simulate(circuit, ContractionAlg.MPSxMPO, chi=8)
-    assert np.isclose(mps_mpo.fidelity, 0.08466, atol=1e-5)
+    assert np.isclose(mps_mpo.fidelity, 0.09323, atol=1e-5)
 
     with mps_mpo.init_cutensornet():
         assert mps_mpo.is_valid()
