@@ -7,49 +7,49 @@ Matrix Product State (MPS)
 Simulation
 ~~~~~~~~~~
 
-    .. autoenum:: ContractionAlg()
-        :members:
+.. autoenum:: pytket.extensions.cutensornet.mps.ContractionAlg()
+    :members:
 
-    .. automethod:: pytket.extensions.cutensornet.mps.simulate
+.. autofunction:: pytket.extensions.cutensornet.mps.simulate
 
-    .. automethod:: pytket.extensions.cutensornet.mps.get_amplitude
+.. autofunction:: pytket.extensions.cutensornet.mps.get_amplitude
 
 
 Classes
 ~~~~~~~
 
-    .. autoclass:: MPS()
+.. autoclass:: pytket.extensions.cutensornet.mps.MPS()
 
-        .. automethod:: __init__
-        .. automethod:: init_cutensornet
-        .. automethod:: apply_gate
-        .. automethod:: vdot
-        .. automethod:: canonicalise
-        .. automethod:: is_valid
-        .. automethod:: copy
-        .. automethod:: __len__
+    .. automethod:: __init__
+    .. automethod:: init_cutensornet
+    .. automethod:: apply_gate
+    .. automethod:: vdot
+    .. automethod:: canonicalise
+    .. automethod:: is_valid
+    .. automethod:: copy
+    .. automethod:: __len__
 
-    .. autoclass:: MPSxGate()
-        :show-inheritance:
+.. autoclass:: pytket.extensions.cutensornet.mps.MPSxGate()
+    :show-inheritance:
 
-        .. automethod:: __init__
+    .. automethod:: __init__
 
-    .. autoclass:: MPSxMPO()
-        :show-inheritance:
+.. autoclass:: pytket.extensions.cutensornet.mps.MPSxMPO()
+    :show-inheritance:
 
-        .. automethod:: __init__
+    .. automethod:: __init__
 
-    .. autoclass:: Tensor()
+.. autoclass:: pytket.extensions.cutensornet.mps.Tensor()
 
-        .. automethod:: __init__
-        .. automethod:: get_tensor_descriptor
-        .. automethod:: copy
+    .. automethod:: __init__
+    .. automethod:: get_tensor_descriptor
+    .. automethod:: copy
 
 
 Miscellaneous
 ~~~~~~~~~~~~~
 
-    .. autoenum:: DirectionMPS()
-        :members:
+.. autoenum:: pytket.extensions.cutensornet.mps.DirectionMPS()
+    :members:
 
-    .. automethod:: pytket.extensions.cutensornet.mps.prepare_circuit
+.. autofunction:: pytket.extensions.cutensornet.mps.prepare_circuit
