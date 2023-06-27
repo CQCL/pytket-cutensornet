@@ -13,6 +13,8 @@
 # limitations under the License.
 """Module for circuit simulation by state evolution, with states represented as
 Matrix Product States (MPS). Approximate tensor network contraction is supported.
+For an example of its use, see ``examples/mps_tutorial.ipynb`` in
+https://github.com/CQCL/pytket-cutensornet.
 """
 
 from .mps import (

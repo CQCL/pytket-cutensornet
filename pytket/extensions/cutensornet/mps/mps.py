@@ -176,7 +176,7 @@ class MPS:
     ):
         """Initialise an MPS on the computational state ``|0>``.
 
-        Notes:
+        Note:
             Providing both a custom ``chi`` and ``truncation_fidelity`` will raise an
             exception. Choose one or the other (or neither, for exact simulation).
 
@@ -542,7 +542,7 @@ class MPS:
         to compute the squared norm of an MPS ``mps`` as ``mps.vdot(mps)``.
         The tensors within the MPS are not modified.
 
-        Notes:
+        Note:
             The state that is conjugated is ``self``.
 
         Args:

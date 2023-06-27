@@ -26,6 +26,9 @@ def simulate(circuit: Circuit, algorithm: ContractionAlg, **kwargs: Any) -> MPS:
     """Simulate the given circuit and return the ``MPS`` representing the final state.
 
     Note:
+        The input ``circuit`` must be composed of one-qubit and two-qubit gates only.
+        Any gateset supported by ``pytket`` can be used.
+
         This method will add SWAP gates to the circuit as appropriate to guarantee
         that all two-qubit gates act between nearest-neighbours in a line. If you
         wish to retrieve the circuit after this pass, use ``prepare_circuit()``.
