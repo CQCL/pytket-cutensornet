@@ -76,7 +76,7 @@ class Tensor:
             not in use (see ``cuquantum.cutensornet.destroy_tensor_descriptor``).
 
         Args:
-            libhandle: The cuQuantum library handle.
+            libhandle: The cuTensorNet library handle.
 
         Returns:
             The handle to the tensor descriptor.
