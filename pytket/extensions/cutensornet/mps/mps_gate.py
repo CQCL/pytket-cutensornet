@@ -55,7 +55,8 @@ class MPSxGate(MPS):
             )
 
         # Load the gate's unitary to the GPU memory
-        gate_tensor = cp.asarray(gate.get_unitary(), dtype=self._complex_t)
+        gate_unitary = gate.get_unitary().astype(dtype=self._complex_t, copy=False)
+        gate_tensor = cp.asarray(gate_unitary, dtype=self._complex_t)
 
         # Identify the ID of the bonds involved
         virtual_bonds = self.get_virtual_bonds(position)
@@ -115,7 +116,8 @@ class MPSxGate(MPS):
             self.canonicalise(l_pos, r_pos)
 
         # Load the gate's unitary to the GPU memory
-        gate_tensor = cp.asarray(gate.get_unitary(), dtype=self._complex_t)
+        gate_unitary = gate.get_unitary().astype(dtype=self._complex_t, copy=False)
+        gate_tensor = cp.asarray(gate_unitary, dtype=self._complex_t)
 
         # Reshape into a rank-4 tensor
         gate_tensor = cp.reshape(gate_tensor, (2, 2, 2, 2))

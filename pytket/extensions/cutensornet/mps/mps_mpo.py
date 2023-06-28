@@ -144,7 +144,8 @@ class MPSxMPO(MPS):
         self._aux_mps._apply_1q_gate(position, gate)
 
         # Load the gate's unitary to the GPU memory
-        gate_tensor = cp.asarray(gate.get_unitary(), dtype=self._complex_t)
+        gate_unitary = gate.get_unitary().astype(dtype=self._complex_t, copy=False)
+        gate_tensor = cp.asarray(gate_unitary, dtype=self._complex_t)
 
         # Identify the tensor to contract the gate with
         if self._mpo[position]:  # Not empty
@@ -207,7 +208,8 @@ class MPSxMPO(MPS):
         self._aux_mps._apply_2q_gate(positions, gate)
 
         # Load the gate's unitary to the GPU memory
-        gate_tensor = cp.asarray(gate.get_unitary(), dtype=self._complex_t)
+        gate_unitary = gate.get_unitary().astype(dtype=self._complex_t, copy=False)
+        gate_tensor = cp.asarray(gate_unitary, dtype=self._complex_t)
 
         # Reshape into a rank-4 tensor
         gate_tensor = cp.reshape(gate_tensor, (2, 2, 2, 2))
