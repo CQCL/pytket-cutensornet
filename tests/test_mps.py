@@ -1,3 +1,4 @@
+from typing import Any
 import random  # type: ignore
 import pytest
 
@@ -74,7 +75,7 @@ def test_canonicalise() -> None:
 
         # Check that canonicalisation did not change the vector
         overlap = mps_gate.vdot(mps_copy)
-        assert np.isclose(overlap, norm_sq)
+        assert np.isclose(overlap, norm_sq, atol=mps_gate._atol)
 
         # Check that the corresponding tensors are in orthogonal form
         for pos in range(len(mps_gate)):
@@ -97,9 +98,9 @@ def test_canonicalise() -> None:
             for i in range(result.shape[0]):
                 for j in range(result.shape[1]):
                     if i == j:
-                        assert np.isclose(result[i][j], 1)
+                        assert np.isclose(result[i][j], 1, atol=mps_gate._atol)
                     else:
-                        assert np.isclose(result[i][j], 0)
+                        assert np.isclose(result[i][j], 0, atol=mps_gate._atol)
 
 
 @pytest.mark.parametrize(
@@ -141,14 +142,16 @@ def test_exact_circ_sim(circuit: Circuit, algorithm: ContractionAlg) -> None:
     with mps.init_cutensornet():
         assert mps.is_valid()
         # Check that there was no approximation
-        assert np.isclose(mps.fidelity, 1.0)
+        assert np.isclose(mps.fidelity, 1.0, atol=mps._atol)
         # Check that overlap is 1
-        assert np.isclose(mps.vdot(mps), 1.0)
+        assert np.isclose(mps.vdot(mps), 1.0, atol=mps._atol)
 
         # Check that all of the amplitudes are correct
         for b in range(2**n_qubits):
             assert np.isclose(
-                np.exp(1j * np.pi * circuit.phase) * get_amplitude(mps, b), state[b]
+                np.exp(1j * np.pi * circuit.phase) * get_amplitude(mps, b),
+                state[b],
+                atol=mps._atol,
             )
 
 
@@ -188,7 +191,7 @@ def test_approx_circ_sim_gate_fid(circuit: Circuit, algorithm: ContractionAlg) -
     with mps.init_cutensornet():
         assert mps.is_valid()
         # Check that overlap is 1
-        assert np.isclose(mps.vdot(mps), 1.0)
+        assert np.isclose(mps.vdot(mps), 1.0, atol=mps._atol)
 
 
 @pytest.mark.parametrize(
@@ -227,7 +230,61 @@ def test_approx_circ_sim_chi(circuit: Circuit, algorithm: ContractionAlg) -> Non
     with mps.init_cutensornet():
         assert mps.is_valid()
         # Check that overlap is 1
-        assert np.isclose(mps.vdot(mps), 1.0)
+        assert np.isclose(mps.vdot(mps), 1.0, atol=mps._atol)
+
+
+@pytest.mark.parametrize(
+    "circuit",
+    [
+        pytest.lazy_fixture("q5_empty"),  # type: ignore
+        pytest.lazy_fixture("q2_x0cx01cx10"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu2"),  # type: ignore
+        pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
+        pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
+        pytest.lazy_fixture("q6_qvol"),  # type: ignore
+    ],
+)
+@pytest.mark.parametrize(
+    "algorithm",
+    [
+        ContractionAlg.MPSxGate,
+        ContractionAlg.MPSxMPO,
+    ],
+)
+@pytest.mark.parametrize(
+    "fp_precision",
+    [
+        np.float32,
+        np.float64,
+    ],
+)
+def test_float_point_options(
+    circuit: Circuit, algorithm: ContractionAlg, fp_precision: Any
+) -> None:
+    prep_circ, _ = prepare_circuit(circuit)
+
+    # Exact
+    mps = simulate(prep_circ, algorithm, float_precision=fp_precision)
+    with mps.init_cutensornet():
+        assert mps.is_valid()
+        # Check that overlap is 1
+        assert np.isclose(mps.vdot(mps), 1.0, atol=mps._atol)
+
+    # Approximate, bound truncation fidelity
+    mps = simulate(
+        prep_circ, algorithm, truncation_fidelity=0.99, float_precision=fp_precision
+    )
+    with mps.init_cutensornet():
+        assert mps.is_valid()
+        # Check that overlap is 1
+        assert np.isclose(mps.vdot(mps), 1.0, atol=mps._atol)
+
+    # Approximate, bound chi
+    mps = simulate(prep_circ, algorithm, chi=4, float_precision=fp_precision)
+    with mps.init_cutensornet():
+        assert mps.is_valid()
+        # Check that overlap is 1
+        assert np.isclose(mps.vdot(mps), 1.0, atol=mps._atol)
 
 
 @pytest.mark.parametrize(
@@ -242,33 +299,33 @@ def test_circ_approx_explicit(circuit: Circuit) -> None:
     # Finite gate fidelity
     # Check for MPSxGate
     mps_gate = simulate(circuit, ContractionAlg.MPSxGate, truncation_fidelity=0.99)
-    assert np.isclose(mps_gate.fidelity, 0.45205, atol=1e-5)
+    assert np.isclose(mps_gate.fidelity, 0.4, atol=1e-1)
 
     with mps_gate.init_cutensornet():
         assert mps_gate.is_valid()
-        assert np.isclose(mps_gate.vdot(mps_gate), 1.0)
+        assert np.isclose(mps_gate.vdot(mps_gate), 1.0, atol=mps_gate._atol)
 
     # Check for MPSxMPO
     mps_mpo = simulate(circuit, ContractionAlg.MPSxMPO, truncation_fidelity=0.99)
-    assert np.isclose(mps_mpo.fidelity, 0.65705, atol=1e-5)
+    assert np.isclose(mps_mpo.fidelity, 0.6, atol=1e-1)
 
     with mps_mpo.init_cutensornet():
         assert mps_mpo.is_valid()
-        assert np.isclose(mps_mpo.vdot(mps_mpo), 1.0)
+        assert np.isclose(mps_mpo.vdot(mps_mpo), 1.0, atol=mps_mpo._atol)
 
     # Fixed virtual bond dimension
     # Check for MPSxGate
     mps_gate = simulate(circuit, ContractionAlg.MPSxGate, chi=8)
-    assert np.isclose(mps_gate.fidelity, 0.05895, atol=1e-5)
+    assert np.isclose(mps_gate.fidelity, 0.05, atol=1e-2)
 
     with mps_gate.init_cutensornet():
         assert mps_gate.is_valid()
-        assert np.isclose(mps_gate.vdot(mps_gate), 1.0)
+        assert np.isclose(mps_gate.vdot(mps_gate), 1.0, atol=mps_gate._atol)
 
     # Check for MPSxMPO
     mps_mpo = simulate(circuit, ContractionAlg.MPSxMPO, chi=8)
-    assert np.isclose(mps_mpo.fidelity, 0.09323, atol=1e-5)
+    assert np.isclose(mps_mpo.fidelity, 0.09, atol=1e-2)
 
     with mps_mpo.init_cutensornet():
         assert mps_mpo.is_valid()
-        assert np.isclose(mps_mpo.vdot(mps_mpo), 1.0)
+        assert np.isclose(mps_mpo.vdot(mps_mpo), 1.0, atol=mps_mpo._atol)

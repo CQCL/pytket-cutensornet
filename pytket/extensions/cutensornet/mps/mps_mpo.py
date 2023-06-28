@@ -45,30 +45,36 @@ class MPSxMPO(MPS):
         chi: Optional[int] = None,
         truncation_fidelity: Optional[float] = None,
         k: Optional[int] = None,
-        float_precision: str = "float64",
+        optim_delta: Optional[float] = None,
+        float_precision: Optional[Any] = None,
         device_id: Optional[int] = None,
     ):
         """Initialise an MPS on the computational state 0.
 
         Args:
-            qubits: The list of qubits of the circuit the MPS will simulate.
+            qubits: The list of qubits in the circuit to be simulated.
             chi: The maximum value allowed for the dimension of the virtual
                 bonds. Higher implies better approximation but more
                 computational resources. If not provided, ``chi`` will be set
                 to ``2**(len(qubits) // 2)``, which is enough for exact contraction.
-            truncation_fidelity: Every time a 2-qubit gate is applied, the virtual
+            truncation_fidelity: Every time a two-qubit gate is applied, the virtual
                 bond will be truncated to the minimum dimension that satisfies
                 ``|<psi|phi>|^2 >= trucantion_fidelity``, where ``|psi>`` and ``|phi>``
-                are the states before and after truncation (if both are normalised).
+                are the states before and after truncation (both normalised).
                 If not provided, it will default to its maximum value 1.
             k: The maximum number of layers the MPO is allowed to have before
                 being contracted. Increasing this might increase fidelity, but
                 it will also increase resource requirements exponentially.
                 Default value is 4.
-            float_precision: Either 'float32' for single precision (32 bits per
-                real number) or 'float64' for double precision (64 bits per real).
-                Each complex number is represented using two of these real numbers.
-                Default is 'float64'.
+            optim_delta: Stopping criteria for the optimisation when contracting the
+                ``k`` layers of MPO. Stops when the increase of fidelity between
+                iterations is smaller than ``optim_delta``. Default value is ``1e-5``.
+            float_precision: The floating point precision used in tensor calculations;
+                choose from ``numpy`` types: ``np.float64`` or ``np.float32``.
+                Complex numbers are represented using two of such
+                ``float`` numbers. Default is ``np.float64``.
+            device_id: The identifier of the GPU where this MPS is meant to be run.
+                If not provided, the default ``cupy.cuda.Device()`` will be used.
         """
         super().__init__(qubits, chi, truncation_fidelity, float_precision, device_id)
 
@@ -95,6 +101,10 @@ class MPSxMPO(MPS):
             self.k = 4
         else:
             self.k = k
+        if optim_delta is None:
+            self.optim_delta = 1e-5
+        else:
+            self.optim_delta = optim_delta
 
         self._mpo_bond_counter = 0
 
@@ -134,8 +144,7 @@ class MPSxMPO(MPS):
         self._aux_mps._apply_1q_gate(position, gate)
 
         # Load the gate's unitary to the GPU memory
-        gate_tensor = cp.empty(shape=(2, 2), dtype=self._complex_t)
-        gate_tensor.set(gate.get_unitary(), self._stream)
+        gate_tensor = cp.asarray(gate.get_unitary(), dtype=self._complex_t)
 
         # Identify the tensor to contract the gate with
         if self._mpo[position]:  # Not empty
@@ -198,8 +207,7 @@ class MPSxMPO(MPS):
         self._aux_mps._apply_2q_gate(positions, gate)
 
         # Load the gate's unitary to the GPU memory
-        gate_tensor = cp.empty(shape=(4, 4), dtype=self._complex_t)
-        gate_tensor.set(gate.get_unitary(), self._stream)
+        gate_tensor = cp.asarray(gate.get_unitary(), dtype=self._complex_t)
 
         # Reshape into a rank-4 tensor
         gate_tensor = cp.reshape(gate_tensor, (2, 2, 2, 2))
@@ -473,7 +481,7 @@ class MPSxMPO(MPS):
             optim_fidelity = complex(
                 cq.contract(F.data.conj(), F.bonds, F.data, F.bonds, [])
             )
-            assert np.isclose(optim_fidelity.imag, 0.0)
+            assert np.isclose(optim_fidelity.imag, 0.0, atol=self._atol)
             optim_fidelity = float(optim_fidelity.real)
 
             # Normalise F and update the variational MPS
@@ -492,16 +500,10 @@ class MPSxMPO(MPS):
 
         prev_fidelity = -1.0  # Dummy value
         sweep_fidelity = 0.0  # Dummy value
-        if self._real_t is np.float32:
-            tolerance = 1e-4
-        elif self._real_t is np.float64:
-            tolerance = 1e-13
-        else:
-            raise RuntimeError(f"Unsupported precision {self._real_t}")
 
         # Repeat sweeps until the fidelity converges
         sweep_direction = DirectionMPS.RIGHT
-        while not np.isclose(prev_fidelity, sweep_fidelity, atol=tolerance):
+        while not np.isclose(prev_fidelity, sweep_fidelity, atol=self.optim_delta):
             prev_fidelity = sweep_fidelity
 
             if sweep_direction == DirectionMPS.RIGHT:

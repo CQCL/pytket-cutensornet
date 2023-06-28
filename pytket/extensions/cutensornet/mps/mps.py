@@ -171,7 +171,7 @@ class MPS:
         qubits: list[Qubit],
         chi: Optional[int] = None,
         truncation_fidelity: Optional[float] = None,
-        float_precision: Optional[str] = None,
+        float_precision: Optional[Any] = None,
         device_id: Optional[int] = None,
     ):
         """Initialise an MPS on the computational state ``|0>``.
@@ -191,10 +191,10 @@ class MPS:
                 ``|<psi|phi>|^2 >= trucantion_fidelity``, where ``|psi>`` and ``|phi>``
                 are the states before and after truncation (both normalised).
                 If not provided, it will default to its maximum value 1.
-            float_precision: Either `'float32'` for single precision (32 bits per
-                real number) or `'float64'` for double precision (64 bits per real).
-                Each complex number is represented using two of these real numbers.
-                Default is `'float64'`.
+            float_precision: The floating point precision used in tensor calculations;
+                choose from ``numpy`` types: ``np.float64`` or ``np.float32``.
+                Complex numbers are represented using two of such
+                ``float`` numbers. Default is ``np.float64``.
             device_id: The identifier of the GPU where this MPS is meant to be run.
                 If not provided, the default ``cupy.cuda.Device()`` will be used.
         """
@@ -210,18 +210,20 @@ class MPS:
         if truncation_fidelity < 0 or truncation_fidelity > 1:
             raise Exception("Provide a value of truncation_fidelity in [0,1].")
 
-        allowed_precisions = ["float32", "float64"]
+        allowed_precisions = [np.float64, np.float32]
         if float_precision is None:
-            float_precision = "float64"
+            float_precision = np.float64
         elif float_precision not in allowed_precisions:
             raise Exception(f"Value of float_precision must be in {allowed_precisions}")
 
-        if float_precision == "float32":  # Single precision
+        if float_precision == np.float32:  # Single precision
             self._real_t = np.float32  # type: ignore
             self._complex_t = np.complex64  # type: ignore
-        elif float_precision == "float64":  # Double precision
+            self._atol = 1e-4
+        elif float_precision == np.float64:  # Double precision
             self._real_t = np.float64  # type: ignore
             self._complex_t = np.complex128  # type: ignore
+            self._atol = 1e-12
 
         self._device_id = device_id
         # Make sure CuPy uses the specified device

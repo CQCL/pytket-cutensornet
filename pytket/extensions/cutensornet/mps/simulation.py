@@ -56,8 +56,15 @@ def simulate(circuit: Circuit, algorithm: ContractionAlg, **kwargs: Any) -> MPS:
         )
     elif algorithm == ContractionAlg.MPSxMPO:
         k = kwargs.get("k", None)
+        optim_delta = kwargs.get("optim_delta", None)
         mps = MPSxMPO(  # type: ignore
-            circuit.qubits, chi, truncation_fidelity, k, float_precision, device_id
+            circuit.qubits,
+            chi,
+            truncation_fidelity,
+            k,
+            optim_delta,
+            float_precision,
+            device_id,
         )
 
     # Sort the gates so there isn't much overhead from canonicalising back and forth.
