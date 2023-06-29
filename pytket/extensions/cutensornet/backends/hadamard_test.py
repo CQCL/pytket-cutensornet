@@ -41,7 +41,7 @@ def hadamard_test(circ: Circuit) -> float:
     return p0 - p1
 
 
-def general_hadamard_test(circ: Circuit, post_select: dict[Qubit, int]) -> float:
+def general_hadamard_test(circ: Circuit, post_select: dict[Qubit, int],n_max_slices, exp_name ) -> float:
     """Performs a general hadamard test on a circuit.
     The circuit must have a qubit in register a, p and q for lcu circuits.
     The circuit must have a qubit in register a, p, q and s for qsp circuits.
@@ -83,9 +83,9 @@ def general_hadamard_test(circ: Circuit, post_select: dict[Qubit, int]) -> float
     p0_dict = post_select
     p0_dict.update({Qubit("a", 0): 0})
     p0 = b.get_operator_expectation_value_postselect(
-        c.copy(), op, p0_dict
+        c.copy(), op, p0_dict,n_max_slices, exp_name 
     )  # These should save contraction paths
     p1_dict = post_select
     p1_dict.update({Qubit("a", 0): 1})
-    p1 = b.get_operator_expectation_value_postselect(c.copy(), op, p1_dict)
+    p1 = b.get_operator_expectation_value_postselect(c.copy(), op, p1_dict,n_max_slices, exp_name)
     return p0 - p1

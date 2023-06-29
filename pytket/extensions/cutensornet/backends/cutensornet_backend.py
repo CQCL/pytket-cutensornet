@@ -54,6 +54,8 @@ from cupy.cuda.runtime import getDeviceCount
 from mpi4py import MPI
 from cupyx.distributed import NCCLBackend, init_process_group
 
+from cuquantum import cutensornet as cutn
+
 import pandas as pd
 
 from pathlib import Path
@@ -315,7 +317,7 @@ class CuTensorNetBackend(Backend):
 
             expectation_term = slice_contract_nccl(expectation_value_network, max_n_slices, exp_name)
             print('expect', expectation_term)
-            # expectation += expectation_term
+            expectation += expectation_term
         return expectation.real
 
     def get_circuit_overlap(
@@ -349,6 +351,8 @@ class CuTensorNetBackend(Backend):
         state_circuit: Circuit,
         operator: QubitPauliOperator,
         post_selection: dict[Qubit, int],
+        max_n_slices: int,
+        exp_name: str,
         valid_check: bool = True,
     ) -> float:
         """Calculates expectation value of an operator using
@@ -390,32 +394,57 @@ class CuTensorNetBackend(Backend):
                 numeric_coeff = complex(coeff.evalf())  # type: ignore
             else:
                 numeric_coeff = complex(coeff)
-            expectation_term = numeric_coeff * cq.contract(
-                *expectation_value_network.cuquantum_interleaved
-            )
-            expectation += expectation_term
-        return expectation.real
+            expectation = slice_contract(expectation_value_network, max_n_slices, exp_name)
+        return expectation
     
 
-def slice_contract_nccl(tensor_network: TensorNetwork, max_n_slices: int, exp_name:str):
+def slice_contract(tensor_network: TensorNetwork, max_n_slices: int, exp_name:str):
 
     root = 0
     comm_mpi = MPI.COMM_WORLD
     rank, size = comm_mpi.Get_rank(), comm_mpi.Get_size()
+    time0 = MPI.Wtime()
 
-    print(size, rank)
+#     print(size, rank)
 
-    # device_id = rank % getDeviceCount()
-    # cp.cuda.Device(device_id).use()
+    device_id = rank % getDeviceCount()
+    cp.cuda.Device(device_id).use()
 
     network = cq.Network(*tensor_network.cuquantum_interleaved)
 
+#     # handle = cutn.create()
+#     # cutn.distributed_reset_configuration(
+#     #     handle, *cutn.get_mpi_comm_pointer(comm)
+#     # )
+#     # print('handle', handle)
+
+#     result = cq.contract(*tensor_network.cuquantum_interleaved, options={'device_id' : device_id})
+
+#     result = cp.empty_like(result)
+
+#     # Sum the partial contribution from each process on root, with GPU
+#     if rank == root:
+#         comm.Reduce(sendbuf=MPI.IN_PLACE, recvbuf=result, op=MPI.SUM, root=root)
+#     else:
+#         comm.Reduce(sendbuf=result, recvbuf=None, op=MPI.SUM, root=root)
+
+#     print(result)
+
+#     time1 = MPI.Wtime()
+
+    # network.optimizer_config_ptr = cutn.create_contraction_optimizer_config(network.handle)
+    # enum = cutn.ContractionOptimizerConfigAttribute.SIMPLIFICATION_DISABLE_DR
+    # value = 1
+    # name = 'SIMPLIFICATION_DISABLE_DR'
+
+    # network._set_opt_config_option(name,enum, value)
+
     time0 = MPI.Wtime()
-    path, info = network.contract_path(optimize={'samples': 20, 'slicing': {'min_slices': max(max_n_slices, size)}})
+    path, info = network.contract_path(optimize={'samples': 20, 'slicing': {'min_slices': size}})
+    time1 = MPI.Wtime()
 
     # Select the best path from all ranks. Note that we still use the MPI communicator here for simplicity.
     opt_cost, sender = comm_mpi.allreduce(sendobj=(info.opt_cost, rank), op=MPI.MINLOC)
-    time1 = MPI.Wtime()
     if rank == root:
         print(f"Process {sender} has the path with the lowest FLOP count {opt_cost}.")
 
@@ -425,37 +454,33 @@ def slice_contract_nccl(tensor_network: TensorNetwork, max_n_slices: int, exp_na
     # print(f"Process {rank} is processing slice range: {info.slices}.")
 
     # Set path and slices.
-    path, info = network.contract_path(optimize={'path': info.path, 'slicing': info.slices})
+    # print(info.slices)
+    # print(type(info.slices))
+    path, info = network.contract_path(optimize={'path': info.path, 'slicing': {'disable_slicing': 1}})
 
-    # print(f"Process {rank} is processing path: {path}.")
-    
-    # Calculate this process's share of the slices.
-    num_slices = info.num_slices
-    chunk, extra = num_slices // size, num_slices % size
-    slice_begin = rank * chunk + min(rank, extra)
-    slice_end = num_slices if rank == size - 1 else (rank + 1) * chunk + min(rank + 1, extra)
-    slices = range(slice_begin, slice_end)
+    # opt_cost, sender = comm_mpi.allreduce(sendobj=(info.opt_cost, rank), op=MPI.MINLOC)
+    # if rank == root:
+    #     print(f"Process {sender} has the post slicing path with the lowest FLOP count {opt_cost}.")
 
-    # print(f"Process {rank} is processing slice range: {slices}.")
+    # info = comm_mpi.bcast(info, sender)
+
+    # path, info = network.contract_path(optimize={'path': info.path, 'slicing': {'disable_slicing': 1}})
 
     time2 = MPI.Wtime()
-
-    # print(f"Process {rank} is processing slice range: {slices}.")
-# 
+    
+    # print(f"Process {rank} is processing path: {path}.")
+    
     # Create dataframe for info with nameds column strings
   
-    #Where does auutotune come in?
+    # Where does auutotune come in?
 
     # Contract the group of slices the process is responsible for.
-    result = network.contract(slices=slices)
+    result = network.contract(slices=[rank])
     print(f"Process {rank} is done with contraction. Result: {result}.")
 
-    results = comm_mpi.reduce(sendobj=result, op=MPI.SUM)
+    result = comm_mpi.reduce(sendobj=result, op=MPI.SUM)
 
     time3 = MPI.Wtime()
-
-    path = Path("./results")
-    path.mkdir(parents=True, exist_ok=True)
 
     df =pd.DataFrame([info])
 
@@ -464,12 +489,13 @@ def slice_contract_nccl(tensor_network: TensorNetwork, max_n_slices: int, exp_na
     df['repotiming_slice_path_time'] = time2 - time1
     df['contract_slices_time'] = time3 - time2
 
-    df.to_pickle(path / f'{exp_name}.pkl')
-    df.to_csv(path / f'{exp_name}.csv')
+    df.to_pickle(f'{exp_name}.pkl')
+    df.to_csv(f'{exp_name}.csv')
 
-    # print('result',result)
+    print('result',result)
+    print('total time', time1 - time0)
 
-    return results
+    return result
 
 
 

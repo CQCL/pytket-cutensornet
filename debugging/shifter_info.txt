@@ -1,0 +1,24 @@
+How to run with shifter
+
+You need the container which sets up the enviroment
+
+shifterimg -v pull docker:nathfitz/pytket-cutensornet-perlmutter-mpi
+
+https://docs.nersc.gov/development/shifter/how-to-use/
+
+You can then run a bash terminal on a the login node with
+
+shifter --image=docker:nathfitz/pytket-cutensornet-perlmutter-mpi --module=cuda-mpich --volume=$HOME/code/pytket-cutensornet:/pytket-cutensornet /bin/bash
+
+and then naivigate to your file and run
+
+python debug_distributed_hadamardtest.py 
+
+To run on multiple nodes you use the container as an executable with salloc/sbatch and srun
+
+I typically run from $HOME
+
+salloc -N 2 -C gpu -G 8 --ntasks-per-node 4 -A m4147 -t 00:30:00 
+
+srun shifter --image=docker:nathfitz/pytket-cutensornet-perlmutter-mpi --module=cuda-mpich --volume=$HOME/code/pytket-cutensornet:/pytket-cutensornet python $HOME/file.py
+
