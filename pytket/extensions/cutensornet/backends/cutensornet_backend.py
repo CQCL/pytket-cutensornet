@@ -492,18 +492,19 @@ def slice_contract_mpi(tensor_network: TensorNetwork, max_n_slices: int, exp_nam
     result = comm_mpi.reduce(sendobj=result, op=MPI.SUM, root=root)
     if rank == root: print(f"Result: {result}")
 
+    result = comm_mpi.bcast(result, root)
+
     time2 = MPI.Wtime()
     duration = time2 - time1
     print(f"Contraction at {rank} took {duration} sec.")
 
-    df =pd.DataFrame([info])
-
-    df['total_time'] = time2 - time0
-    df['slicing_time'] = time1 - time0
-    df['contract_slices_time'] = time2 - time1
-
-    df.to_pickle(f'{exp_name}.pkl')
-    df.to_csv(f'{exp_name}.csv')
+    if rank == root:
+        df =pd.DataFrame([info])
+        df['total_time'] = time2 - time0
+        df['slicing_time'] = time1 - time0
+        df['contract_slices_time'] = time2 - time1
+        df.to_pickle(f'{exp_name}.pkl')
+        df.to_csv(f'{exp_name}.csv')
 
     print('result',result)
 
