@@ -394,11 +394,11 @@ class CuTensorNetBackend(Backend):
                 numeric_coeff = complex(coeff.evalf())  # type: ignore
             else:
                 numeric_coeff = complex(coeff)
-            expectation = slice_contract(expectation_value_network, max_n_slices, exp_name)
+            expectation = slice_contract_mpi(expectation_value_network, max_n_slices, exp_name)
         return expectation
     
 
-def slice_contract(tensor_network: TensorNetwork, max_n_slices: int, exp_name:str):
+def slice_contract_mpi(tensor_network: TensorNetwork, max_n_slices: int, exp_name:str):
 
     root = 0
     comm_mpi = MPI.COMM_WORLD
