@@ -85,7 +85,8 @@ def general_hadamard_test(circ: Circuit, post_select: dict[Qubit, int],n_max_sli
     p0 = b.get_operator_expectation_value_postselect(
         c.copy(), op, p0_dict,n_max_slices, exp_name 
     )  # These should save contraction paths
-    p1_dict = post_select
-    p1_dict.update({Qubit("a", 0): 1})
-    p1 = b.get_operator_expectation_value_postselect(c.copy(), op, p1_dict,n_max_slices, exp_name)
-    return p0 - p1
+    #p1_dict = post_select
+    #p1_dict.update({Qubit("a", 0): 1})
+    #p1 = b.get_operator_expectation_value_postselect(c.copy(), op, p1_dict,n_max_slices, exp_name)
+    #return p0 - p1
+    return p0

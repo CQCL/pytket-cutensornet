@@ -49,10 +49,10 @@ from pytket.passes import (  # type: ignore
 from pytket.utils.operators import QubitPauliOperator
 
 import cupy as cp
-from cupy.cuda import nccl
+#from cupy.cuda import nccl
 from cupy.cuda.runtime import getDeviceCount
 from mpi4py import MPI
-from cupyx.distributed import NCCLBackend, init_process_group
+#from cupyx.distributed import NCCLBackend, init_process_group
 
 from cuquantum import cutensornet as cutn
 
@@ -408,9 +408,9 @@ def slice_contract_mpi(tensor_network: TensorNetwork, max_n_slices: int, exp_nam
 #     print(size, rank)
 
     device_id = rank % getDeviceCount()
-    cp.cuda.Device(device_id).use()
+    #cp.cuda.Device(device_id).use()
 
-    network = cq.Network(*tensor_network.cuquantum_interleaved)
+    network = cq.Network(*tensor_network.cuquantum_interleaved, options={'device_id' : device_id})
 
 #     # handle = cutn.create()
 #     # cutn.distributed_reset_configuration(
@@ -439,9 +439,9 @@ def slice_contract_mpi(tensor_network: TensorNetwork, max_n_slices: int, exp_nam
 
     # network._set_opt_config_option(name,enum, value)
 
-    time0 = MPI.Wtime()
-    path, info = network.contract_path(optimize={'samples': 20, 'slicing': {'min_slices': size}})
-    time1 = MPI.Wtime()
+    #time0 = MPI.Wtime()
+    path, info = network.contract_path(optimize={'samples': 20, 'slicing': {'min_slices': max(max_n_slices, size)}})
+    #time1 = MPI.Wtime()
 
     # Select the best path from all ranks. Note that we still use the MPI communicator here for simplicity.
     opt_cost, sender = comm_mpi.allreduce(sendobj=(info.opt_cost, rank), op=MPI.MINLOC)
@@ -456,7 +456,7 @@ def slice_contract_mpi(tensor_network: TensorNetwork, max_n_slices: int, exp_nam
     # Set path and slices.
     # print(info.slices)
     # print(type(info.slices))
-    path, info = network.contract_path(optimize={'path': info.path, 'slicing': {'disable_slicing': 1}})
+    path, info = network.contract_path(optimize={'path': info.path, 'slicing': info.slices})
 
     # opt_cost, sender = comm_mpi.allreduce(sendobj=(info.opt_cost, rank), op=MPI.MINLOC)
     # if rank == root:
@@ -466,7 +466,18 @@ def slice_contract_mpi(tensor_network: TensorNetwork, max_n_slices: int, exp_nam
 
     # path, info = network.contract_path(optimize={'path': info.path, 'slicing': {'disable_slicing': 1}})
 
-    time2 = MPI.Wtime()
+    time1 = MPI.Wtime()
+    duration = time1 - time0
+    print(f"Optimising contraction path at {rank} took {duration} sec.")
+    
+    # Calculate this process's share of the slices.
+    num_slices = info.num_slices
+    chunk, extra = num_slices // size, num_slices % size
+    slice_begin = rank * chunk + min(rank, extra)
+    slice_end = num_slices if rank == size - 1 else (rank + 1) * chunk + min(rank + 1, extra)
+    slices = range(slice_begin, slice_end)
+    
+    print(f"Process {rank} is processing slice range: {slices}.")
     
     # print(f"Process {rank} is processing path: {path}.")
     
@@ -475,25 +486,26 @@ def slice_contract_mpi(tensor_network: TensorNetwork, max_n_slices: int, exp_nam
     # Where does auutotune come in?
 
     # Contract the group of slices the process is responsible for.
-    result = network.contract(slices=[rank])
+    result = network.contract(slices=slices)
     print(f"Process {rank} is done with contraction. Result: {result}.")
 
-    result = comm_mpi.reduce(sendobj=result, op=MPI.SUM)
+    result = comm_mpi.reduce(sendobj=result, op=MPI.SUM, root=root)
+    if rank == root: print(f"Result: {result}")
 
-    time3 = MPI.Wtime()
+    time2 = MPI.Wtime()
+    duration = time2 - time1
+    print(f"Contraction at {rank} took {duration} sec.")
 
     df =pd.DataFrame([info])
 
-    df['total_time'] = time3 - time0
+    df['total_time'] = time2 - time0
     df['slicing_time'] = time1 - time0
-    df['repotiming_slice_path_time'] = time2 - time1
-    df['contract_slices_time'] = time3 - time2
+    df['contract_slices_time'] = time2 - time1
 
     df.to_pickle(f'{exp_name}.pkl')
     df.to_csv(f'{exp_name}.csv')
 
     print('result',result)
-    print('total time', time1 - time0)
 
     return result
 

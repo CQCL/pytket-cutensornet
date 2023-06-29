@@ -9,8 +9,8 @@ root_path = Path() # executes in work directory shifter image
 circuits_path = root_path / 'circuits' # executes in work directory shifter image
 circuits_path.mkdir(parents=True, exist_ok=True)
 
-n_sites = 4
-n_gpus = 1
+n_sites = 2
+n_gpus = 4
 exp_name = f'hubbard_{n_sites}sites'
 with open(circuits_path/ f'{exp_name}.pkl', "rb") as handle:
     obj = pickle.load(handle)
