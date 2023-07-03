@@ -19,6 +19,7 @@ class ContractionAlg(Enum):
     Each enum value corresponds to the class with the same name; see its docs for
     information of the algorithm.
     """
+
     MPSxGate = 0
     MPSxMPO = 1
 
