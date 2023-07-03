@@ -47,6 +47,7 @@ class DirectionMPS(Enum):
 
 class Tensor:
     """Class for the management of tensors via CuPy and cuTensorNet.
+
     It abstracts away some of the low-level API of cuTensorNet.
 
     Attributes:
@@ -80,10 +81,13 @@ class Tensor:
 
         Returns:
             The handle to the tensor descriptor.
+
+        Raises:
+            RuntimeError: If ``libhandle`` is ``None``.
         """
         if libhandle is None:
             raise RuntimeError(
-                "Must be called inside a with mps.init_cutensornet() block."
+                "Must be called inside a `with mps.init_cutensornet()` block."
             )
         if self.data.dtype == np.float32:
             cq_dtype = cq.cudaDataType.CUDA_R_32F
@@ -104,20 +108,22 @@ class Tensor:
         )
 
     def get_cupy_strides(self) -> list[int]:
-        """Return a list of the strides for each of the bonds; in the same
-        order as in ``self.bonds``. Strides are in CuPy format (#bytes).
+        """Return a list of the strides for each of the bonds.
+
+        Returns them in the same order as in ``self.bonds``.
 
         Returns:
-            List of strides. Strides are in CuPy format (#bytes).
+            List of strides in CuPy format (#bytes).
         """
         return self.data.strides  # type: ignore
 
     def get_cuquantum_strides(self) -> list[int]:
-        """Return a list of the strides for each of the bonds; in the same
-        order as in ``self.bonds``. Strides are cuQuantum format (#entries).
+        """Return a list of the strides for each of the bonds.
+
+        Returns them in the same order as in ``self.bonds``.
 
         Returns:
-            List of strides. Strides are cuQuantum format (#entries).
+            List of strides in cuQuantum format (#entries).
         """
         return [stride // self.data.itemsize for stride in self.data.strides]
 
@@ -130,6 +136,9 @@ class Tensor:
 
         Returns:
             The dimension of the bond.
+
+        Raises:
+            RuntimeError: If ``bond`` is not in a Tensor.
         """
         if bond not in self.bonds:
             raise RuntimeError(f"Bond {bond} not in tensor with bonds: {self.bonds}.")
@@ -197,6 +206,9 @@ class MPS:
                 ``float`` numbers. Default is ``np.float64``.
             device_id: The identifier of the GPU where this MPS is meant to be run.
                 If not provided, the default ``cupy.cuda.Device()`` will be used.
+
+        Raises:
+            RuntimeError: If less then two qubits are provided.
         """
         if chi is not None and truncation_fidelity is not None:
             raise Exception("Cannot fix both chi and truncation_fidelity.")
@@ -278,12 +290,14 @@ class MPS:
         self.tensors.append(Tensor(r_tensor, [n_tensors - 1, 2 * n_tensors - 1]))
 
     def is_valid(self) -> bool:
-        """Verify that the MPS does not exceed the dimension limit ``chi`` of
+        """Verify that the MPS object is valid.
+
+        Specifically, verify that the MPS does not exceed the dimension limit ``chi`` of
         the virtual bonds, that physical bonds have dimension 2 and that
         the virtual bonds are connected in a line.
 
         Returns:
-            False if a violation was detected.
+            False if a violation was detected or True otherwise.
         """
         self._flush()
 
@@ -363,6 +377,11 @@ class MPS:
 
         Returns:
             ``self``, to allow for method chaining.
+
+        Raises:
+            RuntimeError: If called outside of ``mps.init_cutensornet()`` block.
+            RuntimeError: If gate acts on more than 2 qubits or acts on non-adjacent
+                qubits.
         """
         if self._libhandle is None:
             raise RuntimeError(
@@ -398,7 +417,9 @@ class MPS:
         return self
 
     def canonicalise(self, l_pos: int, r_pos: int) -> None:
-        """Apply the necessary gauge transformations so that all MPS tensors
+        """Canonicalises the MPS object.
+
+        Applies the necessary gauge transformations so that all MPS tensors
         to the left of position ``l_pos`` are in left orthogonal form and
         all MPS tensors to the right of ``r_pos`` in right orthogonal form.
 
@@ -414,14 +435,20 @@ class MPS:
             self.canonicalise_tensor(pos, form=DirectionMPS.RIGHT)
 
     def canonicalise_tensor(self, pos: int, form: DirectionMPS) -> None:
-        """Apply the necessary gauge transformations so that the tensor at
-        position ``pos`` in the MPS has is in the orthogonal form dictated by
+        """Canonicalises a tensor from an MPS object.
+
+        Applies the necessary gauge transformations so that the tensor at
+        position ``pos`` in the MPS is in the orthogonal form dictated by
         ``form``.
 
         Args:
-            position: The position of the tensor to canonicalise.
+            position: The position of the tensor to be canonicalised.
             form: LEFT form means that its conjugate transpose is its inverse if
                 connected to its left bond and physical bond. Similarly for RIGHT.
+
+        Raises:
+            RuntimeError: If called outside of ``mps.init_cutensornet()`` block.
+            RuntimeError: If position and form don't match.
         """
         if form == self.tensors[pos].canonical_form:
             # Tensor already in canonical form, nothing needs to be done
@@ -540,9 +567,10 @@ class MPS:
         cutn.destroy_tensor_descriptor(R_desc)
 
     def vdot(self, other: MPS) -> complex:
-        """Obtain the inner product of the two MPS: ``<self|other>``. It can be used
-        to compute the squared norm of an MPS ``mps`` as ``mps.vdot(mps)``.
-        The tensors within the MPS are not modified.
+        """Obtain the inner product of the two MPS: ``<self|other>``.
+
+        It can be used to compute the squared norm of an MPS ``mps`` as
+        ``mps.vdot(mps)``. The tensors within the MPS are not modified.
 
         Note:
             The state that is conjugated is ``self``.
@@ -550,8 +578,9 @@ class MPS:
         Args:
             other: The other MPS to compare against.
 
-        Raise:
-            RuntimeError: If number of tensors or dimensions do not match.
+        Raises:
+            RuntimeError: If called outside of ``mps.init_cutensornet()`` block.
+            RuntimeError: If number of tensors, dimensions or positions do not match.
 
         Return:
             The resulting complex number.
@@ -606,8 +635,7 @@ class MPS:
         return complex(result)
 
     def get_virtual_bonds(self, position: int) -> list[Bond]:
-        """Return the unique identifiers of the virtual bonds
-        of the tensor ``tensors[position]``.
+        """Returns the virtual bonds unique identifiers of tensor ``tensors[position]``.
 
         Args:
             position: A position in the MPS.
@@ -617,6 +645,9 @@ class MPS:
             in order from left to right.
             If ``position`` is the first or last in the MPS, then the list
             will only contain the corresponding virtual bond.
+
+        Raises:
+            RuntimeError: If position is out of bounds.
         """
         if position < 0 or position >= len(self):
             raise Exception(f"Position {position} is out of bounds.")
@@ -631,8 +662,7 @@ class MPS:
         return v_bonds
 
     def get_virtual_dimensions(self, position: int) -> list[int]:
-        """Return the dimension of the virtual bonds of the tensor
-        ``tensors[position]``.
+        """Returns the virtual bonds dimension of the tensor ``tensors[position]``.
 
         Args:
             position: A position in the MPS.
@@ -649,14 +679,16 @@ class MPS:
         ]
 
     def get_physical_bond(self, position: int) -> Bond:
-        """Return the unique identifier of the physical bond of the tensor
-        ``tensors[position]``.
+        """Returns the physical bond unique identifier of tensor ``tensors[position]``.
 
         Args
             position: A position in the MPS.
 
         Returns:
             The identifier of the physical bond.
+
+        Raises:
+            RuntimeError: If position is out of bounds.
         """
         if position < 0 or position >= len(self):
             raise Exception(f"Position {position} is out of bounds.")
@@ -665,8 +697,7 @@ class MPS:
         return max(self.tensors[position].bonds)
 
     def get_physical_dimension(self, position: int) -> int:
-        """Return the dimension of the physical bond of the tensor
-        ``tensors[position]``.
+        """Returns the physical bond dimension of the tensor ``tensors[position]``.
 
         Args:
             position: A position in the MPS.
@@ -677,10 +708,12 @@ class MPS:
         return self.tensors[position].get_dimension_of(self.get_physical_bond(position))
 
     def copy(self, device_id: Optional[int] = None) -> MPS:
-        """
+        """Returns a deep copy of self.
+
         Args:
             device_id: The identifier of the GPU where the copy is meant to be kept.
                 If not provided, the same device as ``self`` will be used.
+
         Returns:
             A deep copy of the MPS.
         """

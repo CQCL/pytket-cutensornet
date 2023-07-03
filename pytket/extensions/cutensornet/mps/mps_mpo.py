@@ -84,7 +84,7 @@ class MPSxMPO(MPS):
         # from here. The gates are kept in a list of lists.
         #
         # One list per MPS position, containing all the tensors of the gates
-        # acting on the corresponding position. These lists are originall empty.
+        # acting on the corresponding position. These lists are originally empty.
         # The last element of each list corresponds to the last gate applied.
         #
         # Each of the tensors will have four bonds ordered as follows:
@@ -109,7 +109,8 @@ class MPSxMPO(MPS):
         self._mpo_bond_counter = 0
 
     def init_cutensornet(self) -> MPSxMPO:
-        """Initialise the cuTensorNet library and link it to this MPS object.
+        """Initialises the cuTensorNet library and links it to this MPS object.
+
         This is a necessary step before doing any calculation on the MPS.
 
         Note:
@@ -123,8 +124,9 @@ class MPSxMPO(MPS):
         return self
 
     def _apply_1q_gate(self, position: int, gate: Op) -> MPSxMPO:
-        """Apply the 1-qubit gate to the MPS. This does not increase the
-        dimension of any bond.
+        """Applies the 1-qubit gate to the MPS.
+
+        This does not increase the dimension of any bond.
 
         Args:
             position: The position of the MPS tensor that this gate
@@ -133,6 +135,9 @@ class MPSxMPO(MPS):
 
         Returns:
             ``self``, to allow for method chaining.
+
+        Raises:
+            RuntimeError: If physical bond dimension is != 2
         """
         if self.get_physical_dimension(position) != 2:
             raise RuntimeError(
@@ -172,9 +177,11 @@ class MPSxMPO(MPS):
         return self
 
     def _apply_2q_gate(self, positions: list[int], gate: Op) -> MPSxMPO:
-        """Apply the 2-qubit gate to the MPS. If doing so increases the
-        virtual bond dimension beyond ``chi``; truncation is automatically
-        applied. The MPS is converted to canonical form before truncating.
+        """Applies the 2-qubit gate to the MPS.
+
+        If doing so increases the virtual bond dimension beyond ``chi``;
+        truncation is automatically applied.
+        The MPS is converted to canonical form before truncating.
 
         Args:
             positions: The position of the MPS tensors that this gate
@@ -183,6 +190,10 @@ class MPSxMPO(MPS):
 
         Returns:
             ``self``, to allow for method chaining.
+
+        Raises:
+            RuntimeError: If physical bond dimension is != 2
+            RuntimeError: If gate is applied to non-contiguous positions.
         """
         if any(self.get_physical_dimension(pos) != 2 for pos in positions):
             raise RuntimeError(
@@ -322,13 +333,16 @@ class MPSxMPO(MPS):
         return self
 
     def get_physical_bond(self, position: int) -> Bond:
-        """Return the unique identifier of the physical bond at ``position``.
+        """Returns the unique identifier of the physical bond at ``position``.
 
         Args
             position: A position in the MPS.
 
         Returns:
             The identifier of the physical bond.
+
+        Raises:
+            RuntimeError: If position is out of bounds.
         """
         if position < 0 or position >= len(self):
             raise Exception(f"Position {position} is out of bounds.")
@@ -343,7 +357,7 @@ class MPSxMPO(MPS):
         return last_tensor.bonds[-1]
 
     def get_physical_dimension(self, position: int) -> int:
-        """Return the dimension of the physical bond at ``position``.
+        """Returns the dimension of the physical bond at ``position``.
 
         Args:
             position: A position in the MPS.
@@ -362,7 +376,8 @@ class MPSxMPO(MPS):
         return int(last_tensor.data.shape[-1])
 
     def _flush(self) -> None:
-        """Apply all batched operations within ``self._mpo`` to the MPS.
+        """Applies all batched operations within ``self._mpo`` to the MPS.
+
         The method applies variational optimisation of the MPS until it
         converges. Based on https://arxiv.org/abs/2207.05612.
         """

@@ -37,8 +37,9 @@ class MPSxGate(MPS):
     """
 
     def _apply_1q_gate(self, position: int, gate: Op) -> MPSxGate:
-        """Apply the 1-qubit gate to the MPS. This does not increase the
-        dimension of any bond.
+        """Applies the 1-qubit gate to the MPS.
+
+        This does not increase the dimension of any bond.
 
         Args:
             position: The position of the MPS tensor that this gate
@@ -47,6 +48,9 @@ class MPSxGate(MPS):
 
         Returns:
             ``self``, to allow for method chaining.
+
+        Raises:
+            RuntimeError: If physical bond dimension is != 2
         """
         if self.get_physical_dimension(position) != 2:
             raise RuntimeError(
@@ -77,9 +81,11 @@ class MPSxGate(MPS):
         return self
 
     def _apply_2q_gate(self, positions: list[int], gate: Op) -> MPSxGate:
-        """Apply the 2-qubit gate to the MPS. If doing so increases the
-        virtual bond dimension beyond ``chi``; truncation is automatically
-        applied. The MPS is converted to canonical form before truncating.
+        """Applies the 2-qubit gate to the MPS.
+
+        If doing so increases the virtual bond dimension beyond ``chi``;
+        truncation is automatically applied.
+        The MPS is converted to canonical form before truncating.
 
         Args:
             positions: The position of the MPS tensors that this gate
@@ -88,6 +94,9 @@ class MPSxGate(MPS):
 
         Returns:
             ``self``, to allow for method chaining.
+
+        Raises:
+            RuntimeError: If physical bond dimension is != 2
         """
         if any(self.get_physical_dimension(pos) != 2 for pos in positions):
             raise RuntimeError(
@@ -149,7 +158,7 @@ class MPSxGate(MPS):
             self.tensors[r_pos].bonds,
             T_bonds,
         )
-        # Reassign auxiliar bond ID
+        # Reassign auxiliary bond ID
         T_bonds[-2] = left_p_bond
         T_bonds[-1] = right_p_bond
         # Create tensor object

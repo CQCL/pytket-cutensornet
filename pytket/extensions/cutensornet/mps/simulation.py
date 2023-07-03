@@ -14,10 +14,11 @@ from .mps_mpo import MPSxMPO
 
 
 class ContractionAlg(Enum):
-    """An enum to refer to the MPS contraction algorithm. Each enum value corresponds
-    to the class with the same name; see its docs for information of the algorithm.
-    """
+    """An enum to refer to the MPS contraction algorithm.
 
+    Each enum value corresponds to the class with the same name; see its docs for
+    information of the algorithm.
+    """
     MPSxGate = 0
     MPSxMPO = 1
 
@@ -44,7 +45,6 @@ def simulate(circuit: Circuit, algorithm: ContractionAlg, **kwargs: Any) -> MPS:
         An instance of ``MPS`` containing (an approximation of) the final state
         of the circuit.
     """
-
     chi = kwargs.get("chi", None)
     truncation_fidelity = kwargs.get("truncation_fidelity", None)
     float_precision = kwargs.get("float_precision", None)
@@ -105,7 +105,9 @@ def get_amplitude(mps: MPS, state: int) -> complex:
 
 
 def prepare_circuit(circuit: Circuit) -> tuple[Circuit, dict[Qubit, Qubit]]:
-    """Return an equivalent circuit with the appropriate structure to be simulated by
+    """Prepares a circuit in a specific, ``MPS``-friendly, manner.
+
+    Returns an equivalent circuit with the appropriate structure to be simulated by
     an ``MPS`` algorithm.
 
     Note:
@@ -136,7 +138,9 @@ def prepare_circuit(circuit: Circuit) -> tuple[Circuit, dict[Qubit, Qubit]]:
 
 
 def get_sorted_gates(circuit: Circuit) -> list[Command]:
-    """Sort the list of gates so that we obtain an equivalent circuit where we apply
+    """Sorts the list of gates, placing 2-qubit gates close to each other first.
+
+    Returns an equivalent circuit where we apply
     2-qubit gates that are close to each other first. This reduces the overhead of
     canonicalisation of the MPS, since we try to apply as many gates as we can on one
     end of the MPS before we go to the other end.
