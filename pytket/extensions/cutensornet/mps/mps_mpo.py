@@ -14,7 +14,7 @@
 from __future__ import annotations  # type: ignore
 import warnings
 
-from typing import Optional, Any
+from typing import Optional, Any, Union
 
 import numpy as np  # type: ignore
 

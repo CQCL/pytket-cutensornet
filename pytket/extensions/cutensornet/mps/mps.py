@@ -221,20 +221,19 @@ class MPS:
         if truncation_fidelity < 0 or truncation_fidelity > 1:
             raise ValueError("Provide a value of truncation_fidelity in [0,1].")
 
-        allowed_precisions = [np.float64, np.float32]
-        if float_precision is None:
-            float_precision = np.float64
-        elif float_precision not in allowed_precisions:
-            raise TypeError(f"Value of float_precision must be in {allowed_precisions}")
-
-        if float_precision == np.float32:  # Single precision
-            self._real_t = np.float32  # type: ignore
-            self._complex_t = np.complex64  # type: ignore
-            self._atol = 1e-4
-        elif float_precision == np.float64:  # Double precision
+        if float_precision is None or float_precision == np.float64:  # Double precision
             self._real_t = np.float64  # type: ignore
             self._complex_t = np.complex128  # type: ignore
             self._atol = 1e-12
+        elif float_precision == np.float32:  # Single precision
+            self._real_t = np.float32  # type: ignore
+            self._complex_t = np.complex64  # type: ignore
+            self._atol = 1e-4
+        else:
+            allowed_precisions = [np.float64, np.float32]
+            raise TypeError(
+                f"Value of float_precision must be in {allowed_precisions}."
+            )
 
         self._device_id = device_id
         # Make sure CuPy uses the specified device
@@ -408,7 +407,7 @@ class MPS:
                     "Gates must be applied to adjacent qubits! "
                     + f"This is not satisfied by {gate}."
                 )
-            self._apply_2q_gate(tuple(positions), gate.op)
+            self._apply_2q_gate((positions[0], positions[1]), gate.op)
             # The tensors will in general no longer be in canonical form.
             self.tensors[positions[0]].canonical_form = None
             self.tensors[positions[1]].canonical_form = None
@@ -718,7 +717,9 @@ class MPS:
         Raises:
             RuntimeError: If ``position`` is out of bounds.
         """
-        return self.tensors[position].get_bond_dimension(self.get_physical_bond(position))
+        return self.tensors[position].get_bond_dimension(
+            self.get_physical_bond(position)
+        )
 
     def copy(self, device_id: Optional[int] = None) -> MPS:
         """Returns a deep copy of self.

@@ -1,6 +1,7 @@
 from typing import Any
 from enum import Enum
 from random import choice  # type: ignore
+from collections import defaultdict  # type: ignore
 
 from pytket.circuit import Circuit, Command, Qubit, Op, OpType  # type: ignore
 from pytket.transform import Transform  # type: ignore
