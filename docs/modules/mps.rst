@@ -25,6 +25,10 @@ Classes
     .. automethod:: apply_gate
     .. automethod:: vdot
     .. automethod:: canonicalise
+    .. automethod:: get_virtual_bonds
+    .. automethod:: get_virtual_dimensions
+    .. automethod:: get_physical_bond
+    .. automethod:: get_physical_dimension
     .. automethod:: is_valid
     .. automethod:: copy
     .. automethod:: __len__
@@ -42,6 +46,7 @@ Classes
 .. autoclass:: pytket.extensions.cutensornet.mps.Tensor()
 
     .. automethod:: __init__
+    .. automethod:: get_bond_dimension
     .. automethod:: get_tensor_descriptor
     .. automethod:: copy
 

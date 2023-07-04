@@ -46,7 +46,7 @@ class MPSxMPO(MPS):
         truncation_fidelity: Optional[float] = None,
         k: Optional[int] = None,
         optim_delta: Optional[float] = None,
-        float_precision: Optional[Any] = None,
+        float_precision: Optional[Union[np.float32, np.float64]] = None,
         device_id: Optional[int] = None,
     ):
         """Initialise an MPS on the computational state 0.
@@ -135,15 +135,7 @@ class MPSxMPO(MPS):
 
         Returns:
             ``self``, to allow for method chaining.
-
-        Raises:
-            RuntimeError: If physical bond dimension is != 2
         """
-        if self.get_physical_dimension(position) != 2:
-            raise RuntimeError(
-                "Gates can only be applied to tensors with physical"
-                + " bond dimension of 2."
-            )
 
         # Apply the gate to the MPS with eager approximation
         self._aux_mps._apply_1q_gate(position, gate)
@@ -176,7 +168,7 @@ class MPSxMPO(MPS):
         last_tensor.data = new_tensor
         return self
 
-    def _apply_2q_gate(self, positions: list[int], gate: Op) -> MPSxMPO:
+    def _apply_2q_gate(self, positions: tuple[int, int], gate: Op) -> MPSxMPO:
         """Applies the 2-qubit gate to the MPS.
 
         If doing so increases the virtual bond dimension beyond ``chi``;
@@ -190,22 +182,7 @@ class MPSxMPO(MPS):
 
         Returns:
             ``self``, to allow for method chaining.
-
-        Raises:
-            RuntimeError: If physical bond dimension is != 2
-            RuntimeError: If gate is applied to non-contiguous positions.
         """
-        if any(self.get_physical_dimension(pos) != 2 for pos in positions):
-            raise RuntimeError(
-                "Gates can only be applied to tensors with physical"
-                + " bond dimension of 2."
-            )
-
-        dist = positions[1] - positions[0]
-        # We explicitly allow both dist==1 or dist==-1 so that non-symmetric
-        # gates such as CX can use the same Op for the two ways it can be in.
-        if dist not in [1, -1]:
-            raise Exception("Gates must be applied to contiguous positions!")
         l_pos = min(positions)
         r_pos = max(positions)
 
@@ -342,10 +319,10 @@ class MPSxMPO(MPS):
             The identifier of the physical bond.
 
         Raises:
-            RuntimeError: If position is out of bounds.
+            RuntimeError: If ``position`` is out of bounds.
         """
         if position < 0 or position >= len(self):
-            raise Exception(f"Position {position} is out of bounds.")
+            raise RuntimeError(f"Position {position} is out of bounds.")
 
         # Identify the tensor last tensor in the MPO
         if self._mpo[position]:  # Not empty
@@ -364,6 +341,9 @@ class MPSxMPO(MPS):
 
         Returns:
             The dimension of the physical bond.
+
+        Raises:
+            RuntimeError: If ``position`` is out of bounds.
         """
 
         # Identify the tensor last tensor in the MPO

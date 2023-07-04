@@ -48,15 +48,7 @@ class MPSxGate(MPS):
 
         Returns:
             ``self``, to allow for method chaining.
-
-        Raises:
-            RuntimeError: If physical bond dimension is != 2
         """
-        if self.get_physical_dimension(position) != 2:
-            raise RuntimeError(
-                "Gates can only be applied to tensors with physical"
-                + " bond dimension of 2."
-            )
 
         # Load the gate's unitary to the GPU memory
         gate_unitary = gate.get_unitary().astype(dtype=self._complex_t, copy=False)
@@ -80,7 +72,7 @@ class MPSxGate(MPS):
         self.tensors[position].data = new_tensor
         return self
 
-    def _apply_2q_gate(self, positions: list[int], gate: Op) -> MPSxGate:
+    def _apply_2q_gate(self, positions: tuple[int, int], gate: Op) -> MPSxGate:
         """Applies the 2-qubit gate to the MPS.
 
         If doing so increases the virtual bond dimension beyond ``chi``;
@@ -94,15 +86,7 @@ class MPSxGate(MPS):
 
         Returns:
             ``self``, to allow for method chaining.
-
-        Raises:
-            RuntimeError: If physical bond dimension is != 2
         """
-        if any(self.get_physical_dimension(pos) != 2 for pos in positions):
-            raise RuntimeError(
-                "Gates can only be applied to tensors with physical"
-                + " bond dimension of 2."
-            )
         l_pos = min(positions)
         r_pos = max(positions)
 

@@ -31,7 +31,7 @@ def test_init() -> None:
 
 
 def test_canonicalise() -> None:
-    np.random.seed(1)
+    cp.random.seed(1)
     circ = Circuit(5)
 
     mps_gate = MPSxGate(qubits=circ.qubits)
@@ -42,7 +42,7 @@ def test_canonicalise() -> None:
         T_d = cp.empty(shape=(4, 2), dtype=mps_gate._complex_t)
         for i0 in range(T_d.shape[0]):
             for i1 in range(T_d.shape[1]):
-                T_d[i0][i1] = np.random.rand() + 1j * np.random.rand()
+                T_d[i0][i1] = cp.random.rand() + 1j * cp.random.rand()
         mps_gate.tensors[0] = Tensor(T_d, bonds=[1, len(mps_gate)])
 
         # Middle tensors
@@ -51,7 +51,7 @@ def test_canonicalise() -> None:
             for i0 in range(T_d.shape[0]):
                 for i1 in range(T_d.shape[1]):
                     for i2 in range(T_d.shape[2]):
-                        T_d[i0][i1][i2] = np.random.rand() + 1j * np.random.rand()
+                        T_d[i0][i1][i2] = cp.random.rand() + 1j * cp.random.rand()
             mps_gate.tensors[pos] = Tensor(
                 T_d, bonds=[pos, pos + 1, pos + len(mps_gate)]
             )
@@ -60,14 +60,16 @@ def test_canonicalise() -> None:
         T_d = cp.empty(shape=(4, 2), dtype=mps_gate._complex_t)
         for i0 in range(T_d.shape[0]):
             for i1 in range(T_d.shape[1]):
-                T_d[i0][i1] = np.random.rand() + 1j * np.random.rand()
+                T_d[i0][i1] = cp.random.rand() + 1j * cp.random.rand()
         mps_gate.tensors[len(mps_gate) - 1] = Tensor(
             T_d, bonds=[len(mps_gate) - 1, 2 * len(mps_gate) - 1]
         )
 
-        mps_copy = mps_gate.copy()
         # Calculate the norm of the MPS
-        norm_sq = mps_gate.vdot(mps_copy)
+        norm_sq = mps_gate.vdot(mps_gate)
+
+        # Keep a copy of the non-canonicalised MPS
+        mps_copy = mps_gate.copy()
 
         # Canonicalise around center_pos
         center_pos = 2
@@ -95,12 +97,8 @@ def test_canonicalise() -> None:
 
             result = cq.contract(T_d, std_bonds, T_d.conj(), conj_bonds, [-1, -2])
 
-            for i in range(result.shape[0]):
-                for j in range(result.shape[1]):
-                    if i == j:
-                        assert np.isclose(result[i][j], 1, atol=mps_gate._atol)
-                    else:
-                        assert np.isclose(result[i][j], 0, atol=mps_gate._atol)
+            # Check that the result is the identity
+            assert cp.allclose(result, cp.eye(result.shape[0]))
 
 
 @pytest.mark.parametrize(

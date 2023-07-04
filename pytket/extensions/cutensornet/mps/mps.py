@@ -13,7 +13,7 @@
 # limitations under the License.
 from __future__ import annotations  # type: ignore
 import warnings
-from typing import Any, Optional
+from typing import Any, Optional, Union
 from enum import Enum
 
 import numpy as np  # type: ignore
@@ -84,6 +84,8 @@ class Tensor:
 
         Raises:
             RuntimeError: If ``libhandle`` is ``None``.
+            TypeError: If the type of the tensor is not supported. Supported types are
+                ``np.float32``, ``np.float64``, ``np.complex64`` and ``np.complex128``.
         """
         if libhandle is None:
             raise RuntimeError(
@@ -97,27 +99,21 @@ class Tensor:
             cq_dtype = cq.cudaDataType.CUDA_C_32F
         elif self.data.dtype == np.complex128:
             cq_dtype = cq.cudaDataType.CUDA_C_64F
+        else:
+            raise TypeError(
+                f"The data type {self.data.dtype} of the tensor is not supported."
+            )
 
         return cutn.create_tensor_descriptor(  # type: ignore
             handle=libhandle,
             n_modes=len(self.data.shape),
             extents=self.data.shape,
-            strides=self.get_cuquantum_strides(),
+            strides=self._get_cuquantum_strides(),
             modes=self.bonds,
             data_type=cq_dtype,
         )
 
-    def get_cupy_strides(self) -> list[int]:
-        """Return a list of the strides for each of the bonds.
-
-        Returns them in the same order as in ``self.bonds``.
-
-        Returns:
-            List of strides in CuPy format (#bytes).
-        """
-        return self.data.strides  # type: ignore
-
-    def get_cuquantum_strides(self) -> list[int]:
+    def _get_cuquantum_strides(self) -> list[int]:
         """Return a list of the strides for each of the bonds.
 
         Returns them in the same order as in ``self.bonds``.
@@ -127,7 +123,7 @@ class Tensor:
         """
         return [stride // self.data.itemsize for stride in self.data.strides]
 
-    def get_dimension_of(self, bond: Bond) -> int:
+    def get_bond_dimension(self, bond: Bond) -> int:
         """Given a bond ID, return that bond's dimension.
 
         Args:
@@ -180,7 +176,7 @@ class MPS:
         qubits: list[Qubit],
         chi: Optional[int] = None,
         truncation_fidelity: Optional[float] = None,
-        float_precision: Optional[Any] = None,
+        float_precision: Optional[Union[np.float32, np.float64]] = None,
         device_id: Optional[int] = None,
     ):
         """Initialise an MPS on the computational state ``|0>``.
@@ -208,25 +204,28 @@ class MPS:
                 If not provided, the default ``cupy.cuda.Device()`` will be used.
 
         Raises:
-            RuntimeError: If less then two qubits are provided.
+            ValueError: If less then two qubits are provided.
+            ValueError: If both ``chi`` and ``truncation_fidelity`` are fixed.
+            ValueError: If the value of ``chi`` is set below 2.
+            ValueError: If the value of ``truncation_fidelity`` is not in [0,1].
         """
         if chi is not None and truncation_fidelity is not None:
-            raise Exception("Cannot fix both chi and truncation_fidelity.")
+            raise ValueError("Cannot fix both chi and truncation_fidelity.")
         if chi is None:
             chi = 2 ** (len(qubits) // 2)
         if truncation_fidelity is None:
             truncation_fidelity = 1
 
         if chi < 2:
-            raise Exception("The max virtual bond dim (chi) must be >= 2.")
+            raise ValueError("The max virtual bond dim (chi) must be >= 2.")
         if truncation_fidelity < 0 or truncation_fidelity > 1:
-            raise Exception("Provide a value of truncation_fidelity in [0,1].")
+            raise ValueError("Provide a value of truncation_fidelity in [0,1].")
 
         allowed_precisions = [np.float64, np.float32]
         if float_precision is None:
             float_precision = np.float64
         elif float_precision not in allowed_precisions:
-            raise Exception(f"Value of float_precision must be in {allowed_precisions}")
+            raise TypeError(f"Value of float_precision must be in {allowed_precisions}")
 
         if float_precision == np.float32:  # Single precision
             self._real_t = np.float32  # type: ignore
@@ -258,7 +257,7 @@ class MPS:
         if n_tensors == 0:  # There's no initialisation to be done
             return None
         elif n_tensors == 1:
-            raise RuntimeError("Please, provide at least two qubits.")
+            raise ValueError("Please, provide at least two qubits.")
 
         self.qubit_position = {q: i for i, q in enumerate(qubits)}
 
@@ -311,9 +310,8 @@ class MPS:
             for tensor in self.tensors
         )
 
-        v_bonds_ok = True
         # Check the leftmost tensor
-        v_bonds_ok = v_bonds_ok and self.get_virtual_bonds(0)[0] == 1
+        v_bonds_ok = self.get_virtual_bonds(0)[0] == 1
         # Check the middle tensors
         for i in range(1, len(self) - 1):
             v_bonds_ok = v_bonds_ok and (
@@ -382,6 +380,7 @@ class MPS:
             RuntimeError: If called outside of ``mps.init_cutensornet()`` block.
             RuntimeError: If gate acts on more than 2 qubits or acts on non-adjacent
                 qubits.
+            RuntimeError: If physical bond dimension where gate is applied is not 2.
         """
         if self._libhandle is None:
             raise RuntimeError(
@@ -389,6 +388,11 @@ class MPS:
             )
 
         positions = [self.qubit_position[q] for q in gate.qubits]
+        if any(self.get_physical_dimension(pos) != 2 for pos in positions):
+            raise RuntimeError(
+                "Gates can only be applied to tensors with physical"
+                + " bond dimension of 2."
+            )
 
         if len(positions) == 1:
             self._apply_1q_gate(positions[0], gate.op)
@@ -404,7 +408,7 @@ class MPS:
                     "Gates must be applied to adjacent qubits! "
                     + f"This is not satisfied by {gate}."
                 )
-            self._apply_2q_gate(positions, gate.op)
+            self._apply_2q_gate(tuple(positions), gate.op)
             # The tensors will in general no longer be in canonical form.
             self.tensors[positions[0]].canonical_form = None
             self.tensors[positions[1]].canonical_form = None
@@ -447,6 +451,7 @@ class MPS:
                 connected to its left bond and physical bond. Similarly for RIGHT.
 
         Raises:
+            ValueError: If ``form`` is not a value in ``DirectionMPS``.
             RuntimeError: If called outside of ``mps.init_cutensornet()`` block.
             RuntimeError: If position and form don't match.
         """
@@ -469,6 +474,8 @@ class MPS:
             gauge_bond = pos
             gauge_T_index = -2
             gauge_Q_index = 0
+        else:
+            raise ValueError("Argument form must be a value in DirectionMPS.")
 
         # Gather the details from the MPS tensor at this position
         T = self.tensors[pos]
@@ -647,10 +654,10 @@ class MPS:
             will only contain the corresponding virtual bond.
 
         Raises:
-            RuntimeError: If position is out of bounds.
+            RuntimeError: If ``position`` is out of bounds.
         """
         if position < 0 or position >= len(self):
-            raise Exception(f"Position {position} is out of bounds.")
+            raise RuntimeError(f"Position {position} is out of bounds.")
         elif position == 0:
             v_bonds = [position + 1]
         elif position == len(self) - 1:
@@ -672,9 +679,12 @@ class MPS:
             tensor in order from left to right.
             If ``position`` is the first or last in the MPS, then the list
             will only contain the corresponding virtual bond.
+
+        Raises:
+            RuntimeError: If ``position`` is out of bounds.
         """
         return [
-            self.tensors[position].get_dimension_of(bond)
+            self.tensors[position].get_bond_dimension(bond)
             for bond in self.get_virtual_bonds(position)
         ]
 
@@ -688,10 +698,10 @@ class MPS:
             The identifier of the physical bond.
 
         Raises:
-            RuntimeError: If position is out of bounds.
+            RuntimeError: If ``position`` is out of bounds.
         """
         if position < 0 or position >= len(self):
-            raise Exception(f"Position {position} is out of bounds.")
+            raise RuntimeError(f"Position {position} is out of bounds.")
 
         # By construction, the largest identifier is the physical one
         return max(self.tensors[position].bonds)
@@ -704,8 +714,11 @@ class MPS:
 
         Returns:
             The dimension of the physical bond.
+
+        Raises:
+            RuntimeError: If ``position`` is out of bounds.
         """
-        return self.tensors[position].get_dimension_of(self.get_physical_bond(position))
+        return self.tensors[position].get_bond_dimension(self.get_physical_bond(position))
 
     def copy(self, device_id: Optional[int] = None) -> MPS:
         """Returns a deep copy of self.
@@ -755,7 +768,7 @@ class MPS:
             + " You must use a subclass of MPS, such as MPSxGate or MPSxMPO."
         )
 
-    def _apply_2q_gate(self, positions: list[int], gate: Op) -> MPS:
+    def _apply_2q_gate(self, positions: tuple[int, int], gate: Op) -> MPS:
         raise NotImplementedError(
             "MPS is a base class with no contraction algorithm implemented."
             + " You must use a subclass of MPS, such as MPSxGate or MPSxMPO."

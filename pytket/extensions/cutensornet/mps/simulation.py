@@ -69,7 +69,7 @@ def simulate(circuit: Circuit, algorithm: ContractionAlg, **kwargs: Any) -> MPS:
         )
 
     # Sort the gates so there isn't much overhead from canonicalising back and forth.
-    sorted_gates = get_sorted_gates(circuit)
+    sorted_gates = _get_sorted_gates(circuit)
 
     # Apply the gates
     with mps.init_cutensornet():
@@ -120,15 +120,14 @@ def prepare_circuit(circuit: Circuit) -> tuple[Circuit, dict[Qubit, Qubit]]:
         circuit: The circuit to be simulated.
 
     Returns:
-        A tuple with an equivalent circuit with the appropriate structure. And a
+        A tuple with an equivalent circuit with the appropriate structure and a
         map of qubit names at the end of the circuit to their corresponding
         original names.
     """
-    prep_circ = circuit.copy()
 
     # Implement it in a line architecture
-    cu = CompilationUnit(prep_circ)
-    architecture = Architecture([(i, i + 1) for i in range(prep_circ.n_qubits - 1)])
+    cu = CompilationUnit(circuit)
+    architecture = Architecture([(i, i + 1) for i in range(circuit.n_qubits - 1)])
     DefaultMappingPass(architecture).apply(cu)
     prep_circ = cu.circuit
     Transform.DecomposeBRIDGE().apply(prep_circ)
@@ -138,10 +137,10 @@ def prepare_circuit(circuit: Circuit) -> tuple[Circuit, dict[Qubit, Qubit]]:
     return (prep_circ, qubit_map)
 
 
-def get_sorted_gates(circuit: Circuit) -> list[Command]:
+def _get_sorted_gates(circuit: Circuit) -> list[Command]:
     """Sorts the list of gates, placing 2-qubit gates close to each other first.
 
-    Returns an equivalent circuit where we apply
+    Returns an equivalent list of commands fixing the order of parallel gates so that
     2-qubit gates that are close to each other first. This reduces the overhead of
     canonicalisation of the MPS, since we try to apply as many gates as we can on one
     end of the MPS before we go to the other end.
@@ -160,7 +159,7 @@ def get_sorted_gates(circuit: Circuit) -> list[Command]:
     remaining = set(range(len(all_gates)))
 
     # Create the list of indices of gates acting on each qubit
-    gate_indices: dict[Qubit, list[int]] = {q: [] for q in circuit.qubits}
+    gate_indices: dict[Qubit, list[int]] = defaultdict(list)
     for i, g in enumerate(all_gates):
         for q in g.qubits:
             gate_indices[q].append(i)
