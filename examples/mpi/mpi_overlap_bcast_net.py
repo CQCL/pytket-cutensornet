@@ -63,7 +63,7 @@ net_list = []
 
 if n_circs % n_procs != 0:
     raise RuntimeError(
-        "Current version requires that n_circss is a multiple of n_procs."
+        "Current version requires that n_circs is a multiple of n_procs."
     )
 
 if rank == root:
