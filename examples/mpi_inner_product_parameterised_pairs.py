@@ -1,3 +1,30 @@
+"""
+This example showcases the use of MPI to run an embarrasingly parallel task on multiple
+GPUs. The task to find the inner products of all pairs of ``n_circ`` circuits; each
+inner product can be computed separately from the rest, hence the parallelism.
+All of the circuits in this example are defined in terms of the same symbolic circuit
+``sym_circ`` on ``n_qubits``, with the symbols taking random values for each circuit.
+We proceed as follows:
+
+- The root process: creates the symbolic circuit and all ``n_circs`` instances from it.
+- Broadcast these circuits to all other processes.
+- Find an efficient contraction path for the inner product TN.
+    - Since all circuits have the same structure, the same path can be used for all.
+- Distribute the task of calc. inner products uniformly accross processes. Each process:
+    - Creates a TN representing the inner product <0|C_i^\dagger C_j|0>
+    - Contracts the TN using the contraction path previously found.
+
+The script is able to run on any number of processes, as long as each process has access
+to a GPU of its own.
+
+Notes:
+    - We used a very shallow circuit with low entanglement so that contraction time is
+      short. Other circuits may be used with varying cost in runtime and memory.
+    - Here we are using `cq.contract` directly (i.e. cuTensorNet API), but other
+      functionalities from our extension (and the backend itself) could be used
+      in a similar script.
+"""
+
 import sys
 from random import random
 
