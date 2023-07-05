@@ -12,10 +12,10 @@ from pytket.transform import Transform  # type: ignore
 try:
     import cuquantum as cq  # type: ignore
 except ImportError:
-    warnings.warn("local settings failed to import cuquantum", ImportWarning)
+    warnings.warn("local settings failed to import cutensornet", ImportWarning)
 from pytket.circuit import Circuit
 
-from pytket.extensions.cuquantum.tensor_network_convert import (  # type: ignore
+from pytket.extensions.cutensornet.tensor_network_convert import (  # type: ignore
     tk_to_tensor_network,
     TensorNetwork,
 )
@@ -47,8 +47,12 @@ def circuit_overlap_contract(circuit_ket: Circuit) -> float:
         pytest.lazy_fixture("q2_x0cx01cx10"),  # type: ignore
         pytest.lazy_fixture("q2_v0cx01cx10"),  # type: ignore
         pytest.lazy_fixture("q2_hadamard_test"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu1"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu2"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu3"),  # type: ignore
         pytest.lazy_fixture("q3_v0cx02"),  # type: ignore
         pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
+        pytest.lazy_fixture("q4_lcu1"),  # type: ignore
     ],
 )
 def test_convert_statevec_overlap(circuit: Circuit) -> None:

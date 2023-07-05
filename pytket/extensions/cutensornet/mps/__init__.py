@@ -11,12 +11,26 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Module for conversion from tket primitives to cuQuantum primitives."""
+"""Module for circuit simulation by state evolution, with states represented as
+Matrix Product States (MPS). Approximate tensor network contraction is supported.
+For an example of its use, see ``examples/mps_tutorial.ipynb`` in
+https://github.com/CQCL/pytket-cutensornet.
+"""
 
-# _metadata.py is copied to the folder after installation.
-from .tensor_network_convert import (
-    TensorNetwork,
-    PauliOperatorTensorNetwork,
-    ExpectationValueTensorNetwork,
-    tk_to_tensor_network,
+from .mps import (
+    Handle,
+    Bond,
+    DirectionMPS,
+    Tensor,
+    MPS,
 )
+
+from .mps_gate import (
+    MPSxGate,
+)
+
+from .mps_mpo import (
+    MPSxMPO,
+)
+
+from .simulation import ContractionAlg, simulate, get_amplitude, prepare_circuit
