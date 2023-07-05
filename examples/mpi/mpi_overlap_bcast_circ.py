@@ -1,3 +1,38 @@
+"""
+This example showcases the use of MPI to run an embarrasingly parallel task on multiple
+GPUs. The task is to find the inner products of all pairs of ``n_circ`` circuits; each
+inner product can be computed separately from the rest, hence the parallelism.
+All of the circuits in this example are defined in terms of the same symbolic circuit
+``sym_circ`` on ``n_qubits``, with the symbols taking random values for each circuit.
+
+This is one script in a set of three scripts (all named ``mpi_overlap_bcast_*``)
+where the difference is which object is broadcasted between the processes. These
+are ordered from most efficient to least efficient:
+- ``mpi_overlap_bcast_mps.py`` broadcasts ``MPS``.
+- ``mpi_overlap_bcast_net.py`` broadcasts ``TensorNetwork``.
+- ``mpi_overlap_bcast_circ.py`` broadcasts ``pytket.Circuit``.
+
+In the present script, we proceed as follows:
+- Create the same symbolic circuit on every process
+- Each process creates a fraction of the ``n_circs`` instances of the symbolic circuit.
+- Broadcast these circuits to all other processes.
+- Find an efficient contraction path for the inner product TN.
+    - Since all circuits have the same structure, the same path can be used for all.
+- Distribute calculation of inner products uniformly accross processes. Each process:
+    - Creates a TN representing the inner product ``<0|C_i^dagger C_j|0>``
+    - Contracts the TN using the contraction path previously found.
+
+The script is able to run on any number of processes; each process must have access to
+a GPU of its own.
+
+Notes:
+    - We used a very shallow circuit with low entanglement so that contraction time is
+      short. Other circuits may be used with varying cost in runtime and memory.
+    - Here we are using ``cq.contract`` directly (i.e. cuTensorNet API), but other
+      functionalities from our extension (and the backend itself) could be used
+      in a similar script.
+"""
+
 import sys
 from random import random
 
@@ -7,7 +42,7 @@ import cuquantum as cq
 
 from pytket.circuit import Circuit, fresh_symbol
 
-from pytket.extensions.cuquantum import TensorNetwork
+from pytket.extensions.cutensornet import TensorNetwork
 
 # Parameters
 if len(sys.argv) < 3:

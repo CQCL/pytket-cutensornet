@@ -1,3 +1,39 @@
+"""
+This example showcases the use of MPI to run an embarrasingly parallel task on multiple
+GPUs. The task is to find the inner products of all pairs of ``n_circ`` circuits; each
+inner product can be computed separately from the rest, hence the parallelism.
+All of the circuits in this example are defined in terms of the same symbolic circuit
+``sym_circ`` on ``n_qubits``, with the symbols taking random values for each circuit.
+
+This is one script in a set of three scripts (all named ``mpi_overlap_bcast_*``)
+where the difference is which object is broadcasted between the processes. These
+are ordered from most efficient to least:
+- ``mpi_overlap_bcast_mps.py`` broadcasts ``MPS``.
+- ``mpi_overlap_bcast_net.py`` broadcasts ``TensorNetwork``.
+- ``mpi_overlap_bcast_circ.py`` broadcasts ``pytket.Circuit``.
+
+In the present script, we proceed as follows:
+- Create the same symbolic circuit on every process
+- Each process creates a fraction of the ``n_circs`` instances of the symbolic circuit.
+    - Then, do *exact* simulation of each of the circuits using an MPS approach.
+- Broadcast the resulting ``MPS`` objects to all other processes.
+- Distribute calculation of inner products uniformly accross processes. Each process:
+    - Obtains the inner product ``<0|C_i^dagger C_j|0>`` using ``vdot`` of the MPS.
+
+The script is able to run on any number of processes; each process must have access to
+a GPU of its own.
+
+Notes:
+    - We used a very shallow circuit with low entanglement so that contraction time is
+      short. Other circuits may be used with varying cost in runtime and memory.
+    - Here we are using ``cq.contract`` directly (i.e. cuTensorNet API), but other
+      functionalities from our extension (and the backend itself) could be used
+      in a similar script.
+    - The reason this is the fastest approach is that we want to do as much work as
+      possible outside of the loop that computes the inner products: this loop iterates
+      ``O(n_circs^2)`` times, but we only need to contract ``O(n_circ)`` MPS objects.
+"""
+
 import sys
 from random import random
 
@@ -6,15 +42,13 @@ from mpi4py import MPI
 
 from pytket.circuit import Circuit, fresh_symbol
 
-from pytket.extensions.cuquantum.mps import simulate
+from pytket.extensions.cutensornet.mps import simulate, ContractionAlg
 
 # Parameters
 if len(sys.argv) < 3:
     print(f"You need call this script as {sys.argv[0]} <n_qubits> <n_circs>")
 n_qubits = int(sys.argv[1])
 n_circs = int(sys.argv[2])
-# Set chi for exact contraction
-chi = 2 ** (n_qubits // 2)
 
 root = 0
 comm = MPI.COMM_WORLD
@@ -69,7 +103,7 @@ if rank == root:
 # Contract the MPS of each of the circuits in this process
 this_proc_mps = []
 for circ in this_proc_circs:
-    this_proc_mps.append(simulate(circ, "MPSxGate", chi, device_id=device_id))
+    this_proc_mps.append(simulate(circ, ContractionAlg.MPSxGate, device_id=device_id))
 
 if rank == root:
     time1 = MPI.Wtime()
