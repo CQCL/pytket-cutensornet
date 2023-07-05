@@ -10,12 +10,12 @@ We proceed as follows:
 - Broadcast these circuits to all other processes.
 - Find an efficient contraction path for the inner product TN.
     - Since all circuits have the same structure, the same path can be used for all.
-- Distribute the calculation of inner products uniformly accross processes. Each process:
+- Distribute calculation of inner products uniformly accross processes. Each process:
     - Creates a TN representing the inner product ``<0|C_i^dagger C_j|0>``
     - Contracts the TN using the contraction path previously found.
 
-The script is able to run on any number of processes, as long as each process has access
-to a GPU of its own.
+The script is able to run on any number of processes, if each process has access to
+a GPU of its own.
 
 Notes:
     - We used a very shallow circuit with low entanglement so that contraction time is
