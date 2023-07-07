@@ -14,7 +14,7 @@
 from __future__ import annotations  # type: ignore
 import warnings
 
-from typing import Optional, Any, Union
+from typing import Optional, Union
 
 import numpy as np  # type: ignore
 
@@ -236,12 +236,13 @@ class MPSxMPO(MPS):
         S_d = cp.empty(4, dtype=self._real_t)
 
         # Create tensor descriptors
-        G_desc = G.get_tensor_descriptor(self._libhandle)
-        L_desc = L.get_tensor_descriptor(self._libhandle)
-        R_desc = R.get_tensor_descriptor(self._libhandle)
+        assert self._lib is not None
+        G_desc = G.get_tensor_descriptor(self._lib)
+        L_desc = L.get_tensor_descriptor(self._lib)
+        R_desc = R.get_tensor_descriptor(self._lib)
 
         # Configure SVD parameters
-        svd_config = cutn.create_tensor_svd_config(self._libhandle)
+        svd_config = cutn.create_tensor_svd_config(self._lib.handle)
 
         svd_config_attributes = [
             # TensorSVDPartition.US asks that cuTensorNet automatically
@@ -257,17 +258,17 @@ class MPSxMPO(MPS):
             attr_dtype = cutn.tensor_svd_config_get_attribute_dtype(attr)
             value = np.array([value], dtype=attr_dtype)
             cutn.tensor_svd_config_set_attribute(
-                self._libhandle,
+                self._lib.handle,
                 svd_config,
                 attr,
                 value.ctypes.data,
                 value.dtype.itemsize,
             )
-        svd_info = cutn.create_tensor_svd_info(self._libhandle)
+        svd_info = cutn.create_tensor_svd_info(self._lib.handle)
 
         # Apply SVD decomposition; no truncation takes place
         cutn.tensor_svd(
-            self._libhandle,
+            self._lib.handle,
             G_desc,
             G.data.data.ptr,
             L_desc,

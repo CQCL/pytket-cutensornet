@@ -92,12 +92,12 @@ def get_amplitude(mps: MPS, state: int) -> complex:
     Returns:
         The amplitude of the computational state in the MPS.
     """
-    if mps._libhandle is None:
+    if mps._lib is None:
         raise RuntimeError("Must be called inside a with mps.init_cutensornet() block.")
 
     mps_qubits = list(mps.qubit_position.keys())
     bra_mps = MPSxGate(mps_qubits)
-    bra_mps._libhandle = mps._libhandle
+    bra_mps._lib = mps._lib
 
     ilo_qubits = sorted(mps_qubits)
     for i, q in enumerate(ilo_qubits):

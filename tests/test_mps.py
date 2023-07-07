@@ -10,6 +10,7 @@ from pytket.circuit import Circuit  # type: ignore
 from pytket.extensions.cutensornet.mps import (
     CuTensorNetHandle,
     Tensor,
+    MPS,
     MPSxGate,
     MPSxMPO,
     simulate,
@@ -25,22 +26,22 @@ def test_libhandle_manager() -> None:
 
     # Catch exception due to no library handle initialised
     exception_caught = False
-    try
-        mps.is_valid()
-    except RuntimeException:
+    try:
+        mps.vdot(mps)
+    except RuntimeError:
         exception_caught = True
     assert exception_caught
 
     # Proper use of library handle
-    with CuTensorNetHandle as libhandle:
+    with CuTensorNetHandle() as libhandle:
         mps.set_libhandle(libhandle)
-        assert mps.is_valid()
+        assert np.isclose(mps.vdot(mps), 1, atol=mps._atol)
 
     # Catch exception due to library handle out of scope
     exception_caught = False
-    try
-        mps.is_valid()
-    except RuntimeException:
+    try:
+        mps.vdot(mps)
+    except RuntimeError:
         exception_caught = True
     assert exception_caught
 

@@ -49,9 +49,10 @@ class CuTensorNetHandle:
     """Context manager for the cuTensorNet library handle.
 
     Attributes:
-        libhandle: The cuTensorNet library handle.
+        handle: The cuTensorNet library handle.
         device_id: The ID of the device (GPU) where cuTensorNet is initialised.
     """
+
     def __init__(self, device_id: Optional[int] = None):
         """Initialise the cuTensorNet library with automatic workspace memory
         management allocation.
@@ -64,7 +65,7 @@ class CuTensorNetHandle:
             device_id: The ID of the device (GPU) where cuTensorNet is initialised.
                 If not provided, defaults to ``cp.cuda.Device()``.
         """
-        self.libhandle = cutn.create()
+        self.handle = cutn.create()
         self.device_id = device_id
         dev = cp.cuda.Device(device_id)
 
@@ -91,15 +92,16 @@ class CuTensorNetHandle:
             cp.cuda.runtime.freeAsync(ptr, stream)
 
         memhandle = (malloc, free, "memory_handler")
-        cutn.set_device_mem_handler(self.libhandle, memhandle)
+        cutn.set_device_mem_handler(self.handle, memhandle)
 
-        def __enter__(self) -> CuTensorNetHandle:
-            self._is_destroyed = False
-            return self
+    def __enter__(self) -> CuTensorNetHandle:
+        self._is_destroyed = False
+        return self
 
-        def __exit__(self, exc_type: Any, exc_value: Any, exc_tb: Any) -> None:
-            cutn.destroy(self._libhandle)
-            self._is_destroyed = True
+    def __exit__(self, exc_type: Any, exc_value: Any, exc_tb: Any) -> None:
+        cutn.destroy(self.handle)
+        self._is_destroyed = True
+
 
 class Tensor:
     """Class for the management of tensors via CuPy and cuTensorNet.
@@ -125,7 +127,7 @@ class Tensor:
         self.bonds = bonds
         self.canonical_form: Optional[DirectionMPS] = None
 
-    def get_tensor_descriptor(self, libhandle: CuTensorNetHandle) -> Handle:
+    def get_tensor_descriptor(self, lib: CuTensorNetHandle) -> Handle:
         """Return the cuTensorNet tensor descriptor.
 
         Note:
@@ -133,20 +135,18 @@ class Tensor:
             not in use (see ``cuquantum.cutensornet.destroy_tensor_descriptor``).
 
         Args:
-            libhandle: The cuTensorNet library handle.
+            lib: The cuTensorNet library handle.
 
         Returns:
             The handle to the tensor descriptor.
 
         Raises:
-            RuntimeError: If ``libhandle`` is no longer in scope.
+            RuntimeError: If ``lib`` is no longer in scope.
             TypeError: If the type of the tensor is not supported. Supported types are
                 ``np.float32``, ``np.float64``, ``np.complex64`` and ``np.complex128``.
         """
-        if libhandle._is_destroyed:
-            raise RuntimeError(
-                "The library handle you passed is no longer in scope."
-            )
+        if lib._is_destroyed:
+            raise RuntimeError("The library handle you passed is no longer in scope.")
         if self.data.dtype == np.float32:
             cq_dtype = cq.cudaDataType.CUDA_R_32F
         elif self.data.dtype == np.float64:
@@ -161,7 +161,7 @@ class Tensor:
             )
 
         return cutn.create_tensor_descriptor(  # type: ignore
-            handle=libhandle,
+            handle=lib.handle,
             n_modes=len(self.data.shape),
             extents=self.data.shape,
             strides=self._get_cuquantum_strides(),
@@ -297,7 +297,7 @@ class MPS:
 
         self._stream: cp.cuda.Stream = cp.cuda.get_current_stream()
         # The library handle is not initialised by default
-        self._libhandle: Optional[Handle] = None
+        self._lib: Optional[CuTensorNetHandle] = None
 
         #######################################
         # Initialise the MPS with a |0> state #
@@ -398,10 +398,10 @@ class MPS:
                 qubits.
             RuntimeError: If physical bond dimension where gate is applied is not 2.
         """
-        if self._libhandle is None or self._libhandle._is_destroyed:
+        if self._lib is None or self._lib._is_destroyed:
             raise RuntimeError(
                 "Provide a valid cuTensorNet library handle to the MPS object.",
-                "See the documentation of set_libhandle and CuTensorNetHandle."
+                "See the documentation of set_libhandle and CuTensorNetHandle.",
             )
 
         positions = [self.qubit_position[q] for q in gate.qubits]
@@ -477,10 +477,10 @@ class MPS:
             # Tensor already in canonical form, nothing needs to be done
             return None
 
-        if self._libhandle is None or self._libhandle._is_destroyed:
+        if self._lib is None or self._lib._is_destroyed:
             raise RuntimeError(
                 "Provide a valid cuTensorNet library handle to the MPS object.",
-                "See the documentation of set_libhandle and CuTensorNetHandle."
+                "See the documentation of set_libhandle and CuTensorNetHandle.",
             )
 
         if form == DirectionMPS.LEFT:
@@ -548,13 +548,13 @@ class MPS:
         R = Tensor(R_d, R_bonds)
 
         # Create tensor descriptors
-        T_desc = T.get_tensor_descriptor(self._libhandle)
-        Q_desc = Q.get_tensor_descriptor(self._libhandle)
-        R_desc = R.get_tensor_descriptor(self._libhandle)
+        T_desc = T.get_tensor_descriptor(self._lib)
+        Q_desc = Q.get_tensor_descriptor(self._lib)
+        R_desc = R.get_tensor_descriptor(self._lib)
 
         # Apply QR decomposition
         cutn.tensor_qr(
-            self._libhandle,
+            self._lib.handle,
             T_desc,
             T_d.data.ptr,
             Q_desc,
@@ -612,10 +612,10 @@ class MPS:
         Return:
             The resulting complex number.
         """
-        if self._libhandle is None or self._libhandle._is_destroyed:
+        if self._lib is None or self._lib._is_destroyed:
             raise RuntimeError(
                 "Provide a valid cuTensorNet library handle to the MPS object.",
-                "See the documentation of set_libhandle and CuTensorNetHandle."
+                "See the documentation of set_libhandle and CuTensorNetHandle.",
             )
 
         if len(self) != len(other):
@@ -751,11 +751,11 @@ class MPS:
             RuntimeError: If the ``device_id`` of the ``libhandle`` does not match
                 the one of the ``MPS`` object.
         """
-        if libhandle.device_id != self.device_id:
+        if libhandle.device_id != self._device_id:
             raise RuntimeError(
                 "The device ID of the library handle does not match the one of the MPS."
             )
-        self._libhandle = libhandle
+        self._lib = libhandle
 
     def copy(self, device_id: Optional[int] = None) -> MPS:
         """Returns a deep copy of self.
