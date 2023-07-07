@@ -21,7 +21,7 @@ Classes
 .. autoclass:: pytket.extensions.cutensornet.mps.MPS()
 
     .. automethod:: __init__
-    .. automethod:: init_cutensornet
+    .. automethod:: set_libhandle
     .. automethod:: apply_gate
     .. automethod:: vdot
     .. automethod:: canonicalise
@@ -42,6 +42,8 @@ Classes
     :show-inheritance:
 
     .. automethod:: __init__
+
+.. autoclass:: pytket.extensions.cutensornet.mps.CuTensorNetHandle
 
 .. autoclass:: pytket.extensions.cutensornet.mps.Tensor()
 
