@@ -29,7 +29,7 @@ except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
 from pytket.circuit import Op, Qubit  # type: ignore
-from .mps import DirectionMPS, Bond, Tensor, MPS
+from .mps import CuTensorNetHandle, DirectionMPS, Bond, Tensor, MPS
 from .mps_gate import MPSxGate
 
 
@@ -108,20 +108,16 @@ class MPSxMPO(MPS):
 
         self._mpo_bond_counter = 0
 
-    def init_cutensornet(self) -> MPSxMPO:
-        """Initialises the cuTensorNet library and links it to this MPS object.
+    def set_libhandle(self, libhandle: CuTensorNetHandle) -> None:
+        """Set the library handle used by this ``MPS`` object. Multiple objects
+        may use the same library handle.
 
-        This is a necessary step before doing any calculation on the MPS.
-
-        Note:
-            Always use as ``with mps.init_cutensornet():`` so that cuTensorNet
-            handles are automatically destroyed at the end of execution.
+        Raises:
+            RuntimeError: If the ``device_id`` of the ``libhandle`` does not match
+                the one of the ``MPS`` object.
         """
-        super().init_cutensornet()
-        self._aux_mps._libhandle = self._libhandle
-        self._aux_mps._stream = self._stream
-
-        return self
+        super().set_libhandle(libhandle)
+        self._aux_mps.set_libhandle(libhandle)
 
     def _apply_1q_gate(self, position: int, gate: Op) -> MPSxMPO:
         """Applies the 1-qubit gate to the MPS.
@@ -555,13 +551,3 @@ class MPSxMPO(MPS):
     def _new_bond_id(self) -> Bond:
         self._mpo_bond_counter += 1
         return 2 * len(self) + self._mpo_bond_counter
-
-    def __enter__(self) -> MPSxMPO:
-        return self
-
-    def __exit__(self, exc_type: Any, exc_value: Any, exc_tb: Any) -> None:
-        cutn.destroy(self._libhandle)
-        self._libhandle = None
-        self._stream = None
-        self._aux_mps._libhandle = None
-        self._aux_mps._stream = None

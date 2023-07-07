@@ -9,7 +9,7 @@ from pytket.architecture import Architecture  # type: ignore
 from pytket.passes import DefaultMappingPass  # type: ignore
 from pytket.predicates import CompilationUnit  # type: ignore
 
-from .mps import MPS
+from .mps import CuTensorNetHandle, MPS
 from .mps_gate import MPSxGate
 from .mps_mpo import MPSxMPO
 
@@ -73,7 +73,8 @@ def simulate(circuit: Circuit, algorithm: ContractionAlg, **kwargs: Any) -> MPS:
     sorted_gates = _get_sorted_gates(circuit)
 
     # Apply the gates
-    with mps.init_cutensornet():
+    with CuTensorNetHandle() as libhandle:
+        mps.set_libhandle(libhandle)
         for g in sorted_gates:
             mps.apply_gate(g)
 

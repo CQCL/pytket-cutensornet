@@ -45,6 +45,62 @@ class DirectionMPS(Enum):
     RIGHT = 1
 
 
+class CuTensorNetHandle:
+    """Context manager for the cuTensorNet library handle.
+
+    Attributes:
+        libhandle: The cuTensorNet library handle.
+        device_id: The ID of the device (GPU) where cuTensorNet is initialised.
+    """
+    def __init__(self, device_id: Optional[int] = None):
+        """Initialise the cuTensorNet library with automatic workspace memory
+        management allocation.
+
+        Note:
+            Always use as ``with CuTensorNetHandle() as libhandle:`` so that cuTensorNet
+            handles are automatically destroyed at the end of execution.
+
+        Args:
+            device_id: The ID of the device (GPU) where cuTensorNet is initialised.
+                If not provided, defaults to ``cp.cuda.Device()``.
+        """
+        self.libhandle = cutn.create()
+        self.device_id = device_id
+        dev = cp.cuda.Device(device_id)
+
+        if cp.cuda.runtime.runtimeGetVersion() < 11020:
+            raise RuntimeError("Requires CUDA 11.2+.")
+        if not dev.attributes["MemoryPoolsSupported"]:
+            raise RuntimeError("Device does not support CUDA Memory pools")
+
+        # Avoid shrinking the pool
+        mempool = cp.cuda.runtime.deviceGetDefaultMemPool(dev.id)
+        if int(cp.__version__.split(".")[0]) >= 10:
+            # this API is exposed since CuPy v10
+            cp.cuda.runtime.memPoolSetAttribute(
+                mempool,
+                cp.cuda.runtime.cudaMemPoolAttrReleaseThreshold,
+                0xFFFFFFFFFFFFFFFF,  # = UINT64_MAX
+            )
+
+        # A device memory handler lets CuTensorNet manage its own GPU memory
+        def malloc(size, stream):  # type: ignore
+            return cp.cuda.runtime.mallocAsync(size, stream)
+
+        def free(ptr, size, stream):  # type: ignore
+            cp.cuda.runtime.freeAsync(ptr, stream)
+
+        memhandle = (malloc, free, "memory_handler")
+        cutn.set_device_mem_handler(self.libhandle, memhandle)
+
+        def __enter__(self) -> CuTensorNetHandle:
+            self._is_destroyed = False
+            return self
+
+        def __exit__(self, exc_type: Any, exc_value: Any, exc_tb: Any) -> None:
+            cutn.destroy(self._libhandle)
+            self._is_destroyed = True
+
 class Tensor:
     """Class for the management of tensors via CuPy and cuTensorNet.
 
@@ -69,7 +125,7 @@ class Tensor:
         self.bonds = bonds
         self.canonical_form: Optional[DirectionMPS] = None
 
-    def get_tensor_descriptor(self, libhandle: Any) -> Handle:
+    def get_tensor_descriptor(self, libhandle: CuTensorNetHandle) -> Handle:
         """Return the cuTensorNet tensor descriptor.
 
         Note:
@@ -83,13 +139,13 @@ class Tensor:
             The handle to the tensor descriptor.
 
         Raises:
-            RuntimeError: If ``libhandle`` is ``None``.
+            RuntimeError: If ``libhandle`` is no longer in scope.
             TypeError: If the type of the tensor is not supported. Supported types are
                 ``np.float32``, ``np.float64``, ``np.complex64`` and ``np.complex128``.
         """
-        if libhandle is None:
+        if libhandle._is_destroyed:
             raise RuntimeError(
-                "Must be called inside a `with mps.init_cutensornet()` block."
+                "The library handle you passed is no longer in scope."
             )
         if self.data.dtype == np.float32:
             cq_dtype = cq.cudaDataType.CUDA_R_32F
@@ -239,10 +295,9 @@ class MPS:
         # Make sure CuPy uses the specified device
         cp.cuda.Device(device_id).use()
 
-        # Library handle and stream not initialised by default;
-        # user needs to call `init_cutensornet`.
+        self._stream: cp.cuda.Stream = cp.cuda.get_current_stream()
+        # The library handle is not initialised by default
         self._libhandle: Optional[Handle] = None
-        self._stream: Optional[cp.cuda.Stream] = None
 
         #######################################
         # Initialise the MPS with a |0> state #
@@ -323,45 +378,6 @@ class MPS:
 
         return chi_ok and phys_ok and shape_ok and v_bonds_ok
 
-    def init_cutensornet(self) -> MPS:
-        """Initialise the cuTensorNet library and link it to this MPS object.
-        This is a necessary step before doing any calculation on the MPS.
-
-        Note:
-            Always use as ``with mps.init_cutensornet():`` so that cuTensorNet
-            handles are automatically destroyed at the end of execution.
-        """
-        self._libhandle = cutn.create()
-        self._stream = cp.cuda.Stream()
-        dev = cp.cuda.Device(self._device_id)
-
-        if cp.cuda.runtime.runtimeGetVersion() < 11020:
-            raise RuntimeError("Requires CUDA 11.2+.")
-        if not dev.attributes["MemoryPoolsSupported"]:
-            raise RuntimeError("Device does not support CUDA Memory pools")
-
-        # Avoid shrinking the pool
-        mempool = cp.cuda.runtime.deviceGetDefaultMemPool(dev.id)
-        if int(cp.__version__.split(".")[0]) >= 10:
-            # this API is exposed since CuPy v10
-            cp.cuda.runtime.memPoolSetAttribute(
-                mempool,
-                cp.cuda.runtime.cudaMemPoolAttrReleaseThreshold,
-                0xFFFFFFFFFFFFFFFF,  # = UINT64_MAX
-            )
-
-        # A device memory handler lets CuTensorNet manage its own GPU memory
-        def malloc(size, stream):  # type: ignore
-            return cp.cuda.runtime.mallocAsync(size, stream)
-
-        def free(ptr, size, stream):  # type: ignore
-            cp.cuda.runtime.freeAsync(ptr, stream)
-
-        memhandle = (malloc, free, "memory_handler")
-        cutn.set_device_mem_handler(self._libhandle, memhandle)
-
-        return self
-
     def apply_gate(self, gate: Command) -> MPS:
         """Apply the gate to the MPS.
 
@@ -376,14 +392,16 @@ class MPS:
             ``self``, to allow for method chaining.
 
         Raises:
-            RuntimeError: If called outside of ``mps.init_cutensornet()`` block.
+            RuntimeError: If the library handle has not been set of is out of scope.
+                See ``set_libhandle``.
             RuntimeError: If gate acts on more than 2 qubits or acts on non-adjacent
                 qubits.
             RuntimeError: If physical bond dimension where gate is applied is not 2.
         """
-        if self._libhandle is None:
+        if self._libhandle is None or self._libhandle._is_destroyed:
             raise RuntimeError(
-                "Must be called inside a with mps.init_cutensornet() block."
+                "Provide a valid cuTensorNet library handle to the MPS object.",
+                "See the documentation of set_libhandle and CuTensorNetHandle."
             )
 
         positions = [self.qubit_position[q] for q in gate.qubits]
@@ -451,16 +469,18 @@ class MPS:
 
         Raises:
             ValueError: If ``form`` is not a value in ``DirectionMPS``.
-            RuntimeError: If called outside of ``mps.init_cutensornet()`` block.
+            RuntimeError: If the library handle has not been set of is out of scope.
+                See ``set_libhandle``.
             RuntimeError: If position and form don't match.
         """
         if form == self.tensors[pos].canonical_form:
             # Tensor already in canonical form, nothing needs to be done
             return None
 
-        if self._libhandle is None:
+        if self._libhandle is None or self._libhandle._is_destroyed:
             raise RuntimeError(
-                "Must be called inside a with mps.init_cutensornet() block."
+                "Provide a valid cuTensorNet library handle to the MPS object.",
+                "See the documentation of set_libhandle and CuTensorNetHandle."
             )
 
         if form == DirectionMPS.LEFT:
@@ -585,15 +605,17 @@ class MPS:
             other: The other MPS to compare against.
 
         Raises:
-            RuntimeError: If called outside of ``mps.init_cutensornet()`` block.
+            RuntimeError: If the library handle has not been set of is out of scope.
+                See ``set_libhandle``.
             RuntimeError: If number of tensors, dimensions or positions do not match.
 
         Return:
             The resulting complex number.
         """
-        if self._libhandle is None:
+        if self._libhandle is None or self._libhandle._is_destroyed:
             raise RuntimeError(
-                "Must be called inside a with mps.init_cutensornet() block."
+                "Provide a valid cuTensorNet library handle to the MPS object.",
+                "See the documentation of set_libhandle and CuTensorNetHandle."
             )
 
         if len(self) != len(other):
@@ -721,6 +743,20 @@ class MPS:
             self.get_physical_bond(position)
         )
 
+    def set_libhandle(self, libhandle: CuTensorNetHandle) -> None:
+        """Set the library handle used by this ``MPS`` object. Multiple objects
+        may use the same library handle.
+
+        Raises:
+            RuntimeError: If the ``device_id`` of the ``libhandle`` does not match
+                the one of the ``MPS`` object.
+        """
+        if libhandle.device_id != self.device_id:
+            raise RuntimeError(
+                "The device ID of the library handle does not match the one of the MPS."
+            )
+        self._libhandle = libhandle
+
     def copy(self, device_id: Optional[int] = None) -> MPS:
         """Returns a deep copy of self.
 
@@ -754,14 +790,6 @@ class MPS:
             The number of tensors in the MPS.
         """
         return len(self.tensors)
-
-    def __enter__(self) -> MPS:
-        return self
-
-    def __exit__(self, exc_type: Any, exc_value: Any, exc_tb: Any) -> None:
-        cutn.destroy(self._libhandle)
-        self._libhandle = None
-        self._stream = None
 
     def _apply_1q_gate(self, position: int, gate: Op) -> MPS:
         raise NotImplementedError(
