@@ -46,25 +46,21 @@ class DirectionMPS(Enum):
 
 
 class CuTensorNetHandle:
-    """Context manager for the cuTensorNet library handle.
+    """Initialise the cuTensorNet library with automatic workspace memory
+    management.
+
+    Note:
+        Always use as ``with CuTensorNetHandle() as libhandle:`` so that cuTensorNet
+        handles are automatically destroyed at the end of execution.
 
     Attributes:
-        handle: The cuTensorNet library handle.
-        device_id: The ID of the device (GPU) where cuTensorNet is initialised.
+        handle (int): The cuTensorNet library handle created by this initialisation.
+        device_id (int): The ID of the device (GPU) where cuTensorNet is initialised.
+            If not provided, defaults to ``cp.cuda.Device()``.
     """
 
     def __init__(self, device_id: Optional[int] = None):
-        """Initialise the cuTensorNet library with automatic workspace memory
-        management allocation.
 
-        Note:
-            Always use as ``with CuTensorNetHandle() as libhandle:`` so that cuTensorNet
-            handles are automatically destroyed at the end of execution.
-
-        Args:
-            device_id: The ID of the device (GPU) where cuTensorNet is initialised.
-                If not provided, defaults to ``cp.cuda.Device()``.
-        """
         self.handle = cutn.create()
         self.device_id = device_id
         dev = cp.cuda.Device(device_id)
