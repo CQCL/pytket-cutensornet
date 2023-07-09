@@ -238,7 +238,9 @@ class MPSxGate(MPS):
                 memptr=R.data.data,
                 strides=R.data.strides,
             )
-            S_d = cp.ndarray(new_dim, dtype=self._real_t, memptr=S_d.data)  # noqa: E1123
+            S_d = cp.ndarray(
+                new_dim, dtype=self._real_t, memptr=S_d.data
+            )  # noqa: E1123
 
             # Normalise
             S_d *= np.sqrt(1 / this_fidelity)
