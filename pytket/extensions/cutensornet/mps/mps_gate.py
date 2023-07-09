@@ -225,22 +225,23 @@ class MPSxGate(MPS):
             # Reshape tensors down to `new_dim` for the virtual bond
             # No data is copied or moved around, we're changing the ndarray bounds
             l_shape[-2] = new_dim
+            # pylint: disable = unexpected-keyword-arg   # Disable pylint for next line
             L.data = cp.ndarray(
                 l_shape,
                 dtype=self._complex_t,
-                memptr=L.data.data,  # noqa: E1123
+                memptr=L.data.data,
                 strides=L.data.strides,
             )
             r_shape[0] = new_dim
+            # pylint: disable = unexpected-keyword-arg   # Disable pylint for next line
             R.data = cp.ndarray(
                 r_shape,
                 dtype=self._complex_t,
-                memptr=R.data.data,  # noqa: E1123
+                memptr=R.data.data,
                 strides=R.data.strides,
             )
-            S_d = cp.ndarray(
-                new_dim, dtype=self._real_t, memptr=S_d.data  # noqa: E1123
-            )
+            # pylint: disable = unexpected-keyword-arg   # Disable pylint for next line
+            S_d = cp.ndarray(new_dim, dtype=self._real_t, memptr=S_d.data)
 
             # Normalise
             S_d *= np.sqrt(1 / this_fidelity)
