@@ -63,6 +63,7 @@ class CuTensorNetHandle:
 
         self.handle = cutn.create()
         self.device_id = device_id
+        self._is_destroyed = True
         dev = cp.cuda.Device(device_id)
 
         if cp.cuda.runtime.runtimeGetVersion() < 11020:
@@ -123,7 +124,7 @@ class Tensor:
         self.bonds = bonds
         self.canonical_form: Optional[DirectionMPS] = None
 
-    def get_tensor_descriptor(self, lib: CuTensorNetHandle) -> Handle:
+    def get_tensor_descriptor(self, libhandle: CuTensorNetHandle) -> Handle:
         """Return the cuTensorNet tensor descriptor.
 
         Note:
@@ -131,7 +132,7 @@ class Tensor:
             not in use (see ``cuquantum.cutensornet.destroy_tensor_descriptor``).
 
         Args:
-            lib: The cuTensorNet library handle.
+            libhandle: The cuTensorNet library handle.
 
         Returns:
             The handle to the tensor descriptor.
@@ -141,7 +142,7 @@ class Tensor:
             TypeError: If the type of the tensor is not supported. Supported types are
                 ``np.float32``, ``np.float64``, ``np.complex64`` and ``np.complex128``.
         """
-        if lib._is_destroyed:
+        if libhandle._is_destroyed:
             raise RuntimeError("The library handle you passed is no longer in scope.")
         if self.data.dtype == np.float32:
             cq_dtype = cq.cudaDataType.CUDA_R_32F
@@ -157,7 +158,7 @@ class Tensor:
             )
 
         return cutn.create_tensor_descriptor(  # type: ignore
-            handle=lib.handle,
+            handle=libhandle.handle,
             n_modes=len(self.data.shape),
             extents=self.data.shape,
             strides=self._get_cuquantum_strides(),
