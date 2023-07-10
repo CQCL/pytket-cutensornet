@@ -113,8 +113,8 @@ class MPSxMPO(MPS):
         may use the same library handle.
 
         Raises:
-            RuntimeError: If the ``device_id`` of the ``libhandle`` does not match
-                the one of the ``MPS`` object.
+            RuntimeError: If the device (GPU) where ``libhandle`` was initialised
+                does not match the one where the tensors of the MPS are stored.
         """
         super().set_libhandle(libhandle)
         self._aux_mps.set_libhandle(libhandle)

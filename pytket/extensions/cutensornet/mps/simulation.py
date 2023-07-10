@@ -93,7 +93,10 @@ def get_amplitude(mps: MPS, state: int) -> complex:
         The amplitude of the computational state in the MPS.
     """
     if mps._lib is None:
-        raise RuntimeError("Must be called inside a with mps.init_cutensornet() block.")
+        raise RuntimeError(
+            "Provide a valid cuTensorNet library handle to the MPS object.",
+            "See the documentation of set_libhandle and CuTensorNetHandle.",
+        )
 
     mps_qubits = list(mps.qubit_position.keys())
     bra_mps = MPSxGate(mps_qubits)
