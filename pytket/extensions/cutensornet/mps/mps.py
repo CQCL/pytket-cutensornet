@@ -61,9 +61,9 @@ class CuTensorNetHandle:
 
     def __init__(self, device_id: Optional[int] = None):
         self.handle = cutn.create()
-        self.device_id = device_id
-        self._is_destroyed = True
+        self._is_destroyed = False
         dev = cp.cuda.Device(device_id)
+        self.device_id = int(dev)
 
         if cp.cuda.runtime.runtimeGetVersion() < 11020:
             raise RuntimeError("Requires CUDA 11.2+.")
@@ -91,7 +91,6 @@ class CuTensorNetHandle:
         cutn.set_device_mem_handler(self.handle, memhandle)
 
     def __enter__(self) -> CuTensorNetHandle:
-        self._is_destroyed = False
         return self
 
     def __exit__(self, exc_type: Any, exc_value: Any, exc_tb: Any) -> None:
@@ -287,7 +286,6 @@ class MPS:
                 f"Value of float_precision must be in {allowed_precisions}."
             )
 
-        self._device_id = device_id
         # Make sure CuPy uses the specified device
         cp.cuda.Device(device_id).use()
 
@@ -739,37 +737,37 @@ class MPS:
             self.get_physical_bond(position)
         )
 
+    def get_device_id(self) -> int:
+        """
+        Returns:
+            The identifier of the device (GPU) where the tensors are stored.
+        """
+        return int(self.tensors[0].data.device)
+
     def set_libhandle(self, libhandle: CuTensorNetHandle) -> None:
         """Set the library handle used by this ``MPS`` object. Multiple objects
         may use the same library handle.
 
         Raises:
-            RuntimeError: If the ``device_id`` of the ``libhandle`` does not match
-                the one of the ``MPS`` object.
+            RuntimeError: If the device (GPU) where ``libhandle`` was initialised
+                does not match the one where the tensors of the MPS are stored.
         """
-        if libhandle.device_id != self._device_id:
+        if libhandle.device_id != self.get_device_id():
             raise RuntimeError(
-                "The device ID of the library handle does not match the one of the MPS."
+                "Device of libhandle is not the one where the MPS is stored.",
+                f"{libhandle.device_id} != {self.get_device_id()}",
             )
         self._lib = libhandle
 
-    def copy(self, device_id: Optional[int] = None) -> MPS:
-        """Returns a deep copy of self.
-
-        Args:
-            device_id: The identifier of the GPU where the copy is meant to be kept.
-                If not provided, the same device as ``self`` will be used.
-
+    def copy(self) -> MPS:
+        """
         Returns:
-            A deep copy of the MPS.
+            A deep copy of the MPS on the same device.
         """
         self._flush()
 
-        if device_id is None:
-            device_id = self._device_id
-
         # Create a dummy object
-        new_mps = MPS(qubits=[], chi=self.chi, device_id=device_id)
+        new_mps = MPS(qubits=[], chi=self.chi, device_id=self.get_device_id())
         # Copy all data
         new_mps.truncation_fidelity = self.truncation_fidelity
         new_mps.fidelity = self.fidelity

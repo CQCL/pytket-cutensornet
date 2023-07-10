@@ -29,6 +29,7 @@ Classes
     .. automethod:: get_virtual_dimensions
     .. automethod:: get_physical_bond
     .. automethod:: get_physical_dimension
+    .. automethod:: get_device_id
     .. automethod:: is_valid
     .. automethod:: copy
     .. automethod:: __len__
