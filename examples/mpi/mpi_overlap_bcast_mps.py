@@ -120,11 +120,9 @@ time0 = MPI.Wtime()
 for proc_i in range(n_procs):
     mps_list += comm.bcast(this_proc_mps, proc_i)
 
-# Change device ID and initialise cuTensorNet for this process
-# TODO: I don't think this is moving mem between GPUs on same node. Look into NCCL.
+# Initialise cuTensorNet for this process
 with CuTensorNetHandle(device_id) as libhandle:  # Different handle for each process
     for mps in mps_list:
-        mps._device_id = device_id
         mps.set_libhandle(libhandle)
 
     time1 = MPI.Wtime()
