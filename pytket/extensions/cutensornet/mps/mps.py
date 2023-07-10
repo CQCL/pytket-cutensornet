@@ -60,7 +60,6 @@ class CuTensorNetHandle:
     """
 
     def __init__(self, device_id: Optional[int] = None):
-
         self.handle = cutn.create()
         self.device_id = device_id
         self._is_destroyed = True
