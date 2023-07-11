@@ -136,7 +136,7 @@ class Tensor:
             The handle to the tensor descriptor.
 
         Raises:
-            RuntimeError: If ``lib`` is no longer in scope.
+            RuntimeError: If ``libhandle`` is no longer in scope.
             TypeError: If the type of the tensor is not supported. Supported types are
                 ``np.float32``, ``np.float64``, ``np.complex64`` and ``np.complex128``.
         """
@@ -267,7 +267,7 @@ class MPS:
         if chi is not None and truncation_fidelity is not None:
             raise ValueError("Cannot fix both chi and truncation_fidelity.")
         if chi is None:
-            chi = 2 ** (len(qubits) // 2)
+            chi = max(2 ** (len(qubits) // 2), 2)
         if truncation_fidelity is None:
             truncation_fidelity = 1
 
@@ -769,8 +769,9 @@ class MPS:
         self._flush()
 
         # Create a dummy object
-        new_mps = MPS(qubits=[], chi=self.chi, device_id=self.get_device_id())
+        new_mps = MPS(self._lib, qubits=[])
         # Copy all data
+        new_mps.chi = self.chi
         new_mps.truncation_fidelity = self.truncation_fidelity
         new_mps.fidelity = self.fidelity
         new_mps.tensors = [t.copy() for t in self.tensors]

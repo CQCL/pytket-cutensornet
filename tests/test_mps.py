@@ -29,12 +29,8 @@ def test_libhandle_manager() -> None:
         assert np.isclose(mps.vdot(mps), 1, atol=mps._atol)
 
     # Catch exception due to library handle out of scope
-    exception_caught = False
-    try:
+    with pytest.raises(RuntimeError):
         mps.vdot(mps)
-    except RuntimeError:
-        exception_caught = True
-    assert exception_caught
 
 
 def test_init() -> None:
@@ -287,14 +283,20 @@ def test_float_point_options(
 
         # Approximate, bound truncation fidelity
         mps = simulate(
-            libhandle, prep_circ, algorithm, truncation_fidelity=0.99, float_precision=fp_precision
+            libhandle,
+            prep_circ,
+            algorithm,
+            truncation_fidelity=0.99,
+            float_precision=fp_precision,
         )
         assert mps.is_valid()
         # Check that overlap is 1
         assert np.isclose(mps.vdot(mps), 1.0, atol=mps._atol)
 
         # Approximate, bound chi
-        mps = simulate(libhandle, prep_circ, algorithm, chi=4, float_precision=fp_precision)
+        mps = simulate(
+            libhandle, prep_circ, algorithm, chi=4, float_precision=fp_precision
+        )
         assert mps.is_valid()
         # Check that overlap is 1
         assert np.isclose(mps.vdot(mps), 1.0, atol=mps._atol)
@@ -312,13 +314,17 @@ def test_circ_approx_explicit(circuit: Circuit) -> None:
     with CuTensorNetHandle() as libhandle:
         # Finite gate fidelity
         # Check for MPSxGate
-        mps_gate = simulate(libhandle, circuit, ContractionAlg.MPSxGate, truncation_fidelity=0.99)
+        mps_gate = simulate(
+            libhandle, circuit, ContractionAlg.MPSxGate, truncation_fidelity=0.99
+        )
         assert np.isclose(mps_gate.fidelity, 0.4, atol=1e-1)
         assert mps_gate.is_valid()
         assert np.isclose(mps_gate.vdot(mps_gate), 1.0, atol=mps_gate._atol)
 
         # Check for MPSxMPO
-        mps_mpo = simulate(libhandle, circuit, ContractionAlg.MPSxMPO, truncation_fidelity=0.99)
+        mps_mpo = simulate(
+            libhandle, circuit, ContractionAlg.MPSxMPO, truncation_fidelity=0.99
+        )
         assert np.isclose(mps_mpo.fidelity, 0.6, atol=1e-1)
         assert mps_mpo.is_valid()
         assert np.isclose(mps_mpo.vdot(mps_mpo), 1.0, atol=mps_mpo._atol)

@@ -84,7 +84,7 @@ class MPSxMPO(MPS):
                 Complex numbers are represented using two of such
                 ``float`` numbers. Default is ``np.float64``.
         """
-        super().__init__(qubits, chi, truncation_fidelity, float_precision, device_id)
+        super().__init__(libhandle, qubits, chi, truncation_fidelity, float_precision)
 
         # Initialise the MPO data structure. This will keep a list of the gates
         # batched for application to the MPS; all of them will be applied at
@@ -102,7 +102,7 @@ class MPSxMPO(MPS):
         # Initialise the MPS that we will use as first approximation of the
         # variational algorithm.
         self._aux_mps = MPSxGate(
-            qubits, chi, truncation_fidelity, float_precision, device_id
+            libhandle, qubits, chi, truncation_fidelity, float_precision
         )
 
         if k is None:

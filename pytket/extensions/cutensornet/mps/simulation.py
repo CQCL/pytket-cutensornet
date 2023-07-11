@@ -25,7 +25,12 @@ class ContractionAlg(Enum):
     MPSxMPO = 1
 
 
-def simulate(libhandle: CuTensorNetHandle, circuit: Circuit, algorithm: ContractionAlg, **kwargs: Any) -> MPS:
+def simulate(
+    libhandle: CuTensorNetHandle,
+    circuit: Circuit,
+    algorithm: ContractionAlg,
+    **kwargs: Any
+) -> MPS:
     """Simulate the given circuit and return the ``MPS`` representing the final state.
 
     Note:
@@ -105,8 +110,7 @@ def get_amplitude(mps: MPS, state: int) -> complex:
         )
 
     mps_qubits = list(mps.qubit_position.keys())
-    bra_mps = MPSxGate(mps_qubits)
-    bra_mps._lib = mps._lib
+    bra_mps = MPSxGate(mps._lib, mps_qubits)
 
     ilo_qubits = sorted(mps_qubits)
     for i, q in enumerate(ilo_qubits):
