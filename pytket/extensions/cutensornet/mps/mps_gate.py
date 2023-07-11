@@ -179,16 +179,13 @@ class MPSxGate(MPS):
         if self.truncation_fidelity < 1:
             # Carry out SVD decomposition first with NO truncation
             # to figure out where to apply the dimension cutoff.
+            # Then, apply S normalisation and contraction of S and L manually.
             #
-            # NOTE: Unfortunately, it looks like there is no option
-            # in the cuTensorNet API to ask for a cutoff in terms of
-            # `discarded_weight`; ABS_CUTOFF and REL_CUTOFF aren't it.
-            # It'd be best to request them to add this feature.
-            #
-            # TODO: Benchmark if this workflow that does two SVDs on
-            # the same tensor is slower than if I were to do the
-            # tensor reshaping, normalisation of S and contraction myself.
-            # It's likely, since SVD is costly, but this is simpler.
+            # TODO: As soon as cuQuantum 23.09 is released, replace this
+            # unintuitive code with a simple update to SVDConfig so that it
+            # uses REL_SUM2_CUTOFF. Then the code in the `else` block should
+            # be run; i.e. use standard cuTensorNet API to do the SVD
+            # including normalisation and contraction of S with L.
 
             cutn.tensor_svd(
                 self._libhandle,
@@ -219,102 +216,126 @@ class MPSxGate(MPS):
             numer = 0.0
             new_dim = 0
 
+            # Take singular values until we surpass the target fidelity
             while self.truncation_fidelity > numer / denom:
                 numer += float(S_d[new_dim] ** 2)
                 new_dim += 1
+            this_fidelity = numer / denom
 
-            # We need to change the shape of the tensors
+            # Reshape tensors down to `new_dim` for the virtual bond
+            # No data is copied or moved around, we're changing the ndarray bounds
             l_shape[-2] = new_dim
-            L.data = cp.empty(l_shape, dtype=self._complex_t)
+            # pylint: disable = unexpected-keyword-arg   # Disable pylint for next line
+            L.data = cp.ndarray(
+                l_shape,
+                dtype=self._complex_t,
+                memptr=L.data.data,
+                strides=L.data.strides,
+            )
             r_shape[0] = new_dim
-            R.data = cp.empty(r_shape, dtype=self._complex_t)
-            S_d = cp.empty(new_dim, dtype=self._real_t)
+            # pylint: disable = unexpected-keyword-arg   # Disable pylint for next line
+            R.data = cp.ndarray(
+                r_shape,
+                dtype=self._complex_t,
+                memptr=R.data.data,
+                strides=R.data.strides,
+            )
+            # pylint: disable = unexpected-keyword-arg   # Disable pylint for next line
+            S_d = cp.ndarray(new_dim, dtype=self._real_t, memptr=S_d.data)
 
-            # Create new tensor descriptors
-            cutn.destroy_tensor_descriptor(L_desc)
-            cutn.destroy_tensor_descriptor(R_desc)
-            L_desc = L.get_tensor_descriptor(self._libhandle)
-            R_desc = R.get_tensor_descriptor(self._libhandle)
+            # Normalise
+            S_d *= np.sqrt(1 / this_fidelity)
 
-        # Configure SVD parameters
-        svd_config_attributes = [
-            # TensorSVDPartition.US asks that cuTensorNet automatically
-            # contracts the tensor of singular values (S) into one of the
-            # two tensors (U), named L in our case.
-            (
-                cutn.TensorSVDConfigAttribute.S_PARTITION,
-                cutn.TensorSVDPartition.US,
-            ),
-        ]
+            # Contract S into L
+            S_d = S_d.astype(dtype=self._complex_t, copy=False)
+            v_bond = L.bonds[-2]
+            # Use some einsum index magic: since `v_bond` appears in the
+            # list of bonds of the output, it is not summed over.
+            # This causes S_d to act as the intended diagonal matrix.
+            L.data = cq.contract(L.data, L.bonds, S_d, [v_bond], L.bonds)
 
-        if truncating:
-            # Renormalise after truncation. Thanks to using canonical form of
-            # the MPS and the fact that the original state is a unit vector,
-            # we know that the L2 norm of the singular values (i.e. sum of its
-            # squares) must be equal to 1. We ask cuTensorNet to renormalise
-            # the truncated S so that this is satisfied after truncation, thus
-            # making sure the resulting state is normalised.
-            svd_config_attributes.append(
+            # We multiply the fidelity of the current step to the overall fidelity
+            # to keep track of a lower bound for the fidelity.
+            self.fidelity *= this_fidelity
+
+        else:
+            # Configure SVD parameters
+            svd_config_attributes = [
+                # TensorSVDPartition.US asks that cuTensorNet automatically
+                # contracts the tensor of singular values (S) into one of the
+                # two tensors (U), named L in our case.
                 (
-                    cutn.TensorSVDConfigAttribute.S_NORMALIZATION,
-                    cutn.TensorSVDNormalization.L2,
+                    cutn.TensorSVDConfigAttribute.S_PARTITION,
+                    cutn.TensorSVDPartition.US,
+                ),
+            ]
+
+            if truncating:
+                # Renormalise after truncation. Thanks to using canonical form of
+                # the MPS and the fact that the original state is a unit vector,
+                # we know that the L2 norm of the singular values (i.e. sum of its
+                # squares) must be equal to 1. We ask cuTensorNet to renormalise
+                # the truncated S so that this is satisfied after truncation, thus
+                # making sure the resulting state is normalised.
+                svd_config_attributes.append(
+                    (
+                        cutn.TensorSVDConfigAttribute.S_NORMALIZATION,
+                        cutn.TensorSVDNormalization.L2,
+                    )
                 )
-            )
 
-        for attr, value in svd_config_attributes:
-            attr_dtype = cutn.tensor_svd_config_get_attribute_dtype(attr)
-            value = np.array([value], dtype=attr_dtype)
-            cutn.tensor_svd_config_set_attribute(
+            for attr, value in svd_config_attributes:
+                attr_dtype = cutn.tensor_svd_config_get_attribute_dtype(attr)
+                value = np.array([value], dtype=attr_dtype)
+                cutn.tensor_svd_config_set_attribute(
+                    self._libhandle,
+                    svd_config,
+                    attr,
+                    value.ctypes.data,
+                    value.dtype.itemsize,
+                )
+
+            # Apply SVD decomposition; truncation will be applied if needed
+            cutn.tensor_svd(
                 self._libhandle,
+                T_desc,
+                T.data.data.ptr,
+                L_desc,
+                L.data.data.ptr,
+                S_d.data.ptr,
+                R_desc,
+                R.data.data.ptr,
                 svd_config,
-                attr,
-                value.ctypes.data,
-                value.dtype.itemsize,
+                svd_info,
+                0,  # 0 means let cuQuantum manage mem itself
+                self._stream.ptr,  # type: ignore
             )
+            self._stream.synchronize()  # type: ignore
 
-        # Apply SVD decomposition; truncation will be applied if needed
-        cutn.tensor_svd(
-            self._libhandle,
-            T_desc,
-            T.data.data.ptr,
-            L_desc,
-            L.data.data.ptr,
-            S_d.data.ptr,
-            R_desc,
-            R.data.data.ptr,
-            svd_config,
-            svd_info,
-            0,  # 0 means let cuQuantum manage mem itself
-            self._stream.ptr,  # type: ignore
-        )
-        self._stream.synchronize()  # type: ignore
-
-        # Get an error estimate
-        discarded_weight_dtype = cutn.tensor_svd_info_get_attribute_dtype(
-            cutn.TensorSVDInfoAttribute.DISCARDED_WEIGHT
-        )
-        discarded_weight = np.empty(1, dtype=discarded_weight_dtype)
-        cutn.tensor_svd_info_get_attribute(
-            self._libhandle,
-            svd_info,
-            cutn.TensorSVDInfoAttribute.DISCARDED_WEIGHT,
-            discarded_weight.ctypes.data,
-            discarded_weight.itemsize,
-        )
-        # discarded_weight is calculated within cuTensorNet as:
-        #                             sum([s**2 for s in S'])
-        #     discarded_weight = 1 - -------------------------
-        #                             sum([s**2 for s in S])
-        # where S is the list of original singular values and S' is the set of
-        # singular values that remain after truncation (before normalisation).
-        # It can be shown that the fidelity |<psi|phi>|^2 (for |phi> and |psi>
-        # unit vectors before and after truncation) is equal to 1 - disc_weight.
-        #
-        # We multiply the fidelity of the current step to the overall fidelity
-        # to keep track of a lower bound for the fidelity.
-        if self.truncation_fidelity < 1:
-            assert self.truncation_fidelity <= 1.0 - float(discarded_weight)
-        self.fidelity *= 1.0 - float(discarded_weight)
+            # Get an error estimate
+            discarded_weight_dtype = cutn.tensor_svd_info_get_attribute_dtype(
+                cutn.TensorSVDInfoAttribute.DISCARDED_WEIGHT
+            )
+            discarded_weight = np.empty(1, dtype=discarded_weight_dtype)
+            cutn.tensor_svd_info_get_attribute(
+                self._libhandle,
+                svd_info,
+                cutn.TensorSVDInfoAttribute.DISCARDED_WEIGHT,
+                discarded_weight.ctypes.data,
+                discarded_weight.itemsize,
+            )
+            # discarded_weight is calculated within cuTensorNet as:
+            #                             sum([s**2 for s in S'])
+            #     discarded_weight = 1 - -------------------------
+            #                             sum([s**2 for s in S])
+            # where S is the list of original singular values and S' is the set of
+            # singular values that remain after truncation (before normalisation).
+            # It can be shown that the fidelity |<psi|phi>|^2 (for |phi> and |psi>
+            # unit vectors before and after truncation) is equal to 1 - disc_weight.
+            #
+            # We multiply the fidelity of the current step to the overall fidelity
+            # to keep track of a lower bound for the fidelity.
+            self.fidelity *= 1.0 - float(discarded_weight)
 
         # Destroy handles
         cutn.destroy_tensor_descriptor(T_desc)
