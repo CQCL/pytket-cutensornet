@@ -224,19 +224,25 @@ class MPS:
     # - The physical bond of the tensor `i` has ID `i+len(tensors)`.
     def __init__(
         self,
+        libhandle: CuTensorNetHandle,
         qubits: list[Qubit],
         chi: Optional[int] = None,
         truncation_fidelity: Optional[float] = None,
         float_precision: Optional[Union[np.float32, np.float64]] = None,
-        device_id: Optional[int] = None,
     ):
         """Initialise an MPS on the computational state ``|0>``.
 
         Note:
+            A ``libhandle`` should be created via a ``with CuTensorNet() as libhandle:``
+            statement. The device where the MPS is stored will match the one specified
+            by the library handle.
+
             Providing both a custom ``chi`` and ``truncation_fidelity`` will raise an
             exception. Choose one or the other (or neither, for exact simulation).
 
         Args:
+            libhandle: The cuTensorNet library handle that will be used to carry out
+                tensor operations on the MPS.
             qubits: The list of qubits in the circuit to be simulated.
             chi: The maximum value allowed for the dimension of the virtual
                 bonds. Higher implies better approximation but more
@@ -251,11 +257,9 @@ class MPS:
                 choose from ``numpy`` types: ``np.float64`` or ``np.float32``.
                 Complex numbers are represented using two of such
                 ``float`` numbers. Default is ``np.float64``.
-            device_id: The identifier of the GPU where this MPS is meant to be run.
-                If not provided, the default ``cupy.cuda.Device()`` will be used.
 
         Raises:
-            ValueError: If less then two qubits are provided.
+            ValueError: If less than two qubits are provided.
             ValueError: If both ``chi`` and ``truncation_fidelity`` are fixed.
             ValueError: If the value of ``chi`` is set below 2.
             ValueError: If the value of ``truncation_fidelity`` is not in [0,1].
@@ -286,12 +290,10 @@ class MPS:
                 f"Value of float_precision must be in {allowed_precisions}."
             )
 
-        # Make sure CuPy uses the specified device
-        cp.cuda.Device(device_id).use()
-
         self._stream: cp.cuda.Stream = cp.cuda.get_current_stream()
-        # The library handle is not initialised by default
-        self._lib: Optional[CuTensorNetHandle] = None
+        self._lib = libhandle
+        # Make sure CuPy uses the specified device
+        cp.cuda.Device(libhandle.device_id).use()
 
         #######################################
         # Initialise the MPS with a |0> state #
@@ -386,16 +388,15 @@ class MPS:
             ``self``, to allow for method chaining.
 
         Raises:
-            RuntimeError: If the library handle has not been set of is out of scope.
-                See ``set_libhandle``.
+            RuntimeError: If the ``CuTensorNetHandle`` is out of scope.
             RuntimeError: If gate acts on more than 2 qubits or acts on non-adjacent
                 qubits.
             RuntimeError: If physical bond dimension where gate is applied is not 2.
         """
-        if self._lib is None or self._lib._is_destroyed:
+        if self._lib._is_destroyed:
             raise RuntimeError(
-                "Provide a valid cuTensorNet library handle to the MPS object.",
-                "See the documentation of set_libhandle and CuTensorNetHandle.",
+                "The cuTensorNet library handle is out of scope.",
+                "See the documentation of update_libhandle and CuTensorNetHandle.",
             )
 
         positions = [self.qubit_position[q] for q in gate.qubits]
@@ -463,18 +464,17 @@ class MPS:
 
         Raises:
             ValueError: If ``form`` is not a value in ``DirectionMPS``.
-            RuntimeError: If the library handle has not been set of is out of scope.
-                See ``set_libhandle``.
+            RuntimeError: If the ``CuTensorNetHandle`` is out of scope.
             RuntimeError: If position and form don't match.
         """
         if form == self.tensors[pos].canonical_form:
             # Tensor already in canonical form, nothing needs to be done
             return None
 
-        if self._lib is None or self._lib._is_destroyed:
+        if self._lib._is_destroyed:
             raise RuntimeError(
-                "Provide a valid cuTensorNet library handle to the MPS object.",
-                "See the documentation of set_libhandle and CuTensorNetHandle.",
+                "The cuTensorNet library handle is out of scope.",
+                "See the documentation of update_libhandle and CuTensorNetHandle.",
             )
 
         if form == DirectionMPS.LEFT:
@@ -599,17 +599,16 @@ class MPS:
             other: The other MPS to compare against.
 
         Raises:
-            RuntimeError: If the library handle has not been set of is out of scope.
-                See ``set_libhandle``.
+            RuntimeError: If the ``CuTensorNetHandle`` is out of scope.
             RuntimeError: If number of tensors, dimensions or positions do not match.
 
         Return:
             The resulting complex number.
         """
-        if self._lib is None or self._lib._is_destroyed:
+        if self._lib._is_destroyed:
             raise RuntimeError(
-                "Provide a valid cuTensorNet library handle to the MPS object.",
-                "See the documentation of set_libhandle and CuTensorNetHandle.",
+                "The cuTensorNet library handle is out of scope.",
+                "See the documentation of update_libhandle and CuTensorNetHandle.",
             )
 
         if len(self) != len(other):
@@ -744,9 +743,12 @@ class MPS:
         """
         return int(self.tensors[0].data.device)
 
-    def set_libhandle(self, libhandle: CuTensorNetHandle) -> None:
-        """Set the library handle used by this ``MPS`` object. Multiple objects
-        may use the same library handle.
+    def update_libhandle(self, libhandle: CuTensorNetHandle) -> None:
+        """Update the ``CuTensorNetHandle`` used by this ``MPS`` object. Multiple
+        objects may use the same handle.
+
+        Args:
+            libhandle: The new cuTensorNet library handle.
 
         Raises:
             RuntimeError: If the device (GPU) where ``libhandle`` was initialised

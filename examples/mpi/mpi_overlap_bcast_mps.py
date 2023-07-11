@@ -106,8 +106,10 @@ if rank == root:
 
 # Contract the MPS of each of the circuits in this process
 this_proc_mps = []
-for circ in this_proc_circs:
-    this_proc_mps.append(simulate(circ, ContractionAlg.MPSxGate, device_id=device_id))
+with CuTensorNetHandle(device_id) as libhandle:  # Different handle for each process
+    for circ in this_proc_circs:
+        mps = simulate(libhandle, circ, ContractionAlg.MPSxGate)
+        this_proc_mps.append(mps)
 
 if rank == root:
     time1 = MPI.Wtime()
@@ -119,20 +121,18 @@ if rank == root:
 time0 = MPI.Wtime()
 for proc_i in range(n_procs):
     mps_list += comm.bcast(this_proc_mps, proc_i)
+time1 = MPI.Wtime()
+print(f"MPS broadcasted to {rank} in {time1-time0} seconds")
+time0 = MPI.Wtime()
 
-# Initialise cuTensorNet for this process
+# Enumerate all pairs of circuits to be calculated
+pairs = [(i, j) for i in range(n_circs) for j in range(n_circs) if i < j]
+
+# Parallelise across all available processes
 with CuTensorNetHandle(device_id) as libhandle:  # Different handle for each process
     for mps in mps_list:
-        mps.set_libhandle(libhandle)
+        mps.update_libhandle(libhandle)  # Update libhandle of this local copy of mps
 
-    time1 = MPI.Wtime()
-    print(f"MPS broadcasted to {rank} in {time1-time0} seconds")
-    time0 = MPI.Wtime()
-
-    # Enumerate all pairs of circuits to be calculated
-    pairs = [(i, j) for i in range(n_circs) for j in range(n_circs) if i < j]
-
-    # Parallelise across all available processes
     iterations, remainder = len(pairs) // n_procs, len(pairs) % n_procs
     progress_bar, progress_checkpoint = 0, iterations // 10
     for k in range(iterations):

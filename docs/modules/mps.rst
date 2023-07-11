@@ -21,7 +21,6 @@ Classes
 .. autoclass:: pytket.extensions.cutensornet.mps.MPS()
 
     .. automethod:: __init__
-    .. automethod:: set_libhandle
     .. automethod:: apply_gate
     .. automethod:: vdot
     .. automethod:: canonicalise
@@ -31,6 +30,7 @@ Classes
     .. automethod:: get_physical_dimension
     .. automethod:: get_device_id
     .. automethod:: is_valid
+    .. automethod:: update_libhandle
     .. automethod:: copy
     .. automethod:: __len__
 

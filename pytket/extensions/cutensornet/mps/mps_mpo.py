@@ -41,17 +41,27 @@ class MPSxMPO(MPS):
 
     def __init__(
         self,
+        libhandle: CuTensorNetHandle,
         qubits: list[Qubit],
         chi: Optional[int] = None,
         truncation_fidelity: Optional[float] = None,
         k: Optional[int] = None,
         optim_delta: Optional[float] = None,
         float_precision: Optional[Union[np.float32, np.float64]] = None,
-        device_id: Optional[int] = None,
     ):
-        """Initialise an MPS on the computational state 0.
+        """Initialise an MPS on the computational state ``|0>``.
+
+        Note:
+            A ``libhandle`` should be created via a ``with CuTensorNet() as libhandle:``
+            statement. The device where the MPS is stored will match the one specified
+            by the library handle.
+
+            Providing both a custom ``chi`` and ``truncation_fidelity`` will raise an
+            exception. Choose one or the other (or neither, for exact simulation).
 
         Args:
+            libhandle: The cuTensorNet library handle that will be used to carry out
+                tensor operations on the MPS.
             qubits: The list of qubits in the circuit to be simulated.
             chi: The maximum value allowed for the dimension of the virtual
                 bonds. Higher implies better approximation but more
@@ -73,8 +83,6 @@ class MPSxMPO(MPS):
                 choose from ``numpy`` types: ``np.float64`` or ``np.float32``.
                 Complex numbers are represented using two of such
                 ``float`` numbers. Default is ``np.float64``.
-            device_id: The identifier of the GPU where this MPS is meant to be run.
-                If not provided, the default ``cupy.cuda.Device()`` will be used.
         """
         super().__init__(qubits, chi, truncation_fidelity, float_precision, device_id)
 
@@ -108,16 +116,19 @@ class MPSxMPO(MPS):
 
         self._mpo_bond_counter = 0
 
-    def set_libhandle(self, libhandle: CuTensorNetHandle) -> None:
+    def update_libhandle(self, libhandle: CuTensorNetHandle) -> None:
         """Set the library handle used by this ``MPS`` object. Multiple objects
         may use the same library handle.
+
+        Args:
+            libhandle: The new cuTensorNet library handle.
 
         Raises:
             RuntimeError: If the device (GPU) where ``libhandle`` was initialised
                 does not match the one where the tensors of the MPS are stored.
         """
-        super().set_libhandle(libhandle)
-        self._aux_mps.set_libhandle(libhandle)
+        super().update_libhandle(libhandle)
+        self._aux_mps.update_libhandle(libhandle)
 
     def _apply_1q_gate(self, position: int, gate: Op) -> MPSxMPO:
         """Applies the 1-qubit gate to the MPS.
