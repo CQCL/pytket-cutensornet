@@ -9,7 +9,7 @@ from pytket.architecture import Architecture  # type: ignore
 from pytket.passes import DefaultMappingPass  # type: ignore
 from pytket.predicates import CompilationUnit  # type: ignore
 
-from .mps import MPS
+from .mps import CuTensorNetHandle, MPS
 from .mps_gate import MPSxGate
 from .mps_mpo import MPSxMPO
 
@@ -25,10 +25,19 @@ class ContractionAlg(Enum):
     MPSxMPO = 1
 
 
-def simulate(circuit: Circuit, algorithm: ContractionAlg, **kwargs: Any) -> MPS:
+def simulate(
+    libhandle: CuTensorNetHandle,
+    circuit: Circuit,
+    algorithm: ContractionAlg,
+    **kwargs: Any
+) -> MPS:
     """Simulate the given circuit and return the ``MPS`` representing the final state.
 
     Note:
+        A ``libhandle`` should be created via a ``with CuTensorNet() as libhandle:``
+        statement. The device where the MPS is stored will match the one specified
+        by the library handle.
+
         The input ``circuit`` must be composed of one-qubit and two-qubit gates only.
         Any gateset supported by ``pytket`` can be used.
 
@@ -37,6 +46,8 @@ def simulate(circuit: Circuit, algorithm: ContractionAlg, **kwargs: Any) -> MPS:
         circuit, consider using ``prepare_circuit()`` on it.
 
     Args:
+        libhandle: The cuTensorNet library handle that will be used to carry out
+            tensor operations on the MPS.
         circuit: The pytket circuit to be simulated.
         algorithm: Choose between the values of the ``ContractionAlg`` enum.
         **kwargs: Any argument accepted by the initialisers of the chosen
@@ -50,32 +61,30 @@ def simulate(circuit: Circuit, algorithm: ContractionAlg, **kwargs: Any) -> MPS:
     chi = kwargs.get("chi", None)
     truncation_fidelity = kwargs.get("truncation_fidelity", None)
     float_precision = kwargs.get("float_precision", None)
-    device_id = kwargs.get("device_id", None)
 
     if algorithm == ContractionAlg.MPSxGate:
         mps = MPSxGate(  # type: ignore
-            circuit.qubits, chi, truncation_fidelity, float_precision, device_id
+            libhandle, circuit.qubits, chi, truncation_fidelity, float_precision
         )
     elif algorithm == ContractionAlg.MPSxMPO:
         k = kwargs.get("k", None)
         optim_delta = kwargs.get("optim_delta", None)
         mps = MPSxMPO(  # type: ignore
+            libhandle,
             circuit.qubits,
             chi,
             truncation_fidelity,
             k,
             optim_delta,
             float_precision,
-            device_id,
         )
 
     # Sort the gates so there isn't much overhead from canonicalising back and forth.
     sorted_gates = _get_sorted_gates(circuit)
 
     # Apply the gates
-    with mps.init_cutensornet():
-        for g in sorted_gates:
-            mps.apply_gate(g)
+    for g in sorted_gates:
+        mps.apply_gate(g)
 
     return mps
 
@@ -88,15 +97,20 @@ def get_amplitude(mps: MPS, state: int) -> complex:
         state: The integer whose bitstring describes the computational state.
             The qubits in the bitstring are ordered in increasing lexicographic order.
 
+    Raises:
+        RuntimeError: If the ``CuTensorNetHandle`` is out of scope.
+
     Returns:
         The amplitude of the computational state in the MPS.
     """
-    if mps._libhandle is None:
-        raise RuntimeError("Must be called inside a with mps.init_cutensornet() block.")
+    if mps._lib._is_destroyed:
+        raise RuntimeError(
+            "The cuTensorNet library handle is out of scope.",
+            "See the documentation of update_libhandle and CuTensorNetHandle.",
+        )
 
     mps_qubits = list(mps.qubit_position.keys())
-    bra_mps = MPSxGate(mps_qubits)
-    bra_mps._libhandle = mps._libhandle
+    bra_mps = MPSxGate(mps._lib, mps_qubits)
 
     ilo_qubits = sorted(mps_qubits)
     for i, q in enumerate(ilo_qubits):

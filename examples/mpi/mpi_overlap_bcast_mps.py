@@ -42,7 +42,11 @@ from mpi4py import MPI
 
 from pytket.circuit import Circuit, fresh_symbol
 
-from pytket.extensions.cutensornet.mps import simulate, ContractionAlg
+from pytket.extensions.cutensornet.mps import (
+    simulate,
+    ContractionAlg,
+    CuTensorNetHandle,
+)
 
 # Parameters
 if len(sys.argv) < 3:
@@ -102,8 +106,10 @@ if rank == root:
 
 # Contract the MPS of each of the circuits in this process
 this_proc_mps = []
-for circ in this_proc_circs:
-    this_proc_mps.append(simulate(circ, ContractionAlg.MPSxGate, device_id=device_id))
+with CuTensorNetHandle(device_id) as libhandle:  # Different handle for each process
+    for circ in this_proc_circs:
+        mps = simulate(libhandle, circ, ContractionAlg.MPSxGate)
+        this_proc_mps.append(mps)
 
 if rank == root:
     time1 = MPI.Wtime()
@@ -115,12 +121,6 @@ if rank == root:
 time0 = MPI.Wtime()
 for proc_i in range(n_procs):
     mps_list += comm.bcast(this_proc_mps, proc_i)
-# Change device ID
-# TODO: I don't think this is moving mem between GPUs on same node. Look into NCCL.
-for mps in mps_list:
-    mps._device_id = device_id
-    mps.init_cutensornet()
-
 time1 = MPI.Wtime()
 print(f"MPS broadcasted to {rank} in {time1-time0} seconds")
 time0 = MPI.Wtime()
@@ -129,29 +129,33 @@ time0 = MPI.Wtime()
 pairs = [(i, j) for i in range(n_circs) for j in range(n_circs) if i < j]
 
 # Parallelise across all available processes
-iterations, remainder = len(pairs) // n_procs, len(pairs) % n_procs
-progress_bar, progress_checkpoint = 0, iterations // 10
-for k in range(iterations):
-    # Run contraction
-    (i, j) = pairs[k * n_procs + rank]
-    mps0 = mps_list[i]
-    mps1 = mps_list[j]
-    overlap = mps0.vdot(mps1)
-    # Report back to user
-    # print(f"Sample of circuit pair {(i, j)} taken. Overlap: {overlap}")
-    if rank == root and progress_bar * progress_checkpoint < k:
-        print(f"{progress_bar*10}%")
-        sys.stdout.flush()
-        progress_bar += 1
+with CuTensorNetHandle(device_id) as libhandle:  # Different handle for each process
+    for mps in mps_list:
+        mps.update_libhandle(libhandle)  # Update libhandle of this local copy of mps
 
-if rank < remainder:
-    # Run contraction
-    (i, j) = pairs[iterations * n_procs + rank]
-    mps0 = mps_list[i]
-    mps1 = mps_list[j]
-    overlap = mps0.vdot(mps1)
-    # Report back to user
-    # print(f"Sample of circuit pair {(i, j)} taken. Overlap: {overlap}")
+    iterations, remainder = len(pairs) // n_procs, len(pairs) % n_procs
+    progress_bar, progress_checkpoint = 0, iterations // 10
+    for k in range(iterations):
+        # Run contraction
+        (i, j) = pairs[k * n_procs + rank]
+        mps0 = mps_list[i]
+        mps1 = mps_list[j]
+        overlap = mps0.vdot(mps1)
+        # Report back to user
+        # print(f"Sample of circuit pair {(i, j)} taken. Overlap: {overlap}")
+        if rank == root and progress_bar * progress_checkpoint < k:
+            print(f"{progress_bar*10}%")
+            sys.stdout.flush()
+            progress_bar += 1
+
+    if rank < remainder:
+        # Run contraction
+        (i, j) = pairs[iterations * n_procs + rank]
+        mps0 = mps_list[i]
+        mps1 = mps_list[j]
+        overlap = mps0.vdot(mps1)
+        # Report back to user
+        # print(f"Sample of circuit pair {(i, j)} taken. Overlap: {overlap}")
 
 # Report back to user
 time1 = MPI.Wtime()

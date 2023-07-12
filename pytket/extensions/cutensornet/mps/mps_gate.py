@@ -167,14 +167,14 @@ class MPSxGate(MPS):
         S_d = cp.empty(new_dim, dtype=self._real_t)
 
         # Create tensor descriptors
-        T_desc = T.get_tensor_descriptor(self._libhandle)
-        L_desc = L.get_tensor_descriptor(self._libhandle)
-        R_desc = R.get_tensor_descriptor(self._libhandle)
+        T_desc = T.get_tensor_descriptor(self._lib)
+        L_desc = L.get_tensor_descriptor(self._lib)
+        R_desc = R.get_tensor_descriptor(self._lib)
 
         # Create SVDConfig with default configuration
-        svd_config = cutn.create_tensor_svd_config(self._libhandle)
+        svd_config = cutn.create_tensor_svd_config(self._lib.handle)
         # Create SVDInfo to record truncation information
-        svd_info = cutn.create_tensor_svd_info(self._libhandle)
+        svd_info = cutn.create_tensor_svd_info(self._lib.handle)
 
         if self.truncation_fidelity < 1:
             # Carry out SVD decomposition first with NO truncation
@@ -188,7 +188,7 @@ class MPSxGate(MPS):
             # including normalisation and contraction of S with L.
 
             cutn.tensor_svd(
-                self._libhandle,
+                self._lib.handle,
                 T_desc,
                 T.data.data.ptr,
                 L_desc,
@@ -288,7 +288,7 @@ class MPSxGate(MPS):
                 attr_dtype = cutn.tensor_svd_config_get_attribute_dtype(attr)
                 value = np.array([value], dtype=attr_dtype)
                 cutn.tensor_svd_config_set_attribute(
-                    self._libhandle,
+                    self._lib.handle,
                     svd_config,
                     attr,
                     value.ctypes.data,
@@ -297,7 +297,7 @@ class MPSxGate(MPS):
 
             # Apply SVD decomposition; truncation will be applied if needed
             cutn.tensor_svd(
-                self._libhandle,
+                self._lib.handle,
                 T_desc,
                 T.data.data.ptr,
                 L_desc,
@@ -318,7 +318,7 @@ class MPSxGate(MPS):
             )
             discarded_weight = np.empty(1, dtype=discarded_weight_dtype)
             cutn.tensor_svd_info_get_attribute(
-                self._libhandle,
+                self._lib.handle,
                 svd_info,
                 cutn.TensorSVDInfoAttribute.DISCARDED_WEIGHT,
                 discarded_weight.ctypes.data,

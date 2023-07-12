@@ -14,7 +14,7 @@
 from __future__ import annotations  # type: ignore
 import warnings
 
-from typing import Optional, Any, Union
+from typing import Optional, Union
 
 import numpy as np  # type: ignore
 
@@ -29,7 +29,7 @@ except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
 from pytket.circuit import Op, Qubit  # type: ignore
-from .mps import DirectionMPS, Bond, Tensor, MPS
+from .mps import CuTensorNetHandle, DirectionMPS, Bond, Tensor, MPS
 from .mps_gate import MPSxGate
 
 
@@ -41,17 +41,27 @@ class MPSxMPO(MPS):
 
     def __init__(
         self,
+        libhandle: CuTensorNetHandle,
         qubits: list[Qubit],
         chi: Optional[int] = None,
         truncation_fidelity: Optional[float] = None,
         k: Optional[int] = None,
         optim_delta: Optional[float] = None,
         float_precision: Optional[Union[np.float32, np.float64]] = None,
-        device_id: Optional[int] = None,
     ):
-        """Initialise an MPS on the computational state 0.
+        """Initialise an MPS on the computational state ``|0>``.
+
+        Note:
+            A ``libhandle`` should be created via a ``with CuTensorNet() as libhandle:``
+            statement. The device where the MPS is stored will match the one specified
+            by the library handle.
+
+            Providing both a custom ``chi`` and ``truncation_fidelity`` will raise an
+            exception. Choose one or the other (or neither, for exact simulation).
 
         Args:
+            libhandle: The cuTensorNet library handle that will be used to carry out
+                tensor operations on the MPS.
             qubits: The list of qubits in the circuit to be simulated.
             chi: The maximum value allowed for the dimension of the virtual
                 bonds. Higher implies better approximation but more
@@ -73,10 +83,8 @@ class MPSxMPO(MPS):
                 choose from ``numpy`` types: ``np.float64`` or ``np.float32``.
                 Complex numbers are represented using two of such
                 ``float`` numbers. Default is ``np.float64``.
-            device_id: The identifier of the GPU where this MPS is meant to be run.
-                If not provided, the default ``cupy.cuda.Device()`` will be used.
         """
-        super().__init__(qubits, chi, truncation_fidelity, float_precision, device_id)
+        super().__init__(libhandle, qubits, chi, truncation_fidelity, float_precision)
 
         # Initialise the MPO data structure. This will keep a list of the gates
         # batched for application to the MPS; all of them will be applied at
@@ -94,7 +102,7 @@ class MPSxMPO(MPS):
         # Initialise the MPS that we will use as first approximation of the
         # variational algorithm.
         self._aux_mps = MPSxGate(
-            qubits, chi, truncation_fidelity, float_precision, device_id
+            libhandle, qubits, chi, truncation_fidelity, float_precision
         )
 
         if k is None:
@@ -108,20 +116,19 @@ class MPSxMPO(MPS):
 
         self._mpo_bond_counter = 0
 
-    def init_cutensornet(self) -> MPSxMPO:
-        """Initialises the cuTensorNet library and links it to this MPS object.
+    def update_libhandle(self, libhandle: CuTensorNetHandle) -> None:
+        """Set the library handle used by this ``MPS`` object. Multiple objects
+        may use the same library handle.
 
-        This is a necessary step before doing any calculation on the MPS.
+        Args:
+            libhandle: The new cuTensorNet library handle.
 
-        Note:
-            Always use as ``with mps.init_cutensornet():`` so that cuTensorNet
-            handles are automatically destroyed at the end of execution.
+        Raises:
+            RuntimeError: If the device (GPU) where ``libhandle`` was initialised
+                does not match the one where the tensors of the MPS are stored.
         """
-        super().init_cutensornet()
-        self._aux_mps._libhandle = self._libhandle
-        self._aux_mps._stream = self._stream
-
-        return self
+        super().update_libhandle(libhandle)
+        self._aux_mps.update_libhandle(libhandle)
 
     def _apply_1q_gate(self, position: int, gate: Op) -> MPSxMPO:
         """Applies the 1-qubit gate to the MPS.
@@ -240,12 +247,13 @@ class MPSxMPO(MPS):
         S_d = cp.empty(4, dtype=self._real_t)
 
         # Create tensor descriptors
-        G_desc = G.get_tensor_descriptor(self._libhandle)
-        L_desc = L.get_tensor_descriptor(self._libhandle)
-        R_desc = R.get_tensor_descriptor(self._libhandle)
+        assert self._lib is not None
+        G_desc = G.get_tensor_descriptor(self._lib)
+        L_desc = L.get_tensor_descriptor(self._lib)
+        R_desc = R.get_tensor_descriptor(self._lib)
 
         # Configure SVD parameters
-        svd_config = cutn.create_tensor_svd_config(self._libhandle)
+        svd_config = cutn.create_tensor_svd_config(self._lib.handle)
 
         svd_config_attributes = [
             # TensorSVDPartition.US asks that cuTensorNet automatically
@@ -261,17 +269,17 @@ class MPSxMPO(MPS):
             attr_dtype = cutn.tensor_svd_config_get_attribute_dtype(attr)
             value = np.array([value], dtype=attr_dtype)
             cutn.tensor_svd_config_set_attribute(
-                self._libhandle,
+                self._lib.handle,
                 svd_config,
                 attr,
                 value.ctypes.data,
                 value.dtype.itemsize,
             )
-        svd_info = cutn.create_tensor_svd_info(self._libhandle)
+        svd_info = cutn.create_tensor_svd_info(self._lib.handle)
 
         # Apply SVD decomposition; no truncation takes place
         cutn.tensor_svd(
-            self._libhandle,
+            self._lib.handle,
             G_desc,
             G.data.data.ptr,
             L_desc,
@@ -555,13 +563,3 @@ class MPSxMPO(MPS):
     def _new_bond_id(self) -> Bond:
         self._mpo_bond_counter += 1
         return 2 * len(self) + self._mpo_bond_counter
-
-    def __enter__(self) -> MPSxMPO:
-        return self
-
-    def __exit__(self, exc_type: Any, exc_value: Any, exc_tb: Any) -> None:
-        cutn.destroy(self._libhandle)
-        self._libhandle = None
-        self._stream = None
-        self._aux_mps._libhandle = None
-        self._aux_mps._stream = None

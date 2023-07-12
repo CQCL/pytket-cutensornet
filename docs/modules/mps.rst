@@ -21,7 +21,6 @@ Classes
 .. autoclass:: pytket.extensions.cutensornet.mps.MPS()
 
     .. automethod:: __init__
-    .. automethod:: init_cutensornet
     .. automethod:: apply_gate
     .. automethod:: vdot
     .. automethod:: canonicalise
@@ -29,7 +28,9 @@ Classes
     .. automethod:: get_virtual_dimensions
     .. automethod:: get_physical_bond
     .. automethod:: get_physical_dimension
+    .. automethod:: get_device_id
     .. automethod:: is_valid
+    .. automethod:: update_libhandle
     .. automethod:: copy
     .. automethod:: __len__
 
@@ -42,6 +43,8 @@ Classes
     :show-inheritance:
 
     .. automethod:: __init__
+
+.. autoclass:: pytket.extensions.cutensornet.mps.CuTensorNetHandle
 
 .. autoclass:: pytket.extensions.cutensornet.mps.Tensor()
 
