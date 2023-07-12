@@ -21,6 +21,7 @@ extensions = [
     "sphinx.ext.mathjax",
     "sphinx.ext.napoleon",
     "sphinx_copybutton",
+    "enum_tools.autoenum",
 ]
 
 pygments_style = "borland"
@@ -118,7 +119,6 @@ def correct_signature(
     signature: str,
     return_annotation: str,
 ) -> (str, str):
-
     new_signature = signature
     new_return_annotation = return_annotation
     for k, v in app.config.custom_internal_mapping.items():
