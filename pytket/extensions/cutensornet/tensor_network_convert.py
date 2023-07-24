@@ -113,6 +113,9 @@ class TensorNetwork:
         Returns:
             A map between the gate type and corresponding tensor representation(s).
 
+        Raises:
+            RuntimeError: If ``Box`` objects are present in the circuit.
+
         Note:
            The returned map values are lists and may contain more than one
            representation - for >1-qubit gates, different topologies (e.g. upward and
