@@ -71,6 +71,9 @@ class TensorNetwork:
             circuit: A pytket circuit to be converted to a tensor network.
             adj: Whether to create an adjoint representation of the original circuit.
             loglevel: Internal logger output level.
+
+        Raises:
+            RuntimeError: If ``Box`` objects are present in the circuit.
         """
         self._logger = set_logger("TensorNetwork", loglevel)
         self._circuit = circuit
