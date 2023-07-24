@@ -119,6 +119,13 @@ class TensorNetwork:
            downward) are taken into account.
         """
         name_set = {com.op.get_name() for com in self._circuit.get_commands()}
+        for name in name_set:
+            if "Box" in name:
+                raise RuntimeError(
+                    "Currently TensorNetwork does not accept pytket Box"
+                    " objects. Please first run"
+                    " ``DecomposeBoxes().apply(circuit)``"
+                )
         gate_tensors = defaultdict(list)
         for i in name_set:
             for com in self._circuit.get_commands():
