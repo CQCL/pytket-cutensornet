@@ -146,7 +146,6 @@ class CuTensorNetBackend(Backend):
         ]
         return preds
 
-    # TODO: also probably needs improvement.
     def rebase_pass(self) -> BasePass:
         """Defines rebasing method.
 
@@ -155,7 +154,6 @@ class CuTensorNetBackend(Backend):
         """
         return auto_rebase_pass(self._GATE_SET)
 
-    # TODO: same as above?
     def default_compilation_pass(self, optimisation_level: int = 1) -> BasePass:
         """Returns a default compilation pass.
 
