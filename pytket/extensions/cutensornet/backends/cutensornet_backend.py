@@ -47,8 +47,9 @@ from pytket.passes import (  # type: ignore
     BasePass,
     SequencePass,
     DecomposeBoxes,
+    RemoveRedundancies,
     SynthesiseTket,
-    FullPeepholeOptimise
+    FullPeepholeOptimise,
 )
 from pytket.utils.operators import QubitPauliOperator
 
@@ -172,7 +173,10 @@ class CuTensorNetBackend(Backend):
             Compilation pass guaranteeing required predicates.
         """
         assert optimisation_level in range(3)
-        seq = [DecomposeBoxes()]  # Decompose boxes into basic gates
+        seq = [
+            DecomposeBoxes(),
+            RemoveRedundancies(),
+        ]  # Decompose boxes into basic gates
         if optimisation_level == 1:
             seq.append(SynthesiseTket())  # Optional fast optimisation
         elif optimisation_level == 2:
