@@ -53,6 +53,7 @@ def circuit_overlap_contract(circuit_ket: Circuit) -> float:
         pytest.lazy_fixture("q3_v0cx02"),  # type: ignore
         pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
         pytest.lazy_fixture("q4_lcu1"),  # type: ignore
+        pytest.lazy_fixture("q4_multicontrols"),  # type: ignore
     ],
 )
 def test_convert_statevec_overlap(circuit: Circuit) -> None:
