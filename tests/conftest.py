@@ -154,6 +154,25 @@ def q4_lcu1() -> Circuit:
 
 
 @pytest.fixture
+def q4_multicontrols() -> Circuit:
+    circ = Circuit(4)
+    circ.X(0)
+    circ.X(1)
+    circ.X(2)
+    circ.X(3)
+    circ.CCX(0, 1, 2)
+    circ.CCX(0, 1, 3)
+    circ.CSWAP(0, 1, 2)
+    circ.CCX(0, 2, 3)
+    circ.CSWAP(3, 1, 0)
+    circ.CCX(3, 2, 1)
+    circ.CCX(3, 2, 0)
+    circ.X(1)
+    circ.CCX(3, 1, 0)
+    return circ
+
+
+@pytest.fixture
 def q5_empty() -> Circuit:
     circuit = Circuit(5)
     return circuit
