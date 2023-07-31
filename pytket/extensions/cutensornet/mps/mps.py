@@ -62,7 +62,11 @@ class CuTensorNetHandle:
     def __init__(self, device_id: Optional[int] = None):
         self.handle = cutn.create()
         self._is_destroyed = False
-        dev = cp.cuda.Device(device_id)
+
+        # Make sure CuPy uses the specified device
+        cp.cuda.Device(device_id).use()
+
+        dev = cp.cuda.Device()
         self.device_id = int(dev)
 
         if cp.cuda.runtime.runtimeGetVersion() < 11020:
@@ -292,8 +296,6 @@ class MPS:
 
         self._stream: cp.cuda.Stream = cp.cuda.get_current_stream()
         self._lib = libhandle
-        # Make sure CuPy uses the specified device
-        cp.cuda.Device(libhandle.device_id).use()
 
         #######################################
         # Initialise the MPS with a |0> state #
