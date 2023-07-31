@@ -25,11 +25,19 @@ except ImportError:
 try:
     import cuquantum as cq  # type: ignore
     import cuquantum.cutensornet as cutn  # type: ignore
+    from cuquantum.cutensornet import tensor  # type: ignore
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
 from pytket.circuit import Op, Qubit  # type: ignore
-from .mps import CuTensorNetHandle, DirectionMPS, Bond, Tensor, MPS
+from .mps import (
+    CuTensorNetHandle,
+    DirectionMPS,
+    Bond,
+    Tensor,
+    MPS,
+    _bonds_to_subscripts,
+)
 from .mps_gate import MPSxGate
 
 
@@ -197,8 +205,6 @@ class MPSxMPO(MPS):
         if any(len(self._mpo[pos]) >= self.k for pos in [l_pos, r_pos]):
             self._flush()
 
-        # TODO: I should try and do some kind of BFS for the gates.
-
         # Apply the gate to the MPS with eager approximation
         self._aux_mps._apply_2q_gate(positions, gate)
 
@@ -233,78 +239,23 @@ class MPSxMPO(MPS):
                 right_gate_input,
                 left_gate_input,
             ]
-        G = Tensor(gate_tensor, gate_bonds)
 
-        # Template of tensors that will store the SVD decomposition of the gate tensor
+        # Template of tensors that will store the QR decomposition of the gate tensor
         L = Tensor(
-            cp.empty(shape=(2, 4, 2), dtype=self._complex_t),
+            None,  # data no longer needs to be initialised
             [left_gate_input, gate_v_bond, left_gate_output],
         )
         R = Tensor(
-            cp.empty(shape=(2, 4, 2), dtype=self._complex_t),
+            None,  # data no longer needs to be initialised
             [right_gate_input, gate_v_bond, right_gate_output],
         )
-        S_d = cp.empty(4, dtype=self._real_t)
 
-        # Create tensor descriptors
-        assert self._lib is not None
-        G_desc = G.get_tensor_descriptor(self._lib)
-        L_desc = L.get_tensor_descriptor(self._lib)
-        R_desc = R.get_tensor_descriptor(self._lib)
-
-        # Configure SVD parameters
-        svd_config = cutn.create_tensor_svd_config(self._lib.handle)
-
-        svd_config_attributes = [
-            # TensorSVDPartition.US asks that cuTensorNet automatically
-            # contracts the tensor of singular values (S) into one of the
-            # two tensors (U), named L in our case.
-            (
-                cutn.TensorSVDConfigAttribute.S_PARTITION,
-                cutn.TensorSVDPartition.US,
-            ),
-        ]
-
-        for attr, value in svd_config_attributes:
-            attr_dtype = cutn.tensor_svd_config_get_attribute_dtype(attr)
-            value = np.array([value], dtype=attr_dtype)
-            cutn.tensor_svd_config_set_attribute(
-                self._lib.handle,
-                svd_config,
-                attr,
-                value.ctypes.data,
-                value.dtype.itemsize,
-            )
-        svd_info = cutn.create_tensor_svd_info(self._lib.handle)
-
-        # Apply SVD decomposition; no truncation takes place
-        cutn.tensor_svd(
-            self._lib.handle,
-            G_desc,
-            G.data.data.ptr,
-            L_desc,
-            L.data.data.ptr,
-            S_d.data.ptr,
-            R_desc,
-            R.data.data.ptr,
-            svd_config,
-            svd_info,
-            0,  # 0 means let cuQuantum manage mem itself
-            self._stream.ptr,  # type: ignore
+        # Apply a QR decomposition on the gate_tensor to shape it as an MPO
+        options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
+        subscripts = _bonds_to_subscripts([gate_bonds], [L.bonds, R.bonds])
+        L.data, R.data = tensor.decompose(
+            subscripts, gate_tensor, method=tensor.QRMethod(), options=options
         )
-        self._stream.synchronize()  # type: ignore
-        # TODO: these could be precomputed for all OpTypes and stored in a dictionary
-        #   so that we only copy from it rather than apply SVD each time. However,
-        #   gates with parameters such as ZZPhase might be a challenge.
-        # TODO: it'd be good to classify gates that can be SVD'd with virtual dimension
-        #   2 and those which require dimension 4.
-
-        # Destroy handles
-        cutn.destroy_tensor_descriptor(G_desc)
-        cutn.destroy_tensor_descriptor(L_desc)
-        cutn.destroy_tensor_descriptor(R_desc)
-        cutn.destroy_tensor_svd_config(svd_config)
-        cutn.destroy_tensor_svd_info(svd_info)
 
         # Add dummy bonds of dimension 1 to L and R so that they have the right shape
         L.data = cp.reshape(L.data, (2, 1, 4, 2))

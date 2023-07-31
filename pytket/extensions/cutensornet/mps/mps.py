@@ -25,6 +25,7 @@ except ImportError:
 try:
     import cuquantum as cq  # type: ignore
     import cuquantum.cutensornet as cutn  # type: ignore
+    from cuquantum.cutensornet import tensor  # type: ignore
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
@@ -36,6 +37,36 @@ Handle = int
 # An alias for the type of the unique identifiers of each of the bonds
 # of the MPS.
 Bond = int
+
+
+def _bonds_to_subscripts(in_ids: list[list[Bond]], out_ids: list[list[Bond]]) -> str:
+    """Convert the collection of bond lists to string subscript form as in cuQuantum.
+    That is, each element in the list ``in_ids`` corresponds to the bonds of an input
+    tensor; similarly for ``out_ids``. Convert these to a string of characters where
+    the different tensors are separated by commas and input is separated from output
+    by ``->``.
+
+    Notes:
+        The assignment of bond ID to character may not be consistent accross calls to
+        this function.
+    """
+
+    id_set = {b_id for bond_list in (in_ids + out_ids) for b_id in bond_list}
+    a_int = ord("a")
+    bond_char_map: dict[Bond, str] = dict()
+    for i, bond_id in enumerate(id_set):
+        bond_char_map[bond_id] = chr(a_int + i)
+
+    string = []
+    for bond_list in in_ids:
+        string += [bond_char_map[b_id] for b_id in bond_list] + [","]
+    string.pop()
+    string += ["->"]
+    for bond_list in out_ids:
+        string += [bond_char_map[b_id] for b_id in bond_list] + [","]
+    string.pop()
+
+    return "".join(string)
 
 
 class DirectionMPS(Enum):
@@ -68,31 +99,6 @@ class CuTensorNetHandle:
 
         dev = cp.cuda.Device()
         self.device_id = int(dev)
-
-        if cp.cuda.runtime.runtimeGetVersion() < 11020:
-            raise RuntimeError("Requires CUDA 11.2+.")
-        if not dev.attributes["MemoryPoolsSupported"]:
-            raise RuntimeError("Device does not support CUDA Memory pools")
-
-        # Avoid shrinking the pool
-        mempool = cp.cuda.runtime.deviceGetDefaultMemPool(dev.id)
-        if int(cp.__version__.split(".")[0]) >= 10:
-            # this API is exposed since CuPy v10
-            cp.cuda.runtime.memPoolSetAttribute(
-                mempool,
-                cp.cuda.runtime.cudaMemPoolAttrReleaseThreshold,
-                0xFFFFFFFFFFFFFFFF,  # = UINT64_MAX
-            )
-
-        # A device memory handler lets CuTensorNet manage its own GPU memory
-        def malloc(size, stream):  # type: ignore
-            return cp.cuda.runtime.mallocAsync(size, stream)
-
-        def free(ptr, size, stream):  # type: ignore
-            cp.cuda.runtime.freeAsync(ptr, stream)
-
-        memhandle = (malloc, free, "memory_handler")
-        cutn.set_device_mem_handler(self.handle, memhandle)
 
     def __enter__(self) -> CuTensorNetHandle:
         return self
@@ -483,110 +489,68 @@ class MPS:
             next_pos = pos + 1
             gauge_bond = pos + 1
             gauge_T_index = 0
-            gauge_Q_index = -2
         elif form == DirectionMPS.RIGHT:
             next_pos = pos - 1
             gauge_bond = pos
             gauge_T_index = -2
-            gauge_Q_index = 0
         else:
             raise ValueError("Argument form must be a value in DirectionMPS.")
 
         # Gather the details from the MPS tensor at this position
         T = self.tensors[pos]
-        T_d = T.data
         p_bond = self.get_physical_bond(pos)
         p_dim = self.get_physical_dimension(pos)
         v_bonds = self.get_virtual_bonds(pos)
         v_dims = self.get_virtual_dimensions(pos)
 
-        # Decide the shape of the Q and R tensors
+        # Infer the bond IDs of the Q and R tensors
         if pos == 0:
             if form == DirectionMPS.RIGHT:
                 raise RuntimeError(
                     "The leftmost tensor cannot be in right orthogonal form."
                 )
-            new_dim = min(p_dim, v_dims[0])
             Q_bonds = [-1, p_bond]
-            Q_shape = [new_dim, p_dim]
             R_bonds = [-1, v_bonds[0]]
-            R_shape = [new_dim, v_dims[0]]
 
         elif pos == len(self) - 1:
             if form == DirectionMPS.LEFT:
                 raise RuntimeError(
                     "The rightmost tensor cannot be in left orthogonal form."
                 )
-            new_dim = min(p_dim, v_dims[0])
             Q_bonds = [-1, p_bond]
-            Q_shape = [new_dim, p_dim]
             R_bonds = [v_bonds[0], -1]
-            R_shape = [v_dims[0], new_dim]
 
         else:
             if form == DirectionMPS.LEFT:
-                new_dim = min(v_dims[0] * p_dim, v_dims[1])
                 Q_bonds = [v_bonds[0], -1, p_bond]
-                Q_shape = [v_dims[0], new_dim, p_dim]
                 R_bonds = [-1, v_bonds[1]]
-                R_shape = [new_dim, v_dims[1]]
             elif form == DirectionMPS.RIGHT:
-                new_dim = min(v_dims[1] * p_dim, v_dims[0])
                 Q_bonds = [-1, v_bonds[1], p_bond]
-                Q_shape = [new_dim, v_dims[1], p_dim]
                 R_bonds = [v_bonds[0], -1]
-                R_shape = [v_dims[0], new_dim]
-
-        # Create template for the Q and R tensors
-        Q_d = cp.empty(Q_shape, dtype=self._complex_t)
-        Q = Tensor(Q_d, Q_bonds)
-        R_d = cp.empty(R_shape, dtype=self._complex_t)
-        R = Tensor(R_d, R_bonds)
-
-        # Create tensor descriptors
-        T_desc = T.get_tensor_descriptor(self._lib)
-        Q_desc = Q.get_tensor_descriptor(self._lib)
-        R_desc = R.get_tensor_descriptor(self._lib)
 
         # Apply QR decomposition
-        cutn.tensor_qr(
-            self._lib.handle,
-            T_desc,
-            T_d.data.ptr,
-            Q_desc,
-            Q_d.data.ptr,
-            R_desc,
-            R_d.data.ptr,
-            0,  # 0 means let cuQuantum manage mem itself
-            self._stream.ptr,  # type: ignore
+        subscripts = _bonds_to_subscripts([T.bonds], [Q_bonds, R_bonds])
+        options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
+        Q_d, R_d = tensor.decompose(
+            subscripts, T.data, method=tensor.QRMethod(), options=options
         )
-        self._stream.synchronize()  # type: ignore
 
         # Contract R into the tensor of the next position
         Tnext_bonds = list(self.tensors[next_pos].bonds)
         Tnext_bonds[gauge_T_index] = -1
         Tnext_d = cq.contract(
             R_d,
-            R.bonds,
+            R_bonds,
             self.tensors[next_pos].data,
             self.tensors[next_pos].bonds,
             Tnext_bonds,
         )
-        # Reassign virtual bond ID
-        Tnext_bonds[gauge_T_index] = gauge_bond
-        Q_bonds[gauge_Q_index] = gauge_bond
+
         # Update self.tensors
         self.tensors[pos].data = Q_d
-        self.tensors[pos].bonds = Q_bonds
         self.tensors[pos].canonical_form = form
         self.tensors[next_pos].data = Tnext_d
-        self.tensors[next_pos].bonds = Tnext_bonds
         self.tensors[next_pos].canonical_form = None
-
-        # Destroy descriptors
-        cutn.destroy_tensor_descriptor(T_desc)
-        cutn.destroy_tensor_descriptor(Q_desc)
-        cutn.destroy_tensor_descriptor(R_desc)
 
     def vdot(self, other: MPS) -> complex:
         """Obtain the inner product of the two MPS: ``<self|other>``.
