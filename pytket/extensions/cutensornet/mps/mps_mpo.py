@@ -24,7 +24,6 @@ except ImportError:
     warnings.warn("local settings failed to import cupy", ImportWarning)
 try:
     import cuquantum as cq  # type: ignore
-    import cuquantum.cutensornet as cutn  # type: ignore
     from cuquantum.cutensornet import tensor  # type: ignore
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)

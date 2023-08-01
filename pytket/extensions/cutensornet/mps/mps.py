@@ -41,10 +41,12 @@ Bond = int
 
 def _bonds_to_subscripts(in_ids: list[list[Bond]], out_ids: list[list[Bond]]) -> str:
     """Convert the collection of bond lists to string subscript form as in cuQuantum.
+
     That is, each element in the list ``in_ids`` corresponds to the bonds of an input
     tensor; similarly for ``out_ids``. Convert these to a string of characters where
     the different tensors are separated by commas and input is separated from output
-    by ``->``.
+    by ``->``. For instance, if ``in_ids`` is ``[[2,1,4,5]]`` and ``out_ids`` is
+    ``[[4,-1,2],[1,-1,5]]`` the output would be ``bacd->ceb,aed``.
 
     Notes:
         The assignment of bond ID to character may not be consistent accross calls to
@@ -487,11 +489,9 @@ class MPS:
 
         if form == DirectionMPS.LEFT:
             next_pos = pos + 1
-            gauge_bond = pos + 1
             gauge_T_index = 0
         elif form == DirectionMPS.RIGHT:
             next_pos = pos - 1
-            gauge_bond = pos
             gauge_T_index = -2
         else:
             raise ValueError("Argument form must be a value in DirectionMPS.")
@@ -499,9 +499,7 @@ class MPS:
         # Gather the details from the MPS tensor at this position
         T = self.tensors[pos]
         p_bond = self.get_physical_bond(pos)
-        p_dim = self.get_physical_dimension(pos)
         v_bonds = self.get_virtual_bonds(pos)
-        v_dims = self.get_virtual_dimensions(pos)
 
         # Infer the bond IDs of the Q and R tensors
         if pos == 0:
