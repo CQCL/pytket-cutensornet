@@ -162,13 +162,6 @@ class MPSxGate(MPS):
         R = self.tensors[r_pos]
         r_shape = list(R.data.shape)
 
-        if self.chi < new_dim:
-            new_dim = self.chi
-        if new_dim != r_shape[0]:
-            # We need to change the shape of the tensors
-            l_shape[-2] = new_dim
-            r_shape[0] = new_dim
-
         if self.truncation_fidelity < 1:
             # Carry out SVD decomposition first with NO truncation
             # to figure out where to apply the dimension cutoff.
@@ -254,12 +247,11 @@ class MPSxGate(MPS):
                 max_extent=self.chi,
                 partition="U",  # Contract S directly into U (named L in our case)
                 normalization="L2",  # Sum of squares equal 1
-                return_info=True,
             )
 
             subscripts = _bonds_to_subscripts([T_bonds], [L.bonds, R.bonds])
             L.data, S_d, R.data, svd_info = tensor.decompose(
-                subscripts, T_d, method=svd_method, options=options
+                subscripts, T_d, method=svd_method, options=options, return_info=True
             )
             assert S_d is None  # Due to "partition" option in SVDMethod
 
