@@ -36,29 +36,22 @@ from pytket.extensions.cutensornet.tensor_network_convert import (
     tk_to_tensor_network,
     measure_qubits_state,
 )
-from pytket.predicates import Predicate, GateSetPredicate, NoClassicalBitsPredicate  # type: ignore
+from pytket.passes import auto_rebase_pass
+from pytket.predicates import (  # type: ignore
+    Predicate,
+    GateSetPredicate,
+    NoClassicalBitsPredicate,
+    NoSymbolsPredicate,
+)
 from pytket.passes import (  # type: ignore
     BasePass,
     SequencePass,
     DecomposeBoxes,
+    RemoveRedundancies,
     SynthesiseTket,
     FullPeepholeOptimise,
-    RebaseCustom,
-    SquashCustom,
 )
 from pytket.utils.operators import QubitPauliOperator
-
-
-# TODO: this is temporary - probably don't need it eventually?
-def _sq(a: Expr, b: Expr, c: Expr) -> Circuit:
-    circ = Circuit(1)
-    if c != 0:
-        circ.Rz(c, 0)
-    if b != 0:
-        circ.Rx(b, 0)
-    if a != 0:
-        circ.Rz(a, 0)
-    return circ
 
 
 class CuTensorNetBackend(Backend):
@@ -67,6 +60,54 @@ class CuTensorNetBackend(Backend):
     _supports_state = True
     _supports_expectation = True
     _persistent_handles = False
+    _GATE_SET = {
+        OpType.X,
+        OpType.Y,
+        OpType.Z,
+        OpType.S,
+        OpType.Sdg,
+        OpType.T,
+        OpType.Tdg,
+        OpType.V,
+        OpType.Vdg,
+        OpType.SX,
+        OpType.SXdg,
+        OpType.H,
+        OpType.Rx,
+        OpType.Ry,
+        OpType.Rz,
+        OpType.U1,
+        OpType.U2,
+        OpType.U3,
+        OpType.TK1,
+        OpType.TK2,
+        OpType.CX,
+        OpType.CY,
+        OpType.CZ,
+        OpType.CH,
+        OpType.CV,
+        OpType.CVdg,
+        OpType.CSX,
+        OpType.CSXdg,
+        OpType.CRz,
+        OpType.CRy,
+        OpType.CRx,
+        OpType.CU1,
+        OpType.CU3,
+        OpType.CCX,
+        OpType.ECR,
+        OpType.SWAP,
+        OpType.CSWAP,
+        OpType.ISWAP,
+        OpType.XXPhase,
+        OpType.YYPhase,
+        OpType.ZZPhase,
+        OpType.ZZMax,
+        OpType.ESWAP,
+        OpType.PhasedX,
+        OpType.FSim,
+        OpType.Sycamore,
+    }
 
     # TODO: add self._backend_info?
     def __init__(self) -> None:
@@ -84,7 +125,6 @@ class CuTensorNetBackend(Backend):
         """Returns information on the backend."""
         return None
 
-    # TODO: Surely we can allow for more gate sets - needs thorough testing though.
     @property
     def required_predicates(self) -> List[Predicate]:
         """Returns the minimum set of predicates that a circuit must satisfy.
@@ -97,38 +137,19 @@ class CuTensorNetBackend(Backend):
         """
         preds = [
             NoClassicalBitsPredicate(),
-            GateSetPredicate(
-                {
-                    OpType.Rx,
-                    OpType.Ry,
-                    OpType.Rz,
-                    OpType.ZZMax,
-                }
-            ),
+            NoSymbolsPredicate(),
+            GateSetPredicate(self._GATE_SET),
         ]
         return preds
 
-    # TODO: also probably needs improvement.
     def rebase_pass(self) -> BasePass:
         """Defines rebasing method.
 
         Returns:
-            Custom rebase pass object.
+            Automatic rebase pass object based on the backend gate set.
         """
-        cx_circ = Circuit(2)
-        cx_circ.Sdg(0)
-        cx_circ.V(1)
-        cx_circ.Sdg(1)
-        cx_circ.Vdg(1)
-        cx_circ.add_gate(OpType.ZZMax, [0, 1])
-        cx_circ.Vdg(1)
-        cx_circ.Sdg(1)
-        cx_circ.add_phase(0.5)
-        return RebaseCustom(
-            {OpType.Rx, OpType.Ry, OpType.Rz, OpType.ZZMax}, cx_circ, _sq
-        )
+        return auto_rebase_pass(self._GATE_SET)
 
-    # TODO: same as above?
     def default_compilation_pass(self, optimisation_level: int = 1) -> BasePass:
         """Returns a default compilation pass.
 
@@ -146,17 +167,15 @@ class CuTensorNetBackend(Backend):
             Compilation pass guaranteeing required predicates.
         """
         assert optimisation_level in range(3)
-        squash = SquashCustom({OpType.Rz, OpType.Rx, OpType.Ry}, _sq)
-        seq = [DecomposeBoxes()]  # Decompose boxes into basic gates
+        seq = [
+            DecomposeBoxes(),
+            RemoveRedundancies(),
+        ]  # Decompose boxes into basic gates
         if optimisation_level == 1:
             seq.append(SynthesiseTket())  # Optional fast optimisation
         elif optimisation_level == 2:
             seq.append(FullPeepholeOptimise())  # Optional heavy optimisation
         seq.append(self.rebase_pass())  # Map to target gate set
-        if optimisation_level != 0:
-            seq.append(
-                squash
-            )  # Optionally simplify 1qb gate chains within this gate set
         return SequencePass(seq)
 
     def circuit_status(self, handle: ResultHandle) -> CircuitStatus:
@@ -211,15 +230,7 @@ class CuTensorNetBackend(Backend):
                     "Global phase is dependent on a symbolic parameter, so cannot "
                     "adjust for phase"
                 )
-            # Qubits order:
-            # implicit_perm = circuit.implicit_qubit_permutation()
-            # res_qubits = [
-            #     implicit_perm[qb] for qb in sorted(circuit.qubits, reverse=False)
-            # ]  # reverse was set to True in the pytket-example but this fails tests.
             res_qubits = [qb for qb in sorted(circuit.qubits)]
-            # The below line is as per pytket-Qulacs, but this alone fails the implicit
-            # permutation test result.
-            # res_qubits = sorted(circuit.qubits, reverse=False)
             handle = ResultHandle(str(uuid4()))
             self._cache[handle] = {
                 "result": BackendResult(q_bits=res_qubits, state=state)

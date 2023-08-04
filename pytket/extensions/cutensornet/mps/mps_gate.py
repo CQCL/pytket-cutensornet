@@ -108,6 +108,16 @@ class MPSxGate(MPS):
             # to the larger tensor resulting from the contraction.
             self.canonicalise(l_pos, r_pos)
 
+            # Since canonicalisation may change the dimension of the bonds,
+            # we need to recalculate the value of `new_dim`
+            if l_pos == 0 or r_pos == len(self) - 1:
+                new_dim = 2
+            else:
+                new_dim = 2 * min(
+                    self.get_virtual_dimensions(l_pos)[0],
+                    self.get_virtual_dimensions(r_pos)[1],
+                )
+
         # Load the gate's unitary to the GPU memory
         gate_unitary = gate.get_unitary().astype(dtype=self._complex_t, copy=False)
         gate_tensor = cp.asarray(gate_unitary, dtype=self._complex_t)

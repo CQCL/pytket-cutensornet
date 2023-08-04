@@ -71,6 +71,9 @@ class TensorNetwork:
             circuit: A pytket circuit to be converted to a tensor network.
             adj: Whether to create an adjoint representation of the original circuit.
             loglevel: Internal logger output level.
+
+        Raises:
+            RuntimeError: If ``Box`` objects are present in the circuit.
         """
         self._logger = set_logger("TensorNetwork", loglevel)
         self._circuit = circuit
@@ -113,12 +116,22 @@ class TensorNetwork:
         Returns:
             A map between the gate type and corresponding tensor representation(s).
 
+        Raises:
+            RuntimeError: If ``Box`` objects are present in the circuit.
+
         Note:
            The returned map values are lists and may contain more than one
            representation - for >1-qubit gates, different topologies (e.g. upward and
            downward) are taken into account.
         """
         name_set = {com.op.get_name() for com in self._circuit.get_commands()}
+        for name in name_set:
+            if "Box" in name:
+                raise RuntimeError(
+                    "Currently TensorNetwork does not accept pytket Box"
+                    " objects. Please first run"
+                    " ``DecomposeBoxes().apply(circuit)``"
+                )
         gate_tensors = defaultdict(list)
         for i in name_set:
             for com in self._circuit.get_commands():

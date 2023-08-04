@@ -1,6 +1,12 @@
 Changelog
 ~~~~~~~~~
 
+0.2.1 (August 2023)
+-------------------
+
+* Improved backend gate set to allow for more gate types.
+* Fixed a bug in ``apply_gate`` of MPS algorithms that would cause internal dimensions to be tracked wrongly in certain edge cases, causing a crash.
+
 0.2.0 (July 2023)
 -----------------
 
