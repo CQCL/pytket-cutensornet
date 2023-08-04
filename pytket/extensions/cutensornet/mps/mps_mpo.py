@@ -32,10 +32,8 @@ from pytket.circuit import Op, Qubit  # type: ignore
 from .mps import (
     CuTensorNetHandle,
     DirectionMPS,
-    Bond,
     Tensor,
     MPS,
-    _bonds_to_subscripts,
 )
 from .mps_gate import MPSxGate
 
@@ -105,6 +103,8 @@ class MPSxMPO(MPS):
         # Each of the tensors will have four bonds ordered as follows:
         # [input, left, right, output]
         self._mpo: list[list[Tensor]] = [list() for _ in qubits]
+        # This ``_bond_ids`` store global bond IDs of MPO tensors, used by ``_flush()``
+        self._bond_ids: list[list[tuple[int,int,int,int]]] = [list() for _ in qubits]
 
         # Initialise the MPS that we will use as first approximation of the
         # variational algorithm.
@@ -158,11 +158,22 @@ class MPSxMPO(MPS):
         gate_unitary = gate.get_unitary().astype(dtype=self._complex_t, copy=False)
         gate_tensor = cp.asarray(gate_unitary, dtype=self._complex_t)
 
+        # Glossary of bond IDs
+        # i -> input to the MPO tensor
+        # o -> output of the MPO tensor
+        # l -> left virtual bond of the MPO tensor
+        # r -> right virtual bond of the MPO tensor
+        # g -> output bond of the gate tensor
+
         # Identify the tensor to contract the gate with
         if self._mpo[position]:  # Not empty
             last_tensor = self._mpo[position][-1]
+            last_bonds = "ilro"
+            new_bonds = "ilrg"
         else:  # Use the MPS tensor
             last_tensor = self.tensors[position]
+            last_bonds = "lro"
+            new_bonds = "lrg"
 
         # Identify the ID of the bonds involved
         open_bond = last_tensor.bonds[-1]
@@ -171,15 +182,17 @@ class MPSxMPO(MPS):
 
         # Contract
         new_tensor = cq.contract(
+            "go,"+last_bonds+"->"+new_bonds,
             gate_tensor,
-            [new_bond, open_bond],
-            last_tensor.data,
-            last_tensor.bonds,
-            other_bonds + [new_bond],
+            last_tensor,
         )
 
-        # Update the tensor; do so "in place" in the MPS-MPO data structures
-        last_tensor.data = new_tensor
+        # Update the tensor
+        if self._mpo[position]:  # Not empty
+            self._mpo[position][-1] = new_tensor
+        else:  # Update the MPS tensor
+            self.tensors[position] = new_tensor
+
         return self
 
     def _apply_2q_gate(self, positions: tuple[int, int], gate: Op) -> MPSxMPO:
@@ -214,67 +227,46 @@ class MPSxMPO(MPS):
         # Reshape into a rank-4 tensor
         gate_tensor = cp.reshape(gate_tensor, (2, 2, 2, 2))
 
-        # Assign bond IDs
-        left_gate_input = self.get_physical_bond(l_pos)
-        right_gate_input = self.get_physical_bond(r_pos)
-        left_gate_output = self._new_bond_id()
-        right_gate_output = self._new_bond_id()
-        gate_v_bond = self._new_bond_id()
-        left_dummy = self._new_bond_id()
-        right_dummy = self._new_bond_id()
+        # Glossary of bond IDs
+        # l -> gate's left input bond
+        # r -> gate's right input bond
+        # L -> gate's left output bond
+        # R -> gate's right output bond
+        # s -> virtual bond after QR decomposition
 
-        # Create the tensor object for the gate
+        # Assign the bond IDs for the gate
         if l_pos == positions[0]:
-            gate_bonds = [
-                left_gate_output,
-                right_gate_output,
-                left_gate_input,
-                right_gate_input,
-            ]
+            gate_bonds = "LRlr"
         else:  # Implicit swap
-            gate_bonds = [
-                right_gate_output,
-                left_gate_output,
-                right_gate_input,
-                left_gate_input,
-            ]
-
-        # Template of tensors that will store the QR decomposition of the gate tensor
-        L = Tensor(
-            None,  # data no longer needs to be initialised
-            [left_gate_input, gate_v_bond, left_gate_output],
-        )
-        R = Tensor(
-            None,  # data no longer needs to be initialised
-            [right_gate_input, gate_v_bond, right_gate_output],
-        )
+            gate_bonds = "RLrl"
 
         # Apply a QR decomposition on the gate_tensor to shape it as an MPO
         options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
-        subscripts = _bonds_to_subscripts([gate_bonds], [L.bonds, R.bonds])
-        L.data, R.data = tensor.decompose(
-            subscripts, gate_tensor, method=tensor.QRMethod(), options=options
+        L, R = tensor.decompose(
+            gate_bonds+"->lsL,rsR", gate_tensor, method=tensor.QRMethod(), options=options
         )
 
         # Add dummy bonds of dimension 1 to L and R so that they have the right shape
-        L.data = cp.reshape(L.data, (2, 1, 4, 2))
-        L.bonds = [left_gate_input, left_dummy, gate_v_bond, left_gate_output]
-        R.data = cp.reshape(R.data, (2, 4, 1, 2))
-        R.bonds = [right_gate_input, gate_v_bond, right_dummy, right_gate_output]
+        L = cp.reshape(L, (2, 1, 4, 2))
+        R = cp.reshape(R, (2, 4, 1, 2))
 
         # Store L and R
         self._mpo[l_pos].append(L)
         self._mpo[r_pos].append(R)
+        # And assign their global bonds
+        shared_bond_id = self._new_bond_id()
+        self._bond_ids[l_pos].append((self._get_physical_bond(l_pos), prev, self._new_bond_id(), shared_bond_id, self._new_bond_id()))
+        self._bond_ids[r_pos].append((self._get_physical_bond(r_pos), shared_bond_id, self._new_bond_id(), self._new_bond_id()))
         return self
 
-    def get_physical_bond(self, position: int) -> Bond:
-        """Returns the unique identifier of the physical bond at ``position``.
+    def get_physical_dimension(self, position: int) -> int:
+        """Returns the dimension of the physical bond at ``position``.
 
-        Args
+        Args:
             position: A position in the MPS.
 
         Returns:
-            The identifier of the physical bond.
+            The dimension of the physical bond.
 
         Raises:
             RuntimeError: If ``position`` is out of bounds.
@@ -289,29 +281,51 @@ class MPSxMPO(MPS):
             last_tensor = self.tensors[position]
 
         # By construction, the open bond is the last one
-        return last_tensor.bonds[-1]
+        return int(last_tensor.shape[-1])
 
-    def get_physical_dimension(self, position: int) -> int:
-        """Returns the dimension of the physical bond at ``position``.
+    def _get_physical_bond(self, position: int) -> int:
+        """Returns the unique identifier of the physical bond at ``position``.
 
-        Args:
+        Args
             position: A position in the MPS.
 
         Returns:
-            The dimension of the physical bond.
+            The identifier of the physical bond.
 
         Raises:
             RuntimeError: If ``position`` is out of bounds.
         """
+        if position < 0 or position >= len(self):
+            raise RuntimeError(f"Position {position} is out of bounds.")
 
-        # Identify the tensor last tensor in the MPO
-        if self._mpo[position]:  # Not empty
-            last_tensor = self._mpo[position][-1]
-        else:  # Use the MPS tensor
-            last_tensor = self.tensors[position]
+        if self._mpo[position]:
+            return self._bond_ids[position][-1][-1]
+        else:
+            return self._new_bond_id()
 
-        # By construction, the open bond is the last one
-        return int(last_tensor.data.shape[-1])
+    def _get_column_bonds(self, position: int, direction: DirectionMPS) -> list[int]:
+        """Returns the unique identifier of all the left (right) virtual bonds of
+        MPO tensors at ``position`` if ``direction`` is ``LEFT`` (``RIGHT``).
+
+        Notes:
+            It does not return the corresponding bonds of the MPS tensors.
+
+        Raises:
+            RuntimeError: If ``position`` is out of bounds.
+            ValueError: If ``direction`` is not a value in ``DirectionMPS``.
+        """
+        if position < 0 or position >= len(self):
+            raise RuntimeError(f"Position {position} is out of bounds.")
+
+        if direction == DirectionMPS.LEFT:
+            index = 1  # By convention, left bond at index 1
+        elif direction == DirectionMPS.RIGHT:
+            index = 2  # By convention, right bond at index 2
+        else:
+            raise ValueError("Argument form must be a value in DirectionMPS.")
+
+        return [b_ids[index] for b_ids in self._bond_ids[position]]
+
 
     def _flush(self) -> None:
         """Applies all batched operations within ``self._mpo`` to the MPS.
@@ -337,60 +351,63 @@ class MPSxMPO(MPS):
             elif direction == DirectionMPS.RIGHT:
                 self._aux_mps.canonicalise_tensor(pos, form=DirectionMPS.LEFT)
 
+            # Glossary of bond IDs
+            # p -> the physical bond of the MPS tensor
+            # l,r -> the virtual bonds of the MPS tensor
+            # L,R -> the virtual bonds of the variational MPS tensor
+            # P -> the physical bond of the variational MPS tensor
+            # MPO tensors will use ``self._bond_ids``
+
             # Get the interleaved representation
             interleaved_rep = [
-                # The (conjugated) tensor of the variational MPS
-                self._aux_mps.tensors[pos].data.conj(),
-                [-b for b in self._aux_mps.tensors[pos].bonds],
                 # The tensor of the MPS
-                self.tensors[pos].data,
-                self.tensors[pos].bonds,
+                self.tensors[pos],
+                ["l", "r", "p"],
+                # The (conjugated) tensor of the variational MPS
+                self._aux_mps.tensors[pos].conj(),
+                ["L", "R", "P"],
             ]
-            for mpo_tensor in self._mpo[pos]:
-                # The MPO tensors at this position
-                interleaved_rep.append(mpo_tensor.data)
-                interleaved_rep.append(mpo_tensor.bonds)
-            # The output bond of the last tensor must connect to the physical
-            # bond of the corresponding ``self._aux_mps`` tensor
-            interleaved_rep[-1][-1] = -self._aux_mps.get_physical_bond(pos)
+            for i, mpo_tensor in enumerate(self._mpo[pos]):
+                # The MPO tensor at this position
+                interleaved_rep.append(mpo_tensor)
+
+                mpo_bonds = list(self._bond_ids[pos][i])
+                if i == 0:
+                    # The input bond of the first MPO tensor must connect to the
+                    # physical bond of the correspondong ``self.tensors`` tensor
+                    mpo_bonds[0] = "p"
+                if i == len(self._mpo[pos]) - 1:
+                    # The output bond of the last MPO tensor must connect to the
+                    # physical bond of the corresponding ``self._aux_mps`` tensor
+                    mpo_bonds[-1] = "P"
+                interleaved_rep.append(mpo_bonds)
 
             # Also contract the previous (cached) tensor during the sweep
             if direction == DirectionMPS.LEFT:
                 if pos != len(self) - 1:  # Otherwise, there is nothing cached yet
-                    interleaved_rep.append(r_cached_tensors[-1].data)
-                    interleaved_rep.append(r_cached_tensors[-1].bonds)
+                    interleaved_rep.append(r_cached_tensors[-1])
+                    r_cached_bonds = self._get_column_bonds(pos+1, DirectionMPS.LEFT)
+                    interleaved_rep.append(["r", "R"] + r_cached_bonds)
             elif direction == DirectionMPS.RIGHT:
                 if pos != 0:  # Otherwise, there is nothing cached yet
-                    interleaved_rep.append(l_cached_tensors[-1].data)
-                    interleaved_rep.append(l_cached_tensors[-1].bonds)
+                    interleaved_rep.append(l_cached_tensors[-1])
+                    l_cached_bonds = self._get_column_bonds(pos-1, DirectionMPS.RIGHT)
+                    interleaved_rep.append(["l", "L"] + l_cached_bonds)
 
             # Figure out the ID of the bonds of the contracted tensor
             if direction == DirectionMPS.LEFT:
-                # Take the left virtual bond of both of the MPS
-                T_bonds = [
-                    -self._aux_mps.get_virtual_bonds(pos)[0],
-                    self.get_virtual_bonds(pos)[0],
-                ]
                 # Take the left bond of each of the MPO tensors
-                for mpo_tensor in self._mpo[pos]:
-                    T_bonds.append(mpo_tensor.bonds[1])
+                result_bonds = self._get_column_bonds(pos, DirectionMPS.LEFT)
+                # Take the left virtual bond of both of the MPS
+                interleaved_rep.append(["l", "L"] + result_bonds)
             elif direction == DirectionMPS.RIGHT:
-                # Take the right virtual bond of both of the MPS
-                T_bonds = [
-                    -self._aux_mps.get_virtual_bonds(pos)[-1],
-                    self.get_virtual_bonds(pos)[-1],
-                ]
                 # Take the right bond of each of the MPO tensors
-                for mpo_tensor in self._mpo[pos]:
-                    T_bonds.append(mpo_tensor.bonds[2])
-            # Append the bond IDs of the resulting tensor to the interleaved_rep
-            interleaved_rep.append(T_bonds)
+                result_bonds = self._get_column_bonds(pos, DirectionMPS.RIGHT)
+                # Take the right virtual bond of both of the MPS
+                interleaved_rep.append(["r", "R"] + result_bonds)
 
             # Contract and store
-            T = Tensor(
-                cq.contract(*interleaved_rep),
-                T_bonds,
-            )
+            T = cq.contract(*interleaved_rep)
             if direction == DirectionMPS.LEFT:
                 r_cached_tensors.append(T)
             elif direction == DirectionMPS.RIGHT:
@@ -407,40 +424,49 @@ class MPSxMPO(MPS):
             """
             interleaved_rep = [
                 # The tensor of the MPS
-                self.tensors[pos].data,
-                self.tensors[pos].bonds,
+                self.tensors[pos],
+                ["l", "r", "p"],
             ]
             # The MPO tensors at position ``pos``
-            for mpo_tensor in self._mpo[pos]:
-                interleaved_rep.append(mpo_tensor.data)
-                interleaved_rep.append(mpo_tensor.bonds)
-            # The output bond of the last tensor must connect to the physical
-            # bond of the corresponding ``self._aux_mps`` tensor
-            interleaved_rep[-1][-1] = -self._aux_mps.get_physical_bond(pos)
+            for i, mpo_tensor in enumerate(self._mpo[pos]):
+                # The MPO tensor at this position
+                interleaved_rep.append(mpo_tensor)
+
+                mpo_bonds = list(self._bond_ids[pos][i])
+                if i == 0:
+                    # The input bond of the first MPO tensor must connect to the
+                    # physical bond of the correspondong ``self.tensors`` tensor
+                    mpo_bonds[0] = "p"
+                if i == len(self._mpo[pos]) - 1:
+                    # The output bond of the last MPO tensor corresponds to the
+                    # physical bond of the corresponding ``self._aux_mps`` tensor
+                    mpo_bonds[-1] = "P"
+                interleaved_rep.append(mpo_bonds)
 
             if left_tensor is not None:
-                interleaved_rep.append(left_tensor.data)
-                interleaved_rep.append(left_tensor.bonds)
+                interleaved_rep.append(left_tensor)
+                left_tensor_bonds = self._get_column_bonds(pos-1, DirectionMPS.RIGHT)
+                interleaved_rep.append(["l", "L"] + left_tensor_bonds)
             if right_tensor is not None:
-                interleaved_rep.append(right_tensor.data)
-                interleaved_rep.append(right_tensor.bonds)
+                interleaved_rep.append(right_tensor)
+                right_tensor_bonds = self._get_column_bonds(pos+1, DirectionMPS.LEFT)
+                interleaved_rep.append(["r", "R"] + right_tensor_bonds)
 
             # Append the bond IDs of the resulting tensor
-            F_bonds = [-b for b in self._aux_mps.tensors[pos].bonds]
-            interleaved_rep.append(F_bonds)
+            interleaved_rep.append(["L", "R", "P"])
 
             # Contract and store tensor
-            F = Tensor(cq.contract(*interleaved_rep), self._aux_mps.tensors[pos].bonds)
+            F = cq.contract(*interleaved_rep)
 
             # Get the fidelity
             optim_fidelity = complex(
-                cq.contract(F.data.conj(), F.bonds, F.data, F.bonds, [])
+                cq.contract("LRP,LRP->", F.conj(), F)
             )
             assert np.isclose(optim_fidelity.imag, 0.0, atol=self._atol)
             optim_fidelity = float(optim_fidelity.real)
 
             # Normalise F and update the variational MPS
-            self._aux_mps.tensors[pos].data = F.data / np.sqrt(optim_fidelity)
+            self._aux_mps.tensors[pos] = F / np.sqrt(optim_fidelity)
 
             return optim_fidelity
 
@@ -501,6 +527,7 @@ class MPSxMPO(MPS):
 
         # Clear out the MPO
         self._mpo = [list() for _ in range(len(self))]
+        self._bond_ids = [list() for _ in range(len(self))]
         self._mpo_bond_counter = 0
 
         # Update the MPS tensors
@@ -512,4 +539,4 @@ class MPSxMPO(MPS):
 
     def _new_bond_id(self) -> Bond:
         self._mpo_bond_counter += 1
-        return 2 * len(self) + self._mpo_bond_counter
+        return self._mpo_bond_counter

@@ -27,7 +27,7 @@ except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
 from pytket.circuit import Op  # type: ignore
-from .mps import MPS, _bonds_to_subscripts
+from .mps import MPS
 
 
 class MPSxGate(MPS):
@@ -54,22 +54,25 @@ class MPSxGate(MPS):
         gate_unitary = gate.get_unitary().astype(dtype=self._complex_t, copy=False)
         gate_tensor = cp.asarray(gate_unitary, dtype=self._complex_t)
 
-        # Identify the ID of the bonds involved
-        virtual_bonds = self.get_virtual_bonds(position)
-        physical_bond = self.get_physical_bond(position)
-        new_bond = -1  # Temporary ID for new physical bond
+        # Glossary of bond IDs
+        # p -> physical bond of the MPS tensor
+        # v -> one of the virtual bonds of the MPS tensor
+        # V -> the other virtual bond of the MPS tensor
+        # o -> the output bond of the gate
+
+        T_bonds = "vVp"
+        result_bonds = "vVo"
+        gate_bonds = "op"
 
         # Contract
         new_tensor = cq.contract(
+            gate_bonds+","+T_bonds+"->"+result_bonds,
             gate_tensor,
-            [new_bond, physical_bond],
-            self.tensors[position].data,
-            self.tensors[position].bonds,
-            virtual_bonds + [new_bond],
+            self.tensors[position],
         )
 
         # Update ``self.tensors``
-        self.tensors[position].data = new_tensor
+        self.tensors[position] = new_tensor
         return self
 
     def _apply_2q_gate(self, positions: tuple[int, int], gate: Op) -> MPSxGate:
@@ -91,13 +94,10 @@ class MPSxGate(MPS):
         r_pos = max(positions)
 
         # Figure out the new dimension of the shared virtual bond
-        if l_pos == 0 or r_pos == len(self) - 1:
-            new_dim = 2
-        else:
-            new_dim = 2 * min(
-                self.get_virtual_dimensions(l_pos)[0],
-                self.get_virtual_dimensions(r_pos)[1],
-            )
+        new_dim = 2 * min(
+            self.get_virtual_dimensions(l_pos)[0],
+            self.get_virtual_dimensions(r_pos)[1],
+        )
 
         # Canonicalisation may be required if `new_dim` is larger than `chi`
         # or if set by `truncation_fidelity`
@@ -109,13 +109,10 @@ class MPSxGate(MPS):
 
             # Since canonicalisation may change the dimension of the bonds,
             # we need to recalculate the value of `new_dim`
-            if l_pos == 0 or r_pos == len(self) - 1:
-                new_dim = 2
-            else:
-                new_dim = 2 * min(
-                    self.get_virtual_dimensions(l_pos)[0],
-                    self.get_virtual_dimensions(r_pos)[1],
-                )
+            new_dim = 2 * min(
+                self.get_virtual_dimensions(l_pos)[0],
+                self.get_virtual_dimensions(r_pos)[1],
+            )
 
         # Load the gate's unitary to the GPU memory
         gate_unitary = gate.get_unitary().astype(dtype=self._complex_t, copy=False)
@@ -124,42 +121,35 @@ class MPSxGate(MPS):
         # Reshape into a rank-4 tensor
         gate_tensor = cp.reshape(gate_tensor, (2, 2, 2, 2))
 
-        # Assign bond IDs
-        left_p_bond = self.get_physical_bond(l_pos)
-        right_p_bond = self.get_physical_bond(r_pos)
-        left_new_bond = -2  # Temporary ID for left physical bond
-        right_new_bond = -1  # Temporary ID for right physical bond
+        # Glossary of bond IDs
+        # l -> physical bond of the left tensor in the MPS
+        # r -> physical bond of the right tensor in the MPS
+        # L -> left bond of the outcome of the gate
+        # R -> right bond of the outcome of the gate
+        # a,b,c -> the virtual bonds of the tensors
 
         if l_pos == positions[0]:
-            gate_bonds = [left_new_bond, right_new_bond, left_p_bond, right_p_bond]
+            gate_bonds = "LRlr"
         else:  # Implicit swap
-            gate_bonds = [right_new_bond, left_new_bond, right_p_bond, left_p_bond]
+            gate_bonds = "RLrl" [right_new_bond, left_new_bond, right_p_bond, left_p_bond]
 
-        T_bonds = [
-            v_bond
-            for v_bond in self.get_virtual_bonds(l_pos) + self.get_virtual_bonds(r_pos)
-            if v_bond != r_pos  # The bond between the left and right tensors
-        ] + [left_new_bond, right_new_bond]
+        left_bonds = "abl"
+        right_bonds = "bcr"
+        result_bonds = "acLR"
 
         # Contract
-        T_d = cq.contract(
+        T = cq.contract(
+            gate_bonds+","+left_bonds+","+right_bonds+"->"+result_bonds,
             gate_tensor,
-            gate_bonds,
-            self.tensors[l_pos].data,
-            self.tensors[l_pos].bonds,
-            self.tensors[r_pos].data,
-            self.tensors[r_pos].bonds,
-            T_bonds,
+            self.tensors[l_pos],
+            self.tensors[r_pos],
         )
-        # Reassign auxiliary bond ID
-        T_bonds[-2] = left_p_bond
-        T_bonds[-1] = right_p_bond
 
         # Get the template of the MPS tensors involved
         L = self.tensors[l_pos]
-        l_shape = list(L.data.shape)
+        l_shape = list(L.shape)
         R = self.tensors[r_pos]
-        r_shape = list(R.data.shape)
+        r_shape = list(R.shape)
 
         if self.truncation_fidelity < 1:
             # Carry out SVD decomposition first with NO truncation
@@ -172,14 +162,13 @@ class MPSxGate(MPS):
             # be run; i.e. use standard cuTensorNet API to do the SVD
             # including normalisation and contraction of S with L.
 
-            subscripts = _bonds_to_subscripts([T_bonds], [L.bonds, R.bonds])
             options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
             svd_method = tensor.SVDMethod(abs_cutoff=self._atol / 1000)
-            L.data, S_d, R.data = tensor.decompose(
-                subscripts, T_d, method=svd_method, options=options
+            L, S, R = tensor.decompose(
+                "acLR->asL,scR", T, method=svd_method, options=options
             )
 
-            # Use the fact that the entries of S_d are sorted in decreasing
+            # Use the fact that the entries of S are sorted in decreasing
             # order and calculate the number of singular values `new_dim` to
             # keep so that
             #                             sum([s**2 for s in S'])
@@ -188,7 +177,7 @@ class MPSxGate(MPS):
             #
             # where S is the list of original singular values and S' is the set of
             # singular values that remain after truncation (before normalisation).
-            denom = float(sum(cp.square(S_d)))  # Element-wise squaring
+            denom = float(sum(cp.square(S)))  # Element-wise squaring
             numer = 0.0
             new_dim = 0
 
@@ -202,33 +191,32 @@ class MPSxGate(MPS):
             # No data is copied or moved around, we're changing the ndarray bounds
             l_shape[-2] = new_dim
             # pylint: disable = unexpected-keyword-arg   # Disable pylint for next line
-            L.data = cp.ndarray(
+            L = cp.ndarray(
                 l_shape,
                 dtype=self._complex_t,
-                memptr=L.data.data,
-                strides=L.data.strides,
+                memptr=L.data,
+                strides=L.strides,
             )
             r_shape[0] = new_dim
             # pylint: disable = unexpected-keyword-arg   # Disable pylint for next line
-            R.data = cp.ndarray(
+            R = cp.ndarray(
                 r_shape,
                 dtype=self._complex_t,
-                memptr=R.data.data,
-                strides=R.data.strides,
+                memptr=R.data,
+                strides=R.strides,
             )
             # pylint: disable = unexpected-keyword-arg   # Disable pylint for next line
-            S_d = cp.ndarray(new_dim, dtype=self._real_t, memptr=S_d.data)
+            S = cp.ndarray(new_dim, dtype=self._real_t, memptr=S.data)
 
             # Normalise
-            S_d *= np.sqrt(1 / this_fidelity)
+            S *= np.sqrt(1 / this_fidelity)
 
             # Contract S into L
-            S_d = S_d.astype(dtype=self._complex_t, copy=False)
-            v_bond = L.bonds[-2]
-            # Use some einsum index magic: since `v_bond` appears in the
+            S = S.astype(dtype=self._complex_t, copy=False)
+            # Use some einsum index magic: since the virtual bond "s" appears in the
             # list of bonds of the output, it is not summed over.
-            # This causes S_d to act as the intended diagonal matrix.
-            L.data = cq.contract(L.data, L.bonds, S_d, [v_bond], L.bonds)
+            # This causes S to act as the intended diagonal matrix.
+            L = cq.contract("asL,s->asL", L, S)
 
             # We multiply the fidelity of the current step to the overall fidelity
             # to keep track of a lower bound for the fidelity.
@@ -248,11 +236,10 @@ class MPSxGate(MPS):
                 normalization="L2",  # Sum of squares equal 1
             )
 
-            subscripts = _bonds_to_subscripts([T_bonds], [L.bonds, R.bonds])
-            L.data, S_d, R.data, svd_info = tensor.decompose(
-                subscripts, T_d, method=svd_method, options=options, return_info=True
+            L, S, R, svd_info = tensor.decompose(
+                "acLR->asL,scR", T, method=svd_method, options=options, return_info=True
             )
-            assert S_d is None  # Due to "partition" option in SVDMethod
+            assert S is None  # Due to "partition" option in SVDMethod
 
             # discarded_weight is calculated within cuTensorNet as:
             #                             sum([s**2 for s in S'])
@@ -272,9 +259,8 @@ class MPSxGate(MPS):
             # to get back to MPS form. QR is cheaper than SVD.
 
             options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
-            subscripts = _bonds_to_subscripts([T_bonds], [L.bonds, R.bonds])
-            L.data, R.data = tensor.decompose(
-                subscripts, T_d, method=tensor.QRMethod(), options=options
+            L, R = tensor.decompose(
+                "acLR->asL,scR", T, method=tensor.QRMethod(), options=options
             )
 
         # The L and R tensors have already been updated and these correspond
