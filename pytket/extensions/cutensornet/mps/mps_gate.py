@@ -66,7 +66,7 @@ class MPSxGate(MPS):
 
         # Contract
         new_tensor = cq.contract(
-            gate_bonds+","+T_bonds+"->"+result_bonds,
+            gate_bonds + "," + T_bonds + "->" + result_bonds,
             gate_tensor,
             self.tensors[position],
         )
@@ -131,7 +131,7 @@ class MPSxGate(MPS):
         if l_pos == positions[0]:
             gate_bonds = "LRlr"
         else:  # Implicit swap
-            gate_bonds = "RLrl" [right_new_bond, left_new_bond, right_p_bond, left_p_bond]
+            gate_bonds = "RLrl"
 
         left_bonds = "abl"
         right_bonds = "bcr"
@@ -139,7 +139,7 @@ class MPSxGate(MPS):
 
         # Contract
         T = cq.contract(
-            gate_bonds+","+left_bonds+","+right_bonds+"->"+result_bonds,
+            gate_bonds + "," + left_bonds + "," + right_bonds + "->" + result_bonds,
             gate_tensor,
             self.tensors[l_pos],
             self.tensors[r_pos],
@@ -183,7 +183,7 @@ class MPSxGate(MPS):
 
             # Take singular values until we surpass the target fidelity
             while self.truncation_fidelity > numer / denom:
-                numer += float(S_d[new_dim] ** 2)
+                numer += float(S[new_dim] ** 2)
                 new_dim += 1
             this_fidelity = numer / denom
 
@@ -263,7 +263,6 @@ class MPSxGate(MPS):
                 "acLR->asL,scR", T, method=tensor.QRMethod(), options=options
             )
 
-        # The L and R tensors have already been updated and these correspond
-        # to the entries of l_pos and r_pos in self.tensors
-        assert self.tensors[l_pos] is L and self.tensors[r_pos] is R
+        self.tensors[l_pos] = L
+        self.tensors[r_pos] = R
         return self

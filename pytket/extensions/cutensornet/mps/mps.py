@@ -187,6 +187,7 @@ class MPS:
 
         # Create the list of tensors
         self.tensors = []
+        self.canonical_form = {i: None for i in range(n_tensors)}
 
         # Append each of the tensors initialised in state |0>
         m_shape = (1, 1, 2)  # Two virtual bonds (dim=1) and one physical
@@ -214,10 +215,7 @@ class MPS:
             for pos in range(len(self))
         )
         phys_ok = all(self.get_physical_dimension(pos) == 2 for pos in range(len(self)))
-        shape_ok = all(
-            len(tensor.shape) == 3
-            for tensor in self.tensors
-        )
+        shape_ok = all(len(tensor.shape) == 3 for tensor in self.tensors)
 
         return chi_ok and phys_ok and shape_ok
 
@@ -354,14 +352,14 @@ class MPS:
             raise ValueError("Argument form must be a value in DirectionMPS.")
 
         # Apply QR decomposition
-        subscripts = T_bonds+"->"+Q_bonds+","+R_bonds
+        subscripts = T_bonds + "->" + Q_bonds + "," + R_bonds
         options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
         Q, R = tensor.decompose(
             subscripts, T, method=tensor.QRMethod(), options=options
         )
 
         # Contract R into Tnext
-        subscripts = R_bonds+","+Tnext_bonds+"->"+result_bonds
+        subscripts = R_bonds + "," + Tnext_bonds + "->" + result_bonds
         result = cq.contract(subscripts, R, Tnext)
 
         # Update self.tensors
@@ -449,7 +447,8 @@ class MPS:
         if position < 0 or position >= len(self):
             raise RuntimeError(f"Position {position} is out of bounds.")
 
-        return self.tensors[position].shape[:2]
+        virtual_dims: tuple[int, int] = self.tensors[position].shape[:2]
+        return virtual_dims
 
     def get_physical_dimension(self, position: int) -> int:
         """Returns the physical bond dimension of the tensor ``tensors[position]``.
@@ -466,7 +465,8 @@ class MPS:
         if position < 0 or position >= len(self):
             raise RuntimeError(f"Position {position} is out of bounds.")
 
-        return self.tensors[position].shape[2]
+        physical_dim: int = self.tensors[position].shape[2]
+        return physical_dim
 
     def get_device_id(self) -> int:
         """

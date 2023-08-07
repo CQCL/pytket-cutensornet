@@ -104,7 +104,7 @@ class MPSxMPO(MPS):
         # [input, left, right, output]
         self._mpo: list[list[Tensor]] = [list() for _ in qubits]
         # This ``_bond_ids`` store global bond IDs of MPO tensors, used by ``_flush()``
-        self._bond_ids: list[list[tuple[int,int,int,int]]] = [list() for _ in qubits]
+        self._bond_ids: list[list[tuple[int, int, int, int]]] = [list() for _ in qubits]
 
         # Initialise the MPS that we will use as first approximation of the
         # variational algorithm.
@@ -175,14 +175,9 @@ class MPSxMPO(MPS):
             last_bonds = "lro"
             new_bonds = "lrg"
 
-        # Identify the ID of the bonds involved
-        open_bond = last_tensor.bonds[-1]
-        other_bonds = last_tensor.bonds[:-1]
-        new_bond = -1  # Temporary ID for new open bond
-
         # Contract
         new_tensor = cq.contract(
-            "go,"+last_bonds+"->"+new_bonds,
+            "go," + last_bonds + "->" + new_bonds,
             gate_tensor,
             last_tensor,
         )
@@ -243,7 +238,10 @@ class MPSxMPO(MPS):
         # Apply a QR decomposition on the gate_tensor to shape it as an MPO
         options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
         L, R = tensor.decompose(
-            gate_bonds+"->lsL,rsR", gate_tensor, method=tensor.QRMethod(), options=options
+            gate_bonds + "->lsL,rsR",
+            gate_tensor,
+            method=tensor.QRMethod(),
+            options=options,
         )
 
         # Add dummy bonds of dimension 1 to L and R so that they have the right shape
@@ -255,8 +253,22 @@ class MPSxMPO(MPS):
         self._mpo[r_pos].append(R)
         # And assign their global bonds
         shared_bond_id = self._new_bond_id()
-        self._bond_ids[l_pos].append((self._get_physical_bond(l_pos), prev, self._new_bond_id(), shared_bond_id, self._new_bond_id()))
-        self._bond_ids[r_pos].append((self._get_physical_bond(r_pos), shared_bond_id, self._new_bond_id(), self._new_bond_id()))
+        self._bond_ids[l_pos].append(
+            (
+                self._get_physical_bond(l_pos),
+                self._new_bond_id(),
+                shared_bond_id,
+                self._new_bond_id(),
+            )
+        )
+        self._bond_ids[r_pos].append(
+            (
+                self._get_physical_bond(r_pos),
+                shared_bond_id,
+                self._new_bond_id(),
+                self._new_bond_id(),
+            )
+        )
         return self
 
     def get_physical_dimension(self, position: int) -> int:
@@ -298,7 +310,7 @@ class MPSxMPO(MPS):
         if position < 0 or position >= len(self):
             raise RuntimeError(f"Position {position} is out of bounds.")
 
-        if self._mpo[position]:
+        if self._bond_ids[position]:
             return self._bond_ids[position][-1][-1]
         else:
             return self._new_bond_id()
@@ -325,7 +337,6 @@ class MPSxMPO(MPS):
             raise ValueError("Argument form must be a value in DirectionMPS.")
 
         return [b_ids[index] for b_ids in self._bond_ids[position]]
-
 
     def _flush(self) -> None:
         """Applies all batched operations within ``self._mpo`` to the MPS.
@@ -365,13 +376,13 @@ class MPSxMPO(MPS):
                 ["l", "r", "p"],
                 # The (conjugated) tensor of the variational MPS
                 self._aux_mps.tensors[pos].conj(),
-                ["L", "R", "P"],
+                ["L", "R", "P" if self._mpo[pos] else "p"],
             ]
             for i, mpo_tensor in enumerate(self._mpo[pos]):
                 # The MPO tensor at this position
                 interleaved_rep.append(mpo_tensor)
 
-                mpo_bonds = list(self._bond_ids[pos][i])
+                mpo_bonds: list[Union[int, str]] = list(self._bond_ids[pos][i])
                 if i == 0:
                     # The input bond of the first MPO tensor must connect to the
                     # physical bond of the correspondong ``self.tensors`` tensor
@@ -386,12 +397,12 @@ class MPSxMPO(MPS):
             if direction == DirectionMPS.LEFT:
                 if pos != len(self) - 1:  # Otherwise, there is nothing cached yet
                     interleaved_rep.append(r_cached_tensors[-1])
-                    r_cached_bonds = self._get_column_bonds(pos+1, DirectionMPS.LEFT)
+                    r_cached_bonds = self._get_column_bonds(pos + 1, DirectionMPS.LEFT)
                     interleaved_rep.append(["r", "R"] + r_cached_bonds)
             elif direction == DirectionMPS.RIGHT:
                 if pos != 0:  # Otherwise, there is nothing cached yet
                     interleaved_rep.append(l_cached_tensors[-1])
-                    l_cached_bonds = self._get_column_bonds(pos-1, DirectionMPS.RIGHT)
+                    l_cached_bonds = self._get_column_bonds(pos - 1, DirectionMPS.RIGHT)
                     interleaved_rep.append(["l", "L"] + l_cached_bonds)
 
             # Figure out the ID of the bonds of the contracted tensor
@@ -427,12 +438,14 @@ class MPSxMPO(MPS):
                 self.tensors[pos],
                 ["l", "r", "p"],
             ]
+            result_bonds = ["l", "r", "p"]
+
             # The MPO tensors at position ``pos``
             for i, mpo_tensor in enumerate(self._mpo[pos]):
                 # The MPO tensor at this position
                 interleaved_rep.append(mpo_tensor)
 
-                mpo_bonds = list(self._bond_ids[pos][i])
+                mpo_bonds: list[Union[int, str]] = list(self._bond_ids[pos][i])
                 if i == 0:
                     # The input bond of the first MPO tensor must connect to the
                     # physical bond of the correspondong ``self.tensors`` tensor
@@ -441,27 +454,28 @@ class MPSxMPO(MPS):
                     # The output bond of the last MPO tensor corresponds to the
                     # physical bond of the corresponding ``self._aux_mps`` tensor
                     mpo_bonds[-1] = "P"
+                    result_bonds[-1] = "P"
                 interleaved_rep.append(mpo_bonds)
 
             if left_tensor is not None:
                 interleaved_rep.append(left_tensor)
-                left_tensor_bonds = self._get_column_bonds(pos-1, DirectionMPS.RIGHT)
+                left_tensor_bonds = self._get_column_bonds(pos - 1, DirectionMPS.RIGHT)
                 interleaved_rep.append(["l", "L"] + left_tensor_bonds)
+                result_bonds[0] = "L"
             if right_tensor is not None:
                 interleaved_rep.append(right_tensor)
-                right_tensor_bonds = self._get_column_bonds(pos+1, DirectionMPS.LEFT)
+                right_tensor_bonds = self._get_column_bonds(pos + 1, DirectionMPS.LEFT)
                 interleaved_rep.append(["r", "R"] + right_tensor_bonds)
+                result_bonds[1] = "R"
 
             # Append the bond IDs of the resulting tensor
-            interleaved_rep.append(["L", "R", "P"])
+            interleaved_rep.append(result_bonds)
 
             # Contract and store tensor
             F = cq.contract(*interleaved_rep)
 
             # Get the fidelity
-            optim_fidelity = complex(
-                cq.contract("LRP,LRP->", F.conj(), F)
-            )
+            optim_fidelity = complex(cq.contract("LRP,LRP->", F.conj(), F))
             assert np.isclose(optim_fidelity.imag, 0.0, atol=self._atol)
             optim_fidelity = float(optim_fidelity.real)
 
@@ -537,6 +551,6 @@ class MPSxMPO(MPS):
         self.fidelity *= sweep_fidelity
         self._aux_mps.fidelity = self.fidelity
 
-    def _new_bond_id(self) -> Bond:
+    def _new_bond_id(self) -> int:
         self._mpo_bond_counter += 1
         return self._mpo_bond_counter
