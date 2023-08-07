@@ -35,7 +35,10 @@ from pytket.circuit import Command, Op, Qubit  # type: ignore
 # base python) has some meaningful type name.
 Handle = int
 # An alias for the CuPy type used for tensors
-Tensor = cp.ndarray
+try:
+    Tensor = cp.ndarray
+except NameError:
+    Tensor = Any
 
 
 class DirectionMPS(Enum):
