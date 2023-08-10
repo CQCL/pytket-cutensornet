@@ -25,6 +25,7 @@ except ImportError:
 try:
     import cuquantum as cq  # type: ignore
     import cuquantum.cutensornet as cutn  # type: ignore
+    from cuquantum.cutensornet import tensor  # type: ignore
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
@@ -33,9 +34,11 @@ from pytket.circuit import Command, Op, Qubit  # type: ignore
 # An alias so that `intptr_t` from CuQuantum's API (which is not available in
 # base python) has some meaningful type name.
 Handle = int
-# An alias for the type of the unique identifiers of each of the bonds
-# of the MPS.
-Bond = int
+# An alias for the CuPy type used for tensors
+try:
+    Tensor = cp.ndarray
+except NameError:
+    Tensor = Any
 
 
 class DirectionMPS(Enum):
@@ -62,33 +65,12 @@ class CuTensorNetHandle:
     def __init__(self, device_id: Optional[int] = None):
         self.handle = cutn.create()
         self._is_destroyed = False
-        dev = cp.cuda.Device(device_id)
+
+        # Make sure CuPy uses the specified device
+        cp.cuda.Device(device_id).use()
+
+        dev = cp.cuda.Device()
         self.device_id = int(dev)
-
-        if cp.cuda.runtime.runtimeGetVersion() < 11020:
-            raise RuntimeError("Requires CUDA 11.2+.")
-        if not dev.attributes["MemoryPoolsSupported"]:
-            raise RuntimeError("Device does not support CUDA Memory pools")
-
-        # Avoid shrinking the pool
-        mempool = cp.cuda.runtime.deviceGetDefaultMemPool(dev.id)
-        if int(cp.__version__.split(".")[0]) >= 10:
-            # this API is exposed since CuPy v10
-            cp.cuda.runtime.memPoolSetAttribute(
-                mempool,
-                cp.cuda.runtime.cudaMemPoolAttrReleaseThreshold,
-                0xFFFFFFFFFFFFFFFF,  # = UINT64_MAX
-            )
-
-        # A device memory handler lets CuTensorNet manage its own GPU memory
-        def malloc(size, stream):  # type: ignore
-            return cp.cuda.runtime.mallocAsync(size, stream)
-
-        def free(ptr, size, stream):  # type: ignore
-            cp.cuda.runtime.freeAsync(ptr, stream)
-
-        memhandle = (malloc, free, "memory_handler")
-        cutn.set_device_mem_handler(self.handle, memhandle)
 
     def __enter__(self) -> CuTensorNetHandle:
         return self
@@ -96,109 +78,6 @@ class CuTensorNetHandle:
     def __exit__(self, exc_type: Any, exc_value: Any, exc_tb: Any) -> None:
         cutn.destroy(self.handle)
         self._is_destroyed = True
-
-
-class Tensor:
-    """Class for the management of tensors via CuPy and cuTensorNet.
-
-    It abstracts away some of the low-level API of cuTensorNet.
-
-    Attributes:
-        data (cupy.ndarray): The entries of the tensor arranged in a CuPy ndarray.
-        bonds (list[Bond]): A list of IDs for each bond, matching the same order
-            as in ``self.data.shape`` (which provides the dimension of each).
-        canonical_form (Optional[DirectionMPS]): If in canonical form, indicate
-            which one; else None.
-    """
-
-    def __init__(self, data: cp.ndarray, bonds: list[Bond]):
-        """
-        Args:
-            data: The entries of the tensor arranged in a CuPy ndarray.
-            bonds: A list of IDs for each bond, matching the same order
-                as in ``self.data.shape`` (which provides the dimension of each).
-        """
-        self.data = data
-        self.bonds = bonds
-        self.canonical_form: Optional[DirectionMPS] = None
-
-    def get_tensor_descriptor(self, libhandle: CuTensorNetHandle) -> Handle:
-        """Return the cuTensorNet tensor descriptor.
-
-        Note:
-            The user is responsible of destroying the descriptor once
-            not in use (see ``cuquantum.cutensornet.destroy_tensor_descriptor``).
-
-        Args:
-            libhandle: The cuTensorNet library handle.
-
-        Returns:
-            The handle to the tensor descriptor.
-
-        Raises:
-            RuntimeError: If ``libhandle`` is no longer in scope.
-            TypeError: If the type of the tensor is not supported. Supported types are
-                ``np.float32``, ``np.float64``, ``np.complex64`` and ``np.complex128``.
-        """
-        if libhandle._is_destroyed:
-            raise RuntimeError("The library handle you passed is no longer in scope.")
-        if self.data.dtype == np.float32:
-            cq_dtype = cq.cudaDataType.CUDA_R_32F
-        elif self.data.dtype == np.float64:
-            cq_dtype = cq.cudaDataType.CUDA_R_64F
-        elif self.data.dtype == np.complex64:
-            cq_dtype = cq.cudaDataType.CUDA_C_32F
-        elif self.data.dtype == np.complex128:
-            cq_dtype = cq.cudaDataType.CUDA_C_64F
-        else:
-            raise TypeError(
-                f"The data type {self.data.dtype} of the tensor is not supported."
-            )
-
-        return cutn.create_tensor_descriptor(  # type: ignore
-            handle=libhandle.handle,
-            n_modes=len(self.data.shape),
-            extents=self.data.shape,
-            strides=self._get_cuquantum_strides(),
-            modes=self.bonds,
-            data_type=cq_dtype,
-        )
-
-    def _get_cuquantum_strides(self) -> list[int]:
-        """Return a list of the strides for each of the bonds.
-
-        Returns them in the same order as in ``self.bonds``.
-
-        Returns:
-            List of strides in cuQuantum format (#entries).
-        """
-        return [stride // self.data.itemsize for stride in self.data.strides]
-
-    def get_bond_dimension(self, bond: Bond) -> int:
-        """Given a bond ID, return that bond's dimension.
-
-        Args:
-            bond: The ID of the bond to be queried. If not in the tensor,
-                an exception is raised.
-
-        Returns:
-            The dimension of the bond.
-
-        Raises:
-            RuntimeError: If ``bond`` is not in a Tensor.
-        """
-        if bond not in self.bonds:
-            raise RuntimeError(f"Bond {bond} not in tensor with bonds: {self.bonds}.")
-        return int(self.data.shape[self.bonds.index(bond)])
-
-    def copy(self) -> Tensor:
-        """
-        Returns:
-            A deep copy of the Tensor.
-        """
-        other = Tensor(self.data.copy(), self.bonds.copy())
-        other.canonical_form = self.canonical_form
-        return other
 
 
 class MPS:
@@ -209,7 +88,12 @@ class MPS:
         truncation_fidelity (float): The target fidelity of SVD truncation.
         tensors (list[Tensor]): A list of tensors in the MPS; ``tensors[0]`` is
             the leftmost and ``tensors[len(self)-1]`` is the rightmost; ``tensors[i]``
-            and ``tensors[i+1]`` are connected in the MPS via a bond.
+            and ``tensors[i+1]`` are connected in the MPS via a bond. All of the
+            tensors are rank three, with the dimensions listed in ``.shape`` matching
+            the left, right and physical bonds, in that order.
+        canonical_form (dict[int, Optional[DirectionMPS]]): A dictionary mapping
+            positions to the canonical form direction of the corresponding tensor,
+            or ``None`` if it the tensor is not canonicalised.
         qubit_position (dict[pytket.circuit.Qubit, int]): A dictionary mapping circuit
             qubits to the position its tensor is at in the MPS.
         fidelity (float): A lower bound of the fidelity, obtained by multiplying
@@ -218,10 +102,6 @@ class MPS:
             states before and after truncation (assuming both are normalised).
     """
 
-    # Some (non-doc) comments on how bond identifiers are numbered:
-    # - The left virtual bond of the tensor `i` of the MPS has ID `i`.
-    # - The right virtual bond of the tensor `i` of the MPS has ID `i+1`.
-    # - The physical bond of the tensor `i` has ID `i+len(tensors)`.
     def __init__(
         self,
         libhandle: CuTensorNetHandle,
@@ -290,10 +170,7 @@ class MPS:
                 f"Value of float_precision must be in {allowed_precisions}."
             )
 
-        self._stream: cp.cuda.Stream = cp.cuda.get_current_stream()
         self._lib = libhandle
-        # Make sure CuPy uses the specified device
-        cp.cuda.Device(libhandle.device_id).use()
 
         #######################################
         # Initialise the MPS with a |0> state #
@@ -311,39 +188,25 @@ class MPS:
 
         self.qubit_position = {q: i for i, q in enumerate(qubits)}
 
-        # Create the first and last tensors (these have one fewer bond)
-        lr_shape = (1, 2)  # Initial virtual bond dim is 1; physical is 2
-        l_tensor = cp.empty(lr_shape, dtype=self._complex_t)
-        r_tensor = cp.empty(lr_shape, dtype=self._complex_t)
-        # Initialise each tensor to ket 0
-        l_tensor[0][0] = 1
-        l_tensor[0][1] = 0
-        r_tensor[0][0] = 1
-        r_tensor[0][1] = 0
-
         # Create the list of tensors
         self.tensors = []
-        # Append the leftmost tensor
-        self.tensors.append(Tensor(l_tensor, [1, n_tensors]))
+        self.canonical_form = {i: None for i in range(n_tensors)}
 
-        # Append each of the tensors in between
+        # Append each of the tensors initialised in state |0>
         m_shape = (1, 1, 2)  # Two virtual bonds (dim=1) and one physical
-        for i in range(1, n_tensors - 1):
+        for i in range(n_tensors):
             m_tensor = cp.empty(m_shape, dtype=self._complex_t)
             # Initialise the tensor to ket 0
             m_tensor[0][0][0] = 1
             m_tensor[0][0][1] = 0
-            self.tensors.append(Tensor(m_tensor, [i, i + 1, i + n_tensors]))
-
-        # Append the rightmost tensor
-        self.tensors.append(Tensor(r_tensor, [n_tensors - 1, 2 * n_tensors - 1]))
+            self.tensors.append(m_tensor)
 
     def is_valid(self) -> bool:
         """Verify that the MPS object is valid.
 
         Specifically, verify that the MPS does not exceed the dimension limit ``chi`` of
-        the virtual bonds, that physical bonds have dimension 2 and that
-        the virtual bonds are connected in a line.
+        the virtual bonds, that physical bonds have dimension 2 and that all tensors
+        are rank three.
 
         Returns:
             False if a violation was detected or True otherwise.
@@ -355,24 +218,9 @@ class MPS:
             for pos in range(len(self))
         )
         phys_ok = all(self.get_physical_dimension(pos) == 2 for pos in range(len(self)))
-        shape_ok = all(
-            len(tensor.data.shape) == len(tensor.bonds) and len(tensor.bonds) <= 3
-            for tensor in self.tensors
-        )
+        shape_ok = all(len(tensor.shape) == 3 for tensor in self.tensors)
 
-        # Check the leftmost tensor
-        v_bonds_ok = self.get_virtual_bonds(0)[0] == 1
-        # Check the middle tensors
-        for i in range(1, len(self) - 1):
-            v_bonds_ok = v_bonds_ok and (
-                self.get_virtual_bonds(i)[0] == i
-                and self.get_virtual_bonds(i)[1] == i + 1
-            )
-        # Check the rightmost tensor
-        i = len(self) - 1
-        v_bonds_ok = v_bonds_ok and self.get_virtual_bonds(i)[0] == i
-
-        return chi_ok and phys_ok and shape_ok and v_bonds_ok
+        return chi_ok and phys_ok and shape_ok
 
     def apply_gate(self, gate: Command) -> MPS:
         """Apply the gate to the MPS.
@@ -422,8 +270,8 @@ class MPS:
                 )
             self._apply_2q_gate((positions[0], positions[1]), gate.op)
             # The tensors will in general no longer be in canonical form.
-            self.tensors[positions[0]].canonical_form = None
-            self.tensors[positions[1]].canonical_form = None
+            self.canonical_form[positions[0]] = None
+            self.canonical_form[positions[1]] = None
 
         else:
             raise RuntimeError(
@@ -465,9 +313,8 @@ class MPS:
         Raises:
             ValueError: If ``form`` is not a value in ``DirectionMPS``.
             RuntimeError: If the ``CuTensorNetHandle`` is out of scope.
-            RuntimeError: If position and form don't match.
         """
-        if form == self.tensors[pos].canonical_form:
+        if form == self.canonical_form[pos]:
             # Tensor already in canonical form, nothing needs to be done
             return None
 
@@ -477,114 +324,52 @@ class MPS:
                 "See the documentation of update_libhandle and CuTensorNetHandle.",
             )
 
+        # Glossary of bond IDs used here:
+        # s -> shared virtual bond between T and Tnext
+        # v -> the other virtual bond of T
+        # V -> the other virtual bond of Tnext
+        # p -> physical bond of T
+        # P -> physical bond of Tnext
+
+        # Gather the details from the MPS tensors at this position
+        T = self.tensors[pos]
+
+        # Assign the bond IDs
         if form == DirectionMPS.LEFT:
             next_pos = pos + 1
-            gauge_bond = pos + 1
-            gauge_T_index = 0
-            gauge_Q_index = -2
+            Tnext = self.tensors[next_pos]
+            T_bonds = "vsp"
+            Q_bonds = "vap"
+            R_bonds = "as"
+            Tnext_bonds = "sVP"
+            result_bonds = "aVP"
         elif form == DirectionMPS.RIGHT:
             next_pos = pos - 1
-            gauge_bond = pos
-            gauge_T_index = -2
-            gauge_Q_index = 0
+            Tnext = self.tensors[next_pos]
+            T_bonds = "svp"
+            Q_bonds = "avp"
+            R_bonds = "as"
+            Tnext_bonds = "VsP"
+            result_bonds = "VaP"
         else:
             raise ValueError("Argument form must be a value in DirectionMPS.")
 
-        # Gather the details from the MPS tensor at this position
-        T = self.tensors[pos]
-        T_d = T.data
-        p_bond = self.get_physical_bond(pos)
-        p_dim = self.get_physical_dimension(pos)
-        v_bonds = self.get_virtual_bonds(pos)
-        v_dims = self.get_virtual_dimensions(pos)
-
-        # Decide the shape of the Q and R tensors
-        if pos == 0:
-            if form == DirectionMPS.RIGHT:
-                raise RuntimeError(
-                    "The leftmost tensor cannot be in right orthogonal form."
-                )
-            new_dim = min(p_dim, v_dims[0])
-            Q_bonds = [-1, p_bond]
-            Q_shape = [new_dim, p_dim]
-            R_bonds = [-1, v_bonds[0]]
-            R_shape = [new_dim, v_dims[0]]
-
-        elif pos == len(self) - 1:
-            if form == DirectionMPS.LEFT:
-                raise RuntimeError(
-                    "The rightmost tensor cannot be in left orthogonal form."
-                )
-            new_dim = min(p_dim, v_dims[0])
-            Q_bonds = [-1, p_bond]
-            Q_shape = [new_dim, p_dim]
-            R_bonds = [v_bonds[0], -1]
-            R_shape = [v_dims[0], new_dim]
-
-        else:
-            if form == DirectionMPS.LEFT:
-                new_dim = min(v_dims[0] * p_dim, v_dims[1])
-                Q_bonds = [v_bonds[0], -1, p_bond]
-                Q_shape = [v_dims[0], new_dim, p_dim]
-                R_bonds = [-1, v_bonds[1]]
-                R_shape = [new_dim, v_dims[1]]
-            elif form == DirectionMPS.RIGHT:
-                new_dim = min(v_dims[1] * p_dim, v_dims[0])
-                Q_bonds = [-1, v_bonds[1], p_bond]
-                Q_shape = [new_dim, v_dims[1], p_dim]
-                R_bonds = [v_bonds[0], -1]
-                R_shape = [v_dims[0], new_dim]
-
-        # Create template for the Q and R tensors
-        Q_d = cp.empty(Q_shape, dtype=self._complex_t)
-        Q = Tensor(Q_d, Q_bonds)
-        R_d = cp.empty(R_shape, dtype=self._complex_t)
-        R = Tensor(R_d, R_bonds)
-
-        # Create tensor descriptors
-        T_desc = T.get_tensor_descriptor(self._lib)
-        Q_desc = Q.get_tensor_descriptor(self._lib)
-        R_desc = R.get_tensor_descriptor(self._lib)
-
         # Apply QR decomposition
-        cutn.tensor_qr(
-            self._lib.handle,
-            T_desc,
-            T_d.data.ptr,
-            Q_desc,
-            Q_d.data.ptr,
-            R_desc,
-            R_d.data.ptr,
-            0,  # 0 means let cuQuantum manage mem itself
-            self._stream.ptr,  # type: ignore
+        subscripts = T_bonds + "->" + Q_bonds + "," + R_bonds
+        options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
+        Q, R = tensor.decompose(
+            subscripts, T, method=tensor.QRMethod(), options=options
         )
-        self._stream.synchronize()  # type: ignore
 
-        # Contract R into the tensor of the next position
-        Tnext_bonds = list(self.tensors[next_pos].bonds)
-        Tnext_bonds[gauge_T_index] = -1
-        Tnext_d = cq.contract(
-            R_d,
-            R.bonds,
-            self.tensors[next_pos].data,
-            self.tensors[next_pos].bonds,
-            Tnext_bonds,
-        )
-        # Reassign virtual bond ID
-        Tnext_bonds[gauge_T_index] = gauge_bond
-        Q_bonds[gauge_Q_index] = gauge_bond
+        # Contract R into Tnext
+        subscripts = R_bonds + "," + Tnext_bonds + "->" + result_bonds
+        result = cq.contract(subscripts, R, Tnext)
+
         # Update self.tensors
-        self.tensors[pos].data = Q_d
-        self.tensors[pos].bonds = Q_bonds
+        self.tensors[pos] = Q
         self.tensors[pos].canonical_form = form
-        self.tensors[next_pos].data = Tnext_d
-        self.tensors[next_pos].bonds = Tnext_bonds
+        self.tensors[next_pos] = result
         self.tensors[next_pos].canonical_form = None
-
-        # Destroy descriptors
-        cutn.destroy_tensor_descriptor(T_desc)
-        cutn.destroy_tensor_descriptor(Q_desc)
-        cutn.destroy_tensor_descriptor(R_desc)
 
     def vdot(self, other: MPS) -> complex:
         """Obtain the inner product of the two MPS: ``<self|other>``.
@@ -629,87 +414,35 @@ class MPS:
         # The two MPS will be contracted from left to right, storing the
         # ``partial_result`` tensor.
         partial_result = cq.contract(
-            self.tensors[0].data.conj(), [-1, 0], other.tensors[0].data, [1, 0], [-1, 1]
+            "LRp,lrp->Rr", self.tensors[0].conj(), other.tensors[0]
         )
         # Contract all tensors in the middle
         for pos in range(1, len(self) - 1):
             partial_result = cq.contract(
+                "Ll,LRp,lrp->Rr",
                 partial_result,
-                [-pos, pos],
-                self.tensors[pos].data.conj(),
-                [-pos, -(pos + 1), 0],
-                other.tensors[pos].data,
-                [pos, pos + 1, 0],
-                [-(pos + 1), pos + 1],
+                self.tensors[pos].conj(),
+                other.tensors[pos],
             )
         # Finally, contract the last tensor
         result = cq.contract(
+            "Ll,LRp,lrp->",  # R and r are dim 1, so they are omitted; scalar result
             partial_result,
-            [-(len(self) - 1), len(self) - 1],
-            self.tensors[-1].data.conj(),
-            [-(len(self) - 1), 0],
-            other.tensors[-1].data,
-            [len(self) - 1, 0],
-            [],  # No open bonds remain; this is just a scalar
+            self.tensors[-1].conj(),
+            other.tensors[-1],
         )
 
         return complex(result)
 
-    def get_virtual_bonds(self, position: int) -> list[Bond]:
-        """Returns the virtual bonds unique identifiers of tensor ``tensors[position]``.
-
-        Args:
-            position: A position in the MPS.
-
-        Returns:
-            A list with the ID of the virtual bonds of the tensor
-            in order from left to right.
-            If ``position`` is the first or last in the MPS, then the list
-            will only contain the corresponding virtual bond.
-
-        Raises:
-            RuntimeError: If ``position`` is out of bounds.
-        """
-        if position < 0 or position >= len(self):
-            raise RuntimeError(f"Position {position} is out of bounds.")
-        elif position == 0:
-            v_bonds = [position + 1]
-        elif position == len(self) - 1:
-            v_bonds = [position]
-        else:
-            v_bonds = [position, position + 1]
-
-        assert all(vb in self.tensors[position].bonds for vb in v_bonds)
-        return v_bonds
-
-    def get_virtual_dimensions(self, position: int) -> list[int]:
+    def get_virtual_dimensions(self, position: int) -> tuple[int, int]:
         """Returns the virtual bonds dimension of the tensor ``tensors[position]``.
 
         Args:
             position: A position in the MPS.
 
         Returns:
-            A list with the dimensions of the virtual bonds of the
-            tensor in order from left to right.
-            If ``position`` is the first or last in the MPS, then the list
-            will only contain the corresponding virtual bond.
-
-        Raises:
-            RuntimeError: If ``position`` is out of bounds.
-        """
-        return [
-            self.tensors[position].get_bond_dimension(bond)
-            for bond in self.get_virtual_bonds(position)
-        ]
-
-    def get_physical_bond(self, position: int) -> Bond:
-        """Returns the physical bond unique identifier of tensor ``tensors[position]``.
-
-        Args
-            position: A position in the MPS.
-
-        Returns:
-            The identifier of the physical bond.
+            A tuple where the first element is the dimensions of the left virtual bond
+            and the second elements is that of the right virtual bond.
 
         Raises:
             RuntimeError: If ``position`` is out of bounds.
@@ -717,8 +450,8 @@ class MPS:
         if position < 0 or position >= len(self):
             raise RuntimeError(f"Position {position} is out of bounds.")
 
-        # By construction, the largest identifier is the physical one
-        return max(self.tensors[position].bonds)
+        virtual_dims: tuple[int, int] = self.tensors[position].shape[:2]
+        return virtual_dims
 
     def get_physical_dimension(self, position: int) -> int:
         """Returns the physical bond dimension of the tensor ``tensors[position]``.
@@ -732,16 +465,18 @@ class MPS:
         Raises:
             RuntimeError: If ``position`` is out of bounds.
         """
-        return self.tensors[position].get_bond_dimension(
-            self.get_physical_bond(position)
-        )
+        if position < 0 or position >= len(self):
+            raise RuntimeError(f"Position {position} is out of bounds.")
+
+        physical_dim: int = self.tensors[position].shape[2]
+        return physical_dim
 
     def get_device_id(self) -> int:
         """
         Returns:
             The identifier of the device (GPU) where the tensors are stored.
         """
-        return int(self.tensors[0].data.device)
+        return int(self.tensors[0].device)
 
     def update_libhandle(self, libhandle: CuTensorNetHandle) -> None:
         """Update the ``CuTensorNetHandle`` used by this ``MPS`` object. Multiple
@@ -775,6 +510,7 @@ class MPS:
         new_mps.truncation_fidelity = self.truncation_fidelity
         new_mps.fidelity = self.fidelity
         new_mps.tensors = [t.copy() for t in self.tensors]
+        new_mps.canonical_form = self.canonical_form.copy()
         new_mps.qubit_position = self.qubit_position.copy()
         new_mps._complex_t = self._complex_t
         new_mps._real_t = self._real_t

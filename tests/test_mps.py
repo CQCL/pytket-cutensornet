@@ -9,7 +9,6 @@ import numpy as np  # type: ignore
 from pytket.circuit import Circuit  # type: ignore
 from pytket.extensions.cutensornet.mps import (
     CuTensorNetHandle,
-    Tensor,
     MPS,
     MPSxGate,
     MPSxMPO,
@@ -52,11 +51,11 @@ def test_canonicalise() -> None:
         # Fill up the tensors with random entries
 
         # Leftmost tensor
-        T_d = cp.empty(shape=(4, 2), dtype=mps_gate._complex_t)
-        for i0 in range(T_d.shape[0]):
-            for i1 in range(T_d.shape[1]):
-                T_d[i0][i1] = cp.random.rand() + 1j * cp.random.rand()
-        mps_gate.tensors[0] = Tensor(T_d, bonds=[1, len(mps_gate)])
+        T_d = cp.empty(shape=(1, 4, 2), dtype=mps_gate._complex_t)
+        for i1 in range(T_d.shape[1]):
+            for i2 in range(T_d.shape[2]):
+                T_d[0][i1][i2] = cp.random.rand() + 1j * cp.random.rand()
+        mps_gate.tensors[0] = T_d
 
         # Middle tensors
         for pos in range(1, len(mps_gate) - 1):
@@ -65,18 +64,16 @@ def test_canonicalise() -> None:
                 for i1 in range(T_d.shape[1]):
                     for i2 in range(T_d.shape[2]):
                         T_d[i0][i1][i2] = cp.random.rand() + 1j * cp.random.rand()
-            mps_gate.tensors[pos] = Tensor(
-                T_d, bonds=[pos, pos + 1, pos + len(mps_gate)]
-            )
+            mps_gate.tensors[pos] = T_d
 
         # Rightmost tensor
-        T_d = cp.empty(shape=(4, 2), dtype=mps_gate._complex_t)
+        T_d = cp.empty(shape=(4, 1, 2), dtype=mps_gate._complex_t)
         for i0 in range(T_d.shape[0]):
-            for i1 in range(T_d.shape[1]):
-                T_d[i0][i1] = cp.random.rand() + 1j * cp.random.rand()
-        mps_gate.tensors[len(mps_gate) - 1] = Tensor(
-            T_d, bonds=[len(mps_gate) - 1, 2 * len(mps_gate) - 1]
-        )
+            for i2 in range(T_d.shape[2]):
+                T_d[i0][0][i2] = cp.random.rand() + 1j * cp.random.rand()
+        mps_gate.tensors[len(mps_gate) - 1] = T_d
+
+        assert mps_gate.is_valid()
 
         # Calculate the norm of the MPS
         norm_sq = mps_gate.vdot(mps_gate)
@@ -97,18 +94,12 @@ def test_canonicalise() -> None:
             if pos == center_pos:  # This needs not be in orthogonal form
                 continue
 
-            T_d = mps_gate.tensors[pos].data
-            std_bonds = list(mps_gate.tensors[pos].bonds)
-            conj_bonds = list(mps_gate.tensors[pos].bonds)
+            T_d = mps_gate.tensors[pos]
 
             if pos < 2:  # Should be in left orthogonal form
-                std_bonds[-2] = -1
-                conj_bonds[-2] = -2
+                result = cq.contract("lrp,lRp->rR", T_d, T_d.conj())
             elif pos > 2:  # Should be in right orthogonal form
-                std_bonds[0] = -1
-                conj_bonds[0] = -2
-
-            result = cq.contract(T_d, std_bonds, T_d.conj(), conj_bonds, [-1, -2])
+                result = cq.contract("lrp,Lrp->lL", T_d, T_d.conj())
 
             # Check that the result is the identity
             assert cp.allclose(result, cp.eye(result.shape[0]))
