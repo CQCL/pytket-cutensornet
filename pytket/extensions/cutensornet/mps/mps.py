@@ -16,6 +16,7 @@ import warnings
 from typing import Any, Optional, Union
 from enum import Enum
 
+from random import random  # type: ignore
 import numpy as np  # type: ignore
 
 try:
@@ -29,7 +30,8 @@ try:
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
-from pytket.circuit import Command, Op, Qubit  # type: ignore
+from pytket.circuit import Command, Op, OpType, Qubit  # type: ignore
+from pytket.pauli import Pauli, QubitPauliString  # type: ignore
 
 # An alias so that `intptr_t` from CuQuantum's API (which is not available in
 # base python) has some meaningful type name.
@@ -205,8 +207,8 @@ class MPS:
         """Verify that the MPS object is valid.
 
         Specifically, verify that the MPS does not exceed the dimension limit ``chi`` of
-        the virtual bonds, that physical bonds have dimension 2 and that all tensors
-        are rank three.
+        the virtual bonds, that physical bonds have dimension 2, that all tensors
+        are rank three and that the data structure sizes are consistent.
 
         Returns:
             False if a violation was detected or True otherwise.
@@ -220,7 +222,11 @@ class MPS:
         phys_ok = all(self.get_physical_dimension(pos) == 2 for pos in range(len(self)))
         shape_ok = all(len(tensor.shape) == 3 for tensor in self.tensors)
 
-        return chi_ok and phys_ok and shape_ok
+        ds_ok = set(self.canonical_form.key()) == set(range(len(self))) and set(
+            self.qubit_position.values()
+        ) == set(range(len(self)))
+
+        return chi_ok and phys_ok and shape_ok and ds_ok
 
     def apply_gate(self, gate: Command) -> MPS:
         """Apply the gate to the MPS.
@@ -433,6 +439,222 @@ class MPS:
         )
 
         return complex(result)
+
+    def sample(self) -> dict[Qubit, int]:
+        """Returns a sample of applying a Z measurement on each qubit.
+
+        Notes:
+            The MPS ``self`` is not updated. This is equivalent to applying
+            ``mps = self.copy()`` then ``mps.measure(mps.get_qubits())``.
+
+        Returns:
+            A dictionary mapping each of the qubits in the MPS to their outcome.
+        """
+        mps = self.copy()
+        return mps.measure(mps.get_qubits())
+
+    def measure(self, qubits: set[Qubit]) -> dict[Qubit, int]:
+        """Applies a Z measurement on ``qubits``, updates the MPS and returns outcome.
+
+        Notes:
+            After applying this function, ``self`` will contain the MPS of the state
+            after measurement. You may wish to use ``copy()`` to work around this.
+
+        Args:
+            qubits: A set of the qubits to be measured.
+
+        Returns:
+            A dictionary mapping the given ``qubits`` to their measurement outcome,
+            i.e. either ``0`` or ``1``.
+
+        Raises:
+            ValueError: If an element in ``qubits`` is not a qubit in the MPS.
+        """
+        result = dict()
+
+        # Obtain the positions that need to be measured and build the reverse dict
+        position_qubit_map = dict()
+        for q in qubits:
+            if q not in self.qubit_position:
+                raise ValueError(f"Qubit {q} is not a qubit in the MPS.")
+            position_qubit_map[self.qubit_position[q]] = q
+        positions = sorted(position_qubit_map.keys())
+
+        # Tensor for postselection to |0>
+        zero_tensor = cp.zeros(2, dtype=self._complex_t)
+        zero_tensor[0] = 1
+
+        # Measure and postselect each of the positions, one by one
+        while positions:
+            pos = positions.pop()  # The rightmost position to be measured
+
+            # Convert to canonical form with center at this position
+            self.canonicalise(pos, pos)
+
+            # Glossary of bond IDs:
+            # l -> left virtual bond of tensor in `pos`
+            # r -> right virtual bond of tensor in `pos`
+            # p -> physical bond of tensor in `pos`
+            # P -> physical bond of tensor in `pos` (copy)
+
+            # Take the tensor in this position and obtain its prob for |0>.
+            # Since the MPS is in canonical form, this corresponds to the probability
+            # if we were to take all of the other tensors into account.
+            prob = cq.contract(
+                "lrp,lrP,p,P->",  # No open bonds remain; this is just a scalar
+                self.tensors[pos],
+                self.tensors[pos],
+                zero_tensor,
+                zero_tensor,
+            )
+
+            # Throw a coin to decide measurement outcome
+            outcome = 0 if prob > random() else 1
+            result[position_qubit_map[pos]] = outcome
+
+            # Postselect the MPS for this outcome, renormalising at the same time
+            postselection_tensor = cp.zeros(2, dtype=self._complex_t)
+            postselection_tensor[outcome] = 1 / np.sqrt(
+                abs(outcome - prob)
+            )  # Normalise
+
+            self._postselect_qubit(position_qubit_map[pos], postselection_tensor)
+
+        return result
+
+    def postselect(self, qubit_outcomes: dict[Qubit, int]) -> float:
+        """Applies a postselection, updates the MPS and returns its probability.
+
+        Notes:
+            After applying this function, ``self`` will contain the MPS of the state
+            after postselection. You may wish to use ``copy()`` to work around this.
+
+        Args:
+            qubit_outcomes: A dictionary mapping qubits in the MPS to their outcome
+                value (either ``0`` or ``1``). Qubits that are not specified are
+                not measured.
+
+        Returns:
+            The probability of the measurement outcome.
+
+        Raises:
+            ValueError: If a key in ``qubit_outcomes`` is not a qubit in the MPS.
+            ValueError: If a value in ``qubit_outcomes`` is other than ``0`` or ``1``.
+        """
+        for q, v in qubit_outcomes.items():
+            if q not in self.qubit_position:
+                raise ValueError(f"Qubit {q} is not a qubit in the MPS.")
+            if v not in {0, 1}:
+                raise ValueError(f"Outcome of {q} cannot be {v}. Choose int 0 or 1.")
+
+        # Apply a postselection for each of the qubits
+        for qubit, outcome in qubit_outcomes.items():
+            # Create the rank-1 postselection tensor
+            postselection_tensor = cp.zeros(2, dtype=self._complex_t)
+            postselection_tensor[outcome] = 1
+            # Apply postselection
+            self._postselect_qubit(qubit, postselection_tensor)
+
+        # Calculate the squared norm of the postselected state; this is its probability
+        prob = self.vdot(self)
+        assert np.isclose(prob.imag, 0.0, atol=self._atol)
+        prob = prob.real
+
+        # Renormalise; it suffices to update the first tensor
+        if self.tensors:  # Unless all qubits have been postselected
+            self.tensors[0] = self.tensors[0] / np.sqrt(prob)
+            self.canonical_form[0] = None
+
+        return prob
+
+    def _postselect_qubit(self, qubit: Qubit, postselection_tensor: Tensor) -> None:
+        """Postselect the qubit with the given tensor."""
+        pos = self.qubit_position[qubit]
+        self.tensors[pos] = cq.contract(
+            "lrp,p->lr",
+            self.tensors[pos],
+            postselection_tensor,
+        )
+
+        # Glossary of bond IDs:
+        # s -> shared bond between tensor in `pos` and next
+        # v -> the other virtual bond of tensor in `pos`
+        # V -> the other virtual bond of tensor in next position
+        # p -> physical bond of tensor in `pos`
+        # P -> physical bond of tensor in next position
+
+        if len(self) == 1:  # This is the last tensor
+            pass
+
+        elif pos != 0:  # Contract with next tensor on the left
+            self.tensors[pos - 1] = cq.contract(
+                "sv,VsP->VvP",
+                self.tensors[pos],
+                self.tensors[pos - 1],
+            )
+            self.canonical_form[pos - 1] = None
+        else:  # There are no tensors on the left, contract with the one on the right
+            self.tensors[pos + 1] = cq.contract(
+                "vs,sVP->vVP",
+                self.tensors[pos],
+                self.tensors[pos + 1],
+            )
+            self.canonical_form[pos + 1] = None
+
+        # Shift all entries after `pos` to the left
+        for q, p in self.qubit_position.items():
+            if pos < p:
+                self.qubit_position[q] = p - 1
+        for p in range(pos, len(self) - 1):
+            self.canonical_form[p] = self.canonical_form[p + 1]
+
+        # Remove the entry from the data structures
+        del self.qubit_position[qubit]
+        del self.canonical_form[len(self) - 1]
+        self.tensors.pop(pos)
+
+    def expected_value(self, pauli_string: QubitPauliString) -> float:
+        """Obtain the expected value of the Pauli string observable.
+
+        Args:
+            pauli_string: A dictionary of qubits to Pauli observables.
+
+        Returns:
+            The expected value.
+
+        Raises:
+            ValueError: If a key in ``pauli_string`` is not a qubit in the MPS.
+            RuntimeError: If the ``CuTensorNetHandle`` is out of scope.
+        """
+        if self._lib._is_destroyed:
+            raise RuntimeError(
+                "The cuTensorNet library handle is out of scope.",
+                "See the documentation of update_libhandle and CuTensorNetHandle.",
+            )
+        for q in pauli_string.map.keys():
+            if q not in self.qubit_position:
+                raise ValueError(f"Qubit {q} is not a qubit in the MPS.")
+
+        mps_copy = self.copy()
+        pauli_optype = {Pauli.Z: OpType.Z, Pauli.X: OpType.X, Pauli.Y: OpType.Y}
+
+        # Apply each of the Pauli operators to the MPS copy
+        for qubit, pauli in pauli_string.map.items():
+            if pauli != Pauli.I:
+                mps_copy._apply_1q_gate(
+                    mps_copy.qubit_position[qubit], Op.create(pauli_optype[pauli])
+                )
+
+        # Obtain the inner product
+        value = self.vdot(mps_copy)
+        assert np.isclose(value.imag, 0.0, atol=self._atol)
+        value = value.real
+
+        return value
+
+    def get_qubits(self) -> set[Qubit]:
+        """Returns the set of qubits that this MPS is defined on."""
+        return self.qubit_position.keys()
 
     def get_virtual_dimensions(self, position: int) -> tuple[int, int]:
         """Returns the virtual bonds dimension of the tensor ``tensors[position]``.
