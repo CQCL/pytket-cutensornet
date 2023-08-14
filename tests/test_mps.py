@@ -6,17 +6,17 @@ import cuquantum as cq  # type: ignore
 import cupy as cp  # type: ignore
 import numpy as np  # type: ignore
 
-from pytket.circuit import Circuit  # type: ignore
+from pytket.circuit import Circuit, Qubit  # type: ignore
 from pytket.extensions.cutensornet.mps import (
     CuTensorNetHandle,
     MPS,
     MPSxGate,
     MPSxMPO,
     simulate,
-    get_amplitude,
     prepare_circuit,
     ContractionAlg,
 )
+from pytket.extensions.cutensornet.utils import circuit_statevector_postselect
 
 
 def test_libhandle_manager() -> None:
@@ -151,10 +151,13 @@ def test_exact_circ_sim(circuit: Circuit, algorithm: ContractionAlg) -> None:
         # Check that all of the amplitudes are correct
         for b in range(2**n_qubits):
             assert np.isclose(
-                np.exp(1j * np.pi * circuit.phase) * get_amplitude(mps, b),
+                mps.get_amplitude(b),
                 state[b],
                 atol=mps._atol,
             )
+
+        # Check that the statevector is correct
+        assert np.allclose(mps.get_statevector(), state, atol=mps._atol)
 
 
 @pytest.mark.parametrize(
@@ -332,3 +335,72 @@ def test_circ_approx_explicit(circuit: Circuit) -> None:
         assert np.isclose(mps_mpo.fidelity, 0.09, atol=1e-2)
         assert mps_mpo.is_valid()
         assert np.isclose(mps_mpo.vdot(mps_mpo), 1.0, atol=mps_mpo._atol)
+
+
+@pytest.mark.parametrize(
+    "circuit",
+    [
+        pytest.lazy_fixture("q2_x0"),  # type: ignore
+        pytest.lazy_fixture("q2_x1"),  # type: ignore
+        pytest.lazy_fixture("q2_v0"),  # type: ignore
+        pytest.lazy_fixture("q2_x0cx01"),  # type: ignore
+        pytest.lazy_fixture("q2_x1cx10x1"),  # type: ignore
+        pytest.lazy_fixture("q2_x0cx01cx10"),  # type: ignore
+        pytest.lazy_fixture("q2_v0cx01cx10"),  # type: ignore
+        pytest.lazy_fixture("q2_hadamard_test"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu1"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu2"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu3"),  # type: ignore
+    ],
+)
+@pytest.mark.parametrize(
+    "postselect_dict",
+    [
+        {Qubit("q", 0): 0},
+        {Qubit("q", 0): 1},
+        {Qubit("q", 1): 0},
+        {Qubit("q", 1): 1},
+    ],
+)
+def test_postselect_2q_circ(circuit: Circuit, postselect_dict: dict) -> None:
+    sv = circuit_statevector_postselect(circuit, postselect_dict.copy())
+    sv_prob = sv.conj() @ sv
+    if not np.isclose(sv_prob, 0.0):
+        sv = sv / np.sqrt(sv_prob)  # Normalise
+
+    with CuTensorNetHandle() as libhandle:
+        mps = simulate(libhandle, circuit, ContractionAlg.MPSxGate)
+        prob = mps.postselect(postselect_dict)
+        assert np.isclose(prob, sv_prob, atol=mps._atol)
+        assert np.allclose(mps.get_statevector(), sv, atol=mps._atol)
+
+
+@pytest.mark.parametrize(
+    "circuit",
+    [
+        pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
+        pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
+    ],
+)
+@pytest.mark.parametrize(
+    "postselect_dict",
+    [
+        {Qubit("q", 0): 1},
+        {Qubit("q", 1): 0},
+        {Qubit("q", 0): 0, Qubit("q", 1): 0},
+        {Qubit("q", 1): 1, Qubit("q", 2): 1},
+        {Qubit("q", 0): 0, Qubit("q", 2): 1},
+    ],
+)
+def test_postselect_circ(circuit: Circuit, postselect_dict: dict) -> None:
+    sv = circuit_statevector_postselect(circuit, postselect_dict.copy())
+    sv_prob = sv.conj() @ sv
+    if not np.isclose(sv_prob, 0.0):
+        sv = sv / np.sqrt(sv_prob)  # Normalise
+
+    with CuTensorNetHandle() as libhandle:
+        mps = simulate(libhandle, circuit, ContractionAlg.MPSxGate)
+        prob = mps.postselect(postselect_dict)
+        assert np.isclose(prob, sv_prob, atol=mps._atol)
+        assert np.allclose(mps.get_statevector(), sv, atol=mps._atol)
+

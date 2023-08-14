@@ -2,8 +2,9 @@ from typing import Any
 from enum import Enum
 from random import choice  # type: ignore
 from collections import defaultdict  # type: ignore
+import numpy as np  # type: ignore
 
-from pytket.circuit import Circuit, Command, Qubit, Op, OpType  # type: ignore
+from pytket.circuit import Circuit, Command, Qubit  # type: ignore
 from pytket.transform import Transform  # type: ignore
 from pytket.architecture import Architecture  # type: ignore
 from pytket.passes import DefaultMappingPass  # type: ignore
@@ -86,38 +87,10 @@ def simulate(
     for g in sorted_gates:
         mps.apply_gate(g)
 
+    # Apply the circuit's phase to the leftmost tensor (any would work)
+    mps.tensors[0] = mps.tensors[0] * np.exp(1j * np.pi * circuit.phase)
+
     return mps
-
-
-def get_amplitude(mps: MPS, state: int) -> complex:
-    """Return the amplitude of the chosen computational state.
-
-    Args:
-        mps: The MPS to get the amplitude from.
-        state: The integer whose bitstring describes the computational state.
-            The qubits in the bitstring are ordered in increasing lexicographic order.
-
-    Raises:
-        RuntimeError: If the ``CuTensorNetHandle`` is out of scope.
-
-    Returns:
-        The amplitude of the computational state in the MPS.
-    """
-    if mps._lib._is_destroyed:
-        raise RuntimeError(
-            "The cuTensorNet library handle is out of scope.",
-            "See the documentation of update_libhandle and CuTensorNetHandle.",
-        )
-
-    mps_qubits = list(mps.qubit_position.keys())
-    bra_mps = MPSxGate(mps._lib, mps_qubits)
-
-    ilo_qubits = sorted(mps_qubits)
-    for i, q in enumerate(ilo_qubits):
-        if state & 2 ** (len(mps_qubits) - i - 1):
-            pos = bra_mps.qubit_position[q]
-            bra_mps._apply_1q_gate(pos, Op.create(OpType.X))
-    return bra_mps.vdot(mps)
 
 
 def prepare_circuit(circuit: Circuit) -> tuple[Circuit, dict[Qubit, Qubit]]:

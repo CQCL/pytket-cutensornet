@@ -222,9 +222,8 @@ class MPS:
         phys_ok = all(self.get_physical_dimension(pos) == 2 for pos in range(len(self)))
         shape_ok = all(len(tensor.shape) == 3 for tensor in self.tensors)
 
-        ds_ok = set(self.canonical_form.key()) == set(range(len(self))) and set(
-            self.qubit_position.values()
-        ) == set(range(len(self)))
+        ds_ok = set(self.canonical_form.keys()) == set(range(len(self)))
+        ds_ok = ds_ok and set(self.qubit_position.values()) == set(range(len(self)))
 
         return chi_ok and phys_ok and shape_ok and ds_ok
 
@@ -392,6 +391,7 @@ class MPS:
         Raises:
             RuntimeError: If the ``CuTensorNetHandle`` is out of scope.
             RuntimeError: If number of tensors, dimensions or positions do not match.
+            RuntimeError: If there are no tensors in the MPS.
 
         Return:
             The resulting complex number.
@@ -413,30 +413,37 @@ class MPS:
             raise RuntimeError(
                 "The qubit labels or their position on the MPS do not match."
             )
+        if len(self) == 0:
+            raise RuntimeError("There are no tensors in the MPS.")
 
         self._flush()
         other._flush()
 
-        # The two MPS will be contracted from left to right, storing the
-        # ``partial_result`` tensor.
-        partial_result = cq.contract(
-            "LRp,lrp->Rr", self.tensors[0].conj(), other.tensors[0]
-        )
-        # Contract all tensors in the middle
-        for pos in range(1, len(self) - 1):
+        # Special case if only one tensor remains
+        if len(self) == 1:
+            result = cq.contract("LRp,lrp->", self.tensors[0].conj(), other.tensors[0])
+
+        else:
+            # The two MPS will be contracted from left to right, storing the
+            # ``partial_result`` tensor.
             partial_result = cq.contract(
-                "Ll,LRp,lrp->Rr",
-                partial_result,
-                self.tensors[pos].conj(),
-                other.tensors[pos],
+                "LRp,lrp->Rr", self.tensors[0].conj(), other.tensors[0]
             )
-        # Finally, contract the last tensor
-        result = cq.contract(
-            "Ll,LRp,lrp->",  # R and r are dim 1, so they are omitted; scalar result
-            partial_result,
-            self.tensors[-1].conj(),
-            other.tensors[-1],
-        )
+            # Contract all tensors in the middle
+            for pos in range(1, len(self) - 1):
+                partial_result = cq.contract(
+                    "Ll,LRp,lrp->Rr",
+                    partial_result,
+                    self.tensors[pos].conj(),
+                    other.tensors[pos],
+                )
+            # Finally, contract the last tensor
+            result = cq.contract(
+                "Ll,LRp,lrp->",  # R and r are dim 1, so they are omitted; scalar result
+                partial_result,
+                self.tensors[-1].conj(),
+                other.tensors[-1],
+            )
 
         return complex(result)
 
@@ -459,6 +466,8 @@ class MPS:
         Notes:
             After applying this function, ``self`` will contain the MPS of the state
             after measurement. You may wish to use ``copy()`` to work around this.
+
+            The resulting state has been normalised.
 
         Args:
             qubits: A set of the qubits to be measured.
@@ -529,6 +538,8 @@ class MPS:
             After applying this function, ``self`` will contain the MPS of the state
             after postselection. You may wish to use ``copy()`` to work around this.
 
+            The resulting state has been normalised.
+
         Args:
             qubit_outcomes: A dictionary mapping qubits in the MPS to their outcome
                 value (either ``0`` or ``1``). Qubits that are not specified are
@@ -540,12 +551,19 @@ class MPS:
         Raises:
             ValueError: If a key in ``qubit_outcomes`` is not a qubit in the MPS.
             ValueError: If a value in ``qubit_outcomes`` is other than ``0`` or ``1``.
+            ValueError: If all of the qubits in the MPS are being postselected. Instead
+                you may want to use ``get_amplitude()``.
         """
         for q, v in qubit_outcomes.items():
             if q not in self.qubit_position:
                 raise ValueError(f"Qubit {q} is not a qubit in the MPS.")
             if v not in {0, 1}:
                 raise ValueError(f"Outcome of {q} cannot be {v}. Choose int 0 or 1.")
+
+        if len(qubit_outcomes) == len(self):
+            raise ValueError(
+                "Cannot postselect all qubits. You may want to use get_amplitude()."
+            )
 
         # Apply a postselection for each of the qubits
         for qubit, outcome in qubit_outcomes.items():
@@ -561,14 +579,15 @@ class MPS:
         prob = prob.real
 
         # Renormalise; it suffices to update the first tensor
-        if self.tensors:  # Unless all qubits have been postselected
+        if len(self) > 0 and not np.isclose(prob, 0.0, atol=self._atol):
             self.tensors[0] = self.tensors[0] / np.sqrt(prob)
             self.canonical_form[0] = None
 
         return prob
 
-    def _postselect_qubit(self, qubit: Qubit, postselection_tensor: Tensor) -> None:
+    def _postselect_qubit(self, qubit: Qubit, postselection_tensor: cp.ndarray) -> None:
         """Postselect the qubit with the given tensor."""
+
         pos = self.qubit_position[qubit]
         self.tensors[pos] = cq.contract(
             "lrp,p->lr",
@@ -652,9 +671,96 @@ class MPS:
 
         return value
 
+    def get_statevector(self) -> np.ndarray:
+        """Returns the statevector with qubits in Increasing Lexicographic Order (ILO).
+
+        Raises:
+            ValueError: If there are no qubits left in the MPS.
+            RuntimeError: If the ``CuTensorNetHandle`` is out of scope.
+        """
+        if self._lib._is_destroyed:
+            raise RuntimeError(
+                "The cuTensorNet library handle is out of scope.",
+                "See the documentation of update_libhandle and CuTensorNetHandle.",
+            )
+        if len(self) == 0:
+            raise ValueError("There are no qubits left in this MPS.")
+
+        # If there is only one qubit left, it is trivial
+        if len(self) == 1:
+            result_tensor = self.tensors[0]
+
+        else:
+            # Create the interleaved representation with all tensors
+            interleaved_rep = []
+            for pos in range(len(self)):
+                interleaved_rep.append(self.tensors[pos])
+                interleaved_rep.append(
+                    ["v" + str(pos), "v" + str(pos + 1), "p" + str(pos)]
+                )
+
+            # Specify the output bond IDs in ILO order
+            output_bonds = []
+            for q in sorted(self.qubit_position.keys()):
+                output_bonds.append("p" + str(self.qubit_position[q]))
+            interleaved_rep.append(output_bonds)
+
+            # Contract
+            result_tensor = cq.contract(*interleaved_rep)
+
+        # Convert to numpy vector and flatten
+        statevector: np.ndarray = cp.asnumpy(result_tensor).flatten()
+        return statevector
+
+    def get_amplitude(self, state: int) -> complex:
+        """Return the amplitude of the chosen computational state.
+
+        Notes:
+            This is faster than ``mps.get_statevector[b]`` since it directly computes
+            the amplitude as a tensor network contraction with no open bonds.
+
+        Args:
+            state: The integer whose bitstring describes the computational state.
+                The qubits in the bitstring are in increasing lexicographic order.
+
+        Raises:
+            RuntimeError: If the ``CuTensorNetHandle`` is out of scope.
+
+        Returns:
+            The amplitude of the computational state in the MPS.
+        """
+        if self._lib._is_destroyed:
+            raise RuntimeError(
+                "The cuTensorNet library handle is out of scope.",
+                "See the documentation of update_libhandle and CuTensorNetHandle.",
+            )
+
+        # Find out what the map MPS_position -> bit value is
+        ilo_qubits = sorted(self.qubit_position.keys())
+        mps_pos_bitvalue = dict()
+
+        for i, q in enumerate(ilo_qubits):
+            pos = self.qubit_position[q]
+            bitvalue = 1 if state & 2 ** (len(self) - i - 1) else 0
+            mps_pos_bitvalue[pos] = bitvalue
+
+        # Carry out the contraction, starting from a dummy tensor
+        result_tensor = cp.ones(1, dtype=self._complex_t)  # rank-1, dimension 1
+
+        for pos in range(len(self)):
+            postselection_tensor = cp.zeros(2, dtype=self._complex_t)
+            postselection_tensor[mps_pos_bitvalue[pos]] = 1
+            # Contract postselection with qubit into the result_tensor
+            result_tensor = cq.contract(
+                "l,lrp,p->r", result_tensor, self.tensors[pos], postselection_tensor
+            )
+
+        assert result_tensor.shape == (1,)
+        return complex(result_tensor[0])
+
     def get_qubits(self) -> set[Qubit]:
         """Returns the set of qubits that this MPS is defined on."""
-        return self.qubit_position.keys()
+        return set(self.qubit_position.keys())
 
     def get_virtual_dimensions(self, position: int) -> tuple[int, int]:
         """Returns the virtual bonds dimension of the tensor ``tensors[position]``.
