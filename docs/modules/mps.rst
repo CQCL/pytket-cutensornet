@@ -12,8 +12,6 @@ Simulation
 
 .. autofunction:: pytket.extensions.cutensornet.mps.simulate
 
-.. autofunction:: pytket.extensions.cutensornet.mps.get_amplitude
-
 
 Classes
 ~~~~~~~
@@ -24,6 +22,13 @@ Classes
     .. automethod:: apply_gate
     .. automethod:: vdot
     .. automethod:: canonicalise
+    .. automethod:: sample
+    .. automethod:: measure
+    .. automethod:: postselect
+    .. automethod:: expected_value
+    .. automethod:: get_statevector
+    .. automethod:: get_amplitude
+    .. automethod:: get_qubits
     .. automethod:: get_virtual_dimensions
     .. automethod:: get_physical_dimension
     .. automethod:: get_device_id

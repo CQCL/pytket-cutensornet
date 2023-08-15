@@ -389,18 +389,12 @@ class MPS:
             other: The other MPS to compare against.
 
         Raises:
-            RuntimeError: If the ``CuTensorNetHandle`` is out of scope.
             RuntimeError: If number of tensors, dimensions or positions do not match.
             RuntimeError: If there are no tensors in the MPS.
 
         Return:
             The resulting complex number.
         """
-        if self._lib._is_destroyed:
-            raise RuntimeError(
-                "The cuTensorNet library handle is out of scope.",
-                "See the documentation of update_libhandle and CuTensorNetHandle.",
-            )
 
         if len(self) != len(other):
             raise RuntimeError("Number of tensors do not match.")
@@ -448,14 +442,14 @@ class MPS:
         return complex(result)
 
     def sample(self) -> dict[Qubit, int]:
-        """Returns a sample of applying a Z measurement on each qubit.
+        """Returns a sample from a Z measurement applied on every qubit.
 
         Notes:
             The MPS ``self`` is not updated. This is equivalent to applying
             ``mps = self.copy()`` then ``mps.measure(mps.get_qubits())``.
 
         Returns:
-            A dictionary mapping each of the qubits in the MPS to their outcome.
+            A dictionary mapping each of the qubits in the MPS to their 0 or 1 outcome.
         """
         mps = self.copy()
         return mps.measure(mps.get_qubits())
@@ -464,13 +458,13 @@ class MPS:
         """Applies a Z measurement on ``qubits``, updates the MPS and returns outcome.
 
         Notes:
-            After applying this function, ``self`` will contain the MPS of the state
-            after measurement. You may wish to use ``copy()`` to work around this.
+            After applying this function, ``self`` will contain the MPS of the projected
+            state over the non-measured qubits.
 
             The resulting state has been normalised.
 
         Args:
-            qubits: A set of the qubits to be measured.
+            qubits: The subset of qubits to be measured.
 
         Returns:
             A dictionary mapping the given ``qubits`` to their measurement outcome,
@@ -535,24 +529,23 @@ class MPS:
         """Applies a postselection, updates the MPS and returns its probability.
 
         Notes:
-            After applying this function, ``self`` will contain the MPS of the state
-            after postselection. You may wish to use ``copy()`` to work around this.
+            After applying this function, ``self`` will contain the MPS of the projected
+            state over the non-postselected qubits.
 
             The resulting state has been normalised.
 
         Args:
-            qubit_outcomes: A dictionary mapping qubits in the MPS to their outcome
-                value (either ``0`` or ``1``). Qubits that are not specified are
-                not measured.
+            qubit_outcomes: A dictionary mapping a subset of qubits in the MPS to their
+                desired outcome value (either ``0`` or ``1``).
 
         Returns:
-            The probability of the measurement outcome.
+            The probability of this postselection to occur in a measurement.
 
         Raises:
             ValueError: If a key in ``qubit_outcomes`` is not a qubit in the MPS.
             ValueError: If a value in ``qubit_outcomes`` is other than ``0`` or ``1``.
-            ValueError: If all of the qubits in the MPS are being postselected. Instead
-                you may want to use ``get_amplitude()``.
+            ValueError: If all of the qubits in the MPS are being postselected. Instead,
+                you may wish to use ``get_amplitude()``.
         """
         for q, v in qubit_outcomes.items():
             if q not in self.qubit_position:
@@ -633,7 +626,7 @@ class MPS:
         self.tensors.pop(pos)
 
     def expected_value(self, pauli_string: QubitPauliString) -> float:
-        """Obtain the expected value of the Pauli string observable.
+        """Obtains the expected value of the Pauli string observable.
 
         Args:
             pauli_string: A dictionary of qubits to Pauli observables.
@@ -643,13 +636,7 @@ class MPS:
 
         Raises:
             ValueError: If a key in ``pauli_string`` is not a qubit in the MPS.
-            RuntimeError: If the ``CuTensorNetHandle`` is out of scope.
         """
-        if self._lib._is_destroyed:
-            raise RuntimeError(
-                "The cuTensorNet library handle is out of scope.",
-                "See the documentation of update_libhandle and CuTensorNetHandle.",
-            )
         for q in pauli_string.map.keys():
             if q not in self.qubit_position:
                 raise ValueError(f"Qubit {q} is not a qubit in the MPS.")
@@ -683,13 +670,7 @@ class MPS:
 
         Raises:
             ValueError: If there are no qubits left in the MPS.
-            RuntimeError: If the ``CuTensorNetHandle`` is out of scope.
         """
-        if self._lib._is_destroyed:
-            raise RuntimeError(
-                "The cuTensorNet library handle is out of scope.",
-                "See the documentation of update_libhandle and CuTensorNetHandle.",
-            )
         if len(self) == 0:
             raise ValueError("There are no qubits left in this MPS.")
 
@@ -720,27 +701,19 @@ class MPS:
         return statevector
 
     def get_amplitude(self, state: int) -> complex:
-        """Return the amplitude of the chosen computational state.
+        """Returns the amplitude of the chosen computational state.
 
         Notes:
-            This is faster than ``mps.get_statevector[b]`` since it directly computes
-            the amplitude as a tensor network contraction with no open bonds.
+            The result is equivalent to ``mps.get_statevector[b]``, but this method
+            is faster when querying a single amplitude (or just a few).
 
         Args:
             state: The integer whose bitstring describes the computational state.
                 The qubits in the bitstring are in increasing lexicographic order.
 
-        Raises:
-            RuntimeError: If the ``CuTensorNetHandle`` is out of scope.
-
         Returns:
             The amplitude of the computational state in the MPS.
         """
-        if self._lib._is_destroyed:
-            raise RuntimeError(
-                "The cuTensorNet library handle is out of scope.",
-                "See the documentation of update_libhandle and CuTensorNetHandle.",
-            )
 
         # Find out what the map MPS_position -> bit value is
         ilo_qubits = sorted(self.qubit_position.keys())
