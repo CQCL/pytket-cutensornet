@@ -449,3 +449,75 @@ def test_expectation_value(circuit: Circuit, observable: QubitPauliString) -> No
         assert np.isclose(
             mps.expected_value(observable), expected_value, atol=mps._atol
         )
+
+
+@pytest.mark.parametrize(
+    "circuit",
+    [
+        pytest.lazy_fixture("q2_x1"),  # type: ignore
+        pytest.lazy_fixture("q2_x0cx01"),  # type: ignore
+        pytest.lazy_fixture("q2_v0cx01cx10"),  # type: ignore
+        pytest.lazy_fixture("q2_hadamard_test"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu2"),  # type: ignore
+    ],
+)
+def test_sample_circ_2q(circuit: Circuit) -> None:
+    n_samples = 200
+
+    q0 = circuit.qubits[0]
+    q1 = circuit.qubits[1]
+
+    # Compute the probabilities of each outcome
+    p = dict()
+    for outcome in range(4):
+        p[outcome] = abs(circuit.get_statevector()[outcome]) ** 2
+
+    # Compute the samples
+    sample_dict = {0: 0, 1: 0, 2: 0, 3: 0}
+    with CuTensorNetHandle() as libhandle:
+        mps = simulate(libhandle, circuit, ContractionAlg.MPSxGate)
+
+        # Take samples measuring both qubits at once
+        for _ in range(n_samples):
+            outcome_dict = mps.sample()
+            outcome = outcome_dict[q0] * 2 + outcome_dict[q1]
+            sample_dict[outcome] += 1
+
+    # Check sample frequency consistent with theoretical probability
+    for outcome, count in sample_dict.items():
+        assert np.isclose(count / n_samples, p[outcome], atol=0.1)
+
+
+@pytest.mark.parametrize(
+    "circuit",
+    [
+        pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
+        pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
+    ],
+)
+def test_measure_circ(circuit: Circuit) -> None:
+    n_samples = 200
+
+    qA = circuit.qubits[-1]  # Least significant qubit
+    qB = circuit.qubits[-3]  # Third list significant qubit
+
+    with CuTensorNetHandle() as libhandle:
+        mps = simulate(libhandle, circuit, ContractionAlg.MPSxGate)
+
+        # Compute the probabilities of each outcome
+        p = {(0, 0): 0.0, (0, 1): 0.0, (1, 0): 0.0, (1, 1): 0.0}
+        for outA in range(2):
+            for outB in range(2):
+                mps_copy = mps.copy()
+                p[(outA, outB)] = mps_copy.postselect({qA: outA, qB: outB})
+
+        # Compute the samples
+        sample_dict = {(0, 0): 0, (0, 1): 0, (1, 0): 0, (1, 1): 0}
+        for _ in range(n_samples):
+            mps_copy = mps.copy()
+            outcome_dict = mps_copy.measure({qA, qB})
+            sample_dict[(outcome_dict[qA], outcome_dict[qB])] += 1
+
+    # Check sample frequency consistent with theoretical probability
+    for outcome, count in sample_dict.items():
+        assert np.isclose(count / n_samples, p[outcome], atol=0.1)

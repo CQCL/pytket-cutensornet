@@ -511,7 +511,7 @@ class MPS:
             # if we were to take all of the other tensors into account.
             prob = cq.contract(
                 "lrp,lrP,p,P->",  # No open bonds remain; this is just a scalar
-                self.tensors[pos],
+                self.tensors[pos].conj(),
                 self.tensors[pos],
                 zero_tensor,
                 zero_tensor,
