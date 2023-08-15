@@ -660,16 +660,23 @@ class MPS:
         # Apply each of the Pauli operators to the MPS copy
         for qubit, pauli in pauli_string.map.items():
             if pauli != Pauli.I:
-                mps_copy._apply_1q_gate(
-                    mps_copy.qubit_position[qubit], Op.create(pauli_optype[pauli])
+                pos = mps_copy.qubit_position[qubit]
+                pauli_unitary = Op.create(pauli_optype[pauli]).get_unitary()
+                pauli_tensor = cp.asarray(
+                    pauli_unitary.astype(dtype=self._complex_t, copy=False),
+                    dtype=self._complex_t,
+                )
+
+                # Contract the Pauli to the MPS tensor of the corresponding qubit
+                mps_copy.tensors[pos] = cq.contract(
+                    "lrp,Pp->lrP", mps_copy.tensors[pos], pauli_tensor
                 )
 
         # Obtain the inner product
         value = self.vdot(mps_copy)
         assert np.isclose(value.imag, 0.0, atol=self._atol)
-        value = value.real
 
-        return value
+        return value.real
 
     def get_statevector(self) -> np.ndarray:
         """Returns the statevector with qubits in Increasing Lexicographic Order (ILO).

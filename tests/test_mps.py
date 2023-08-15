@@ -6,7 +6,8 @@ import cuquantum as cq  # type: ignore
 import cupy as cp  # type: ignore
 import numpy as np  # type: ignore
 
-from pytket.circuit import Circuit, Qubit  # type: ignore
+from pytket.circuit import Circuit, Qubit, OpType  # type: ignore
+from pytket.pauli import Pauli, QubitPauliString  # type: ignore
 from pytket.extensions.cutensornet.mps import (
     CuTensorNetHandle,
     MPS,
@@ -404,3 +405,47 @@ def test_postselect_circ(circuit: Circuit, postselect_dict: dict) -> None:
         assert np.isclose(prob, sv_prob, atol=mps._atol)
         assert np.allclose(mps.get_statevector(), sv, atol=mps._atol)
 
+
+@pytest.mark.parametrize(
+    "circuit",
+    [
+        pytest.lazy_fixture("q2_x0"),  # type: ignore
+        pytest.lazy_fixture("q2_x1"),  # type: ignore
+        pytest.lazy_fixture("q2_v0"),  # type: ignore
+        pytest.lazy_fixture("q2_x0cx01"),  # type: ignore
+        pytest.lazy_fixture("q2_x1cx10x1"),  # type: ignore
+        pytest.lazy_fixture("q2_hadamard_test"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu1"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu2"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu3"),  # type: ignore
+        pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
+        pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
+    ],
+)
+@pytest.mark.parametrize(
+    "observable",
+    [
+        QubitPauliString({Qubit(0): Pauli.Z}),
+        QubitPauliString({Qubit(1): Pauli.X}),
+        QubitPauliString({Qubit(0): Pauli.X, Qubit(1): Pauli.Z}),
+    ],
+)
+def test_expectation_value(circuit: Circuit, observable: QubitPauliString) -> None:
+    pauli_to_optype = {Pauli.Z: OpType.Z, Pauli.Y: OpType.Z, Pauli.X: OpType.X}
+
+    # Use pytket to generate the expected value of the observable
+    ket_circ = circuit.copy()
+    for q, o in observable.map.items():
+        ket_circ.add_gate(pauli_to_optype[o], [q])
+    ket_sv = ket_circ.get_statevector()
+
+    bra_sv = circuit.get_statevector()
+
+    expected_value = bra_sv.conj() @ ket_sv
+
+    # Simulate the circuit and obtain the expected value
+    with CuTensorNetHandle() as libhandle:
+        mps = simulate(libhandle, circuit, ContractionAlg.MPSxGate)
+        assert np.isclose(
+            mps.expected_value(observable), expected_value, atol=mps._atol
+        )
