@@ -388,13 +388,19 @@ class MPS:
         Args:
             other: The other MPS to compare against.
 
+        Returns:
+            The resulting complex number.
+
         Raises:
             RuntimeError: If number of tensors, dimensions or positions do not match.
             RuntimeError: If there are no tensors in the MPS.
-
-        Return:
-            The resulting complex number.
+            RuntimeError: If the ``CuTensorNetHandle`` is out of scope.
         """
+        if self._lib._is_destroyed:
+            raise RuntimeError(
+                "The cuTensorNet library handle is out of scope.",
+                "See the documentation of update_libhandle and CuTensorNetHandle.",
+            )
 
         if len(self) != len(other):
             raise RuntimeError("Number of tensors do not match.")
