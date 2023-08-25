@@ -25,7 +25,7 @@ Classes
     .. automethod:: sample
     .. automethod:: measure
     .. automethod:: postselect
-    .. automethod:: expected_value
+    .. automethod:: expectation_value
     .. automethod:: get_statevector
     .. automethod:: get_amplitude
     .. automethod:: get_qubits
