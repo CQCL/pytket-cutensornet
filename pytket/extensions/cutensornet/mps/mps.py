@@ -457,6 +457,10 @@ class MPS:
         Returns:
             A dictionary mapping each of the qubits in the MPS to their 0 or 1 outcome.
         """
+
+        # TODO: Copying is not strictly necessary, but to avoid it we would need to
+        # modify the algorithm in `measure`. This may be done eventually if `copy`
+        # is shown to be a bottleneck when sampling (which is likely).
         mps = self.copy()
         return mps.measure(mps.get_qubits())
 
@@ -631,14 +635,14 @@ class MPS:
         del self.canonical_form[len(self) - 1]
         self.tensors.pop(pos)
 
-    def expected_value(self, pauli_string: QubitPauliString) -> float:
-        """Obtains the expected value of the Pauli string observable.
+    def expectation_value(self, pauli_string: QubitPauliString) -> float:
+        """Obtains the expectation value of the Pauli string observable.
 
         Args:
-            pauli_string: A dictionary of qubits to Pauli observables.
+            pauli_string: A pytket object representing a tensor product of Paulis.
 
         Returns:
-            The expected value.
+            The expectation value.
 
         Raises:
             ValueError: If a key in ``pauli_string`` is not a qubit in the MPS.
