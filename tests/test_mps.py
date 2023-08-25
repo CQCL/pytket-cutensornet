@@ -433,7 +433,7 @@ def test_postselect_circ(circuit: Circuit, postselect_dict: dict) -> None:
 def test_expectation_value(circuit: Circuit, observable: QubitPauliString) -> None:
     pauli_to_optype = {Pauli.Z: OpType.Z, Pauli.Y: OpType.Z, Pauli.X: OpType.X}
 
-    # Use pytket to generate the expected value of the observable
+    # Use pytket to generate the expectation value of the observable
     ket_circ = circuit.copy()
     for q, o in observable.map.items():
         ket_circ.add_gate(pauli_to_optype[o], [q])
@@ -441,13 +441,13 @@ def test_expectation_value(circuit: Circuit, observable: QubitPauliString) -> No
 
     bra_sv = circuit.get_statevector()
 
-    expected_value = bra_sv.conj() @ ket_sv
+    expectation_value = bra_sv.conj() @ ket_sv
 
-    # Simulate the circuit and obtain the expected value
+    # Simulate the circuit and obtain the expectation value
     with CuTensorNetHandle() as libhandle:
         mps = simulate(libhandle, circuit, ContractionAlg.MPSxGate)
         assert np.isclose(
-            mps.expected_value(observable), expected_value, atol=mps._atol
+            mps.expectation_value(observable), expectation_value, atol=mps._atol
         )
 
 
