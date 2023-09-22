@@ -4,11 +4,11 @@ from random import choice  # type: ignore
 from collections import defaultdict  # type: ignore
 import numpy as np  # type: ignore
 
-from pytket.circuit import Circuit, Command, Qubit  # type: ignore
-from pytket.transform import Transform  # type: ignore
-from pytket.architecture import Architecture  # type: ignore
-from pytket.passes import DefaultMappingPass  # type: ignore
-from pytket.predicates import CompilationUnit  # type: ignore
+from pytket.circuit import Circuit, Command, Qubit
+from pytket.transform import Transform
+from pytket.architecture import Architecture
+from pytket.passes import DefaultMappingPass
+from pytket.predicates import CompilationUnit
 
 from .mps import CuTensorNetHandle, MPS
 from .mps_gate import MPSxGate
@@ -120,7 +120,11 @@ def prepare_circuit(circuit: Circuit) -> tuple[Circuit, dict[Qubit, Qubit]]:
     prep_circ = cu.circuit
     Transform.DecomposeBRIDGE().apply(prep_circ)
 
-    qubit_map = {arch_q: orig_q for orig_q, arch_q in cu.final_map.items()}
+    qubit_map: dict[Qubit, Qubit] = {}
+    for orig_q, arch_q in cu.final_map.items():
+        assert isinstance(orig_q, Qubit)
+        assert isinstance(arch_q, Qubit)
+        qubit_map[arch_q] = orig_q
 
     return (prep_circ, qubit_map)
 
@@ -190,6 +194,7 @@ def _get_sorted_gates(circuit: Circuit) -> list[Command]:
                 "nearest neighbour qubits. Consider using prepare_circuit().",
             )
         elif left_distance is None:
+            assert right_distance is not None
             current_qubit = circuit.qubits[q_index + right_distance]
         elif right_distance is None:
             current_qubit = circuit.qubits[q_index - left_distance]

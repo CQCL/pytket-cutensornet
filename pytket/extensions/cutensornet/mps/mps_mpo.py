@@ -28,7 +28,7 @@ try:
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
-from pytket.circuit import Op, Qubit  # type: ignore
+from pytket.circuit import Op, Qubit
 from .mps import (
     CuTensorNetHandle,
     DirectionMPS,

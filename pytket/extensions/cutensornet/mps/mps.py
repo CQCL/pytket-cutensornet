@@ -30,8 +30,8 @@ try:
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
-from pytket.circuit import Command, Op, OpType, Qubit  # type: ignore
-from pytket.pauli import Pauli, QubitPauliString  # type: ignore
+from pytket.circuit import Command, Op, OpType, Qubit
+from pytket.pauli import Pauli, QubitPauliString
 
 # An alias so that `intptr_t` from CuQuantum's API (which is not available in
 # base python) has some meaningful type name.
