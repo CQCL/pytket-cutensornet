@@ -1,8 +1,8 @@
 import pytest
 import numpy as np
 from scipy.stats import unitary_group  # type: ignore
-from pytket.circuit import Circuit, OpType, Unitary2qBox  # type: ignore
-from pytket.passes import DecomposeBoxes  # type: ignore
+from pytket.circuit import Circuit, OpType, Unitary2qBox
+from pytket.passes import DecomposeBoxes
 
 
 def random_line_circuit(n_qubits: int, layers: int) -> Circuit:
@@ -21,7 +21,8 @@ def random_line_circuit(n_qubits: int, layers: int) -> Circuit:
         ]
         # Direction of each CX gate is random
         for pair in qubit_pairs:
-            np.random.shuffle(pair)
+            if np.random.rand() > 0.5:
+                pair = [pair[1], pair[0]]
 
         for pair in qubit_pairs:
             c.CX(pair[0], pair[1])

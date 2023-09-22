@@ -79,8 +79,8 @@ def test_toffoli_box_with_implicit_swaps() -> None:
     ket_circ = Circuit(3)
 
     # Create the circuit
-    ket_circ.add_toffolibox(ToffoliBox(perm), [Qubit(0), Qubit(1)])
-    ket_circ.add_toffolibox(ToffoliBox(perm), [Qubit(1), Qubit(2)])
+    ket_circ.add_toffolibox(ToffoliBox(perm), [Qubit(0), Qubit(1)])  # type: ignore
+    ket_circ.add_toffolibox(ToffoliBox(perm), [Qubit(1), Qubit(2)])  # type: ignore
 
     DecomposeBoxes().apply(ket_circ)
     CnXPairwiseDecomposition().apply(ket_circ)
@@ -116,7 +116,7 @@ def test_generalised_toffoli_box(n_qubits: int) -> None:
         perm[to_bool_tuple(n_qubits, orig)] = to_bool_tuple(n_qubits, dest)
 
     # Create a circuit implementing the permutation above
-    ket_circ = ToffoliBox(perm).get_circuit()
+    ket_circ = ToffoliBox(perm).get_circuit()  # type: ignore
 
     DecomposeBoxes().apply(ket_circ)
     CnXPairwiseDecomposition().apply(ket_circ)

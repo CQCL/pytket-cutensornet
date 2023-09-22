@@ -26,7 +26,7 @@ try:
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
-from pytket.circuit import Op  # type: ignore
+from pytket.circuit import Op
 from .mps import MPS
 
 
