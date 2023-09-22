@@ -152,7 +152,7 @@ class TensorNetwork:
                         self._logger.debug(f"Adding unitary: \n {com.op.get_unitary()}")
                     # Add a unitary for a gate pointing "upwards" (e.g. CX[1, 0])
                     if com.op.n_qubits > 1:
-                        com_qix = [self._circuit.qubits.index(qb) for qb in com.args]
+                        com_qix = [self._circuit.qubits.index(qb) for qb in com.qubits]
                         self._logger.debug(f"command qubit indices: {com_qix}")
                         com_qix_compressed = [i for i, _ in enumerate(com_qix)]
                         self._logger.debug(

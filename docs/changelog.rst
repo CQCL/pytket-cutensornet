@@ -1,6 +1,13 @@
 Changelog
 ~~~~~~~~~
 
+0.3.0 (September 2023)
+----------------------
+
+* Added MPS sampling feature.
+* Refactored MPS module for better maintainability and extendability.
+* ``Tensor`` class removed from the API since it is no longer necessary.
+
 0.2.1 (August 2023)
 -------------------
 

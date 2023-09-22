@@ -12,8 +12,6 @@ Simulation
 
 .. autofunction:: pytket.extensions.cutensornet.mps.simulate
 
-.. autofunction:: pytket.extensions.cutensornet.mps.get_amplitude
-
 
 Classes
 ~~~~~~~
@@ -24,9 +22,14 @@ Classes
     .. automethod:: apply_gate
     .. automethod:: vdot
     .. automethod:: canonicalise
-    .. automethod:: get_virtual_bonds
+    .. automethod:: sample
+    .. automethod:: measure
+    .. automethod:: postselect
+    .. automethod:: expectation_value
+    .. automethod:: get_statevector
+    .. automethod:: get_amplitude
+    .. automethod:: get_qubits
     .. automethod:: get_virtual_dimensions
-    .. automethod:: get_physical_bond
     .. automethod:: get_physical_dimension
     .. automethod:: get_device_id
     .. automethod:: is_valid
@@ -45,13 +48,6 @@ Classes
     .. automethod:: __init__
 
 .. autoclass:: pytket.extensions.cutensornet.mps.CuTensorNetHandle
-
-.. autoclass:: pytket.extensions.cutensornet.mps.Tensor()
-
-    .. automethod:: __init__
-    .. automethod:: get_bond_dimension
-    .. automethod:: get_tensor_descriptor
-    .. automethod:: copy
 
 
 Miscellaneous
