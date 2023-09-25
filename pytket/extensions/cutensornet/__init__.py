@@ -18,11 +18,6 @@ from ._metadata import __extension_version__, __extension_name__  # type: ignore
 
 from .backends import CuTensorNetBackend
 
-from .general import (
-    set_logger,
-    CuTensorNetHandle,
-)
-
 from .tensor_network_convert import (
     TensorNetwork,
     PauliOperatorTensorNetwork,

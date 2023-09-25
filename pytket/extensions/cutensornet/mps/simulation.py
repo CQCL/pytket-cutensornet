@@ -23,8 +23,8 @@ from pytket.architecture import Architecture
 from pytket.passes import DefaultMappingPass
 from pytket.predicates import CompilationUnit
 
-from pytket.extensions.cutensornet.general import CuTensorNetHandle
-from .mps import MPS
+from pytket.extensions.cutensornet.general import set_logger
+from .mps import CuTensorNetHandle, MPS
 from .mps_gate import MPSxGate
 from .mps_mpo import MPSxMPO
 
