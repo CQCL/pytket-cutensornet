@@ -1,11 +1,11 @@
-# Copyright 2019 Cambridge Quantum Computing
+# Copyright 2019-2023 Quantinuum
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-#
+##
 #     http://www.apache.org/licenses/LICENSE-2.0
-#
+##
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -29,8 +29,8 @@ except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
 from pytket.circuit import Op, Qubit
+from pytket.extensions.cutensornet.general import CuTensorNetHandle
 from .mps import (
-    CuTensorNetHandle,
     DirectionMPS,
     Tensor,
     MPS,

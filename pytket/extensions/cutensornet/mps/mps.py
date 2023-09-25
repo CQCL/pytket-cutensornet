@@ -1,11 +1,11 @@
-# Copyright 2019 Cambridge Quantum Computing
+# Copyright 2019-2023 Quantinuum
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-#
+##
 #     http://www.apache.org/licenses/LICENSE-2.0
-#
+##
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -25,13 +25,14 @@ except ImportError:
     warnings.warn("local settings failed to import cupy", ImportWarning)
 try:
     import cuquantum as cq  # type: ignore
-    import cuquantum.cutensornet as cutn  # type: ignore
     from cuquantum.cutensornet import tensor  # type: ignore
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
 from pytket.circuit import Command, Op, OpType, Qubit
 from pytket.pauli import Pauli, QubitPauliString
+
+from pytket.extensions.cutensornet.general import CuTensorNetHandle
 
 # An alias so that `intptr_t` from CuQuantum's API (which is not available in
 # base python) has some meaningful type name.
@@ -48,38 +49,6 @@ class DirectionMPS(Enum):
 
     LEFT = 0
     RIGHT = 1
-
-
-class CuTensorNetHandle:
-    """Initialise the cuTensorNet library with automatic workspace memory
-    management.
-
-    Note:
-        Always use as ``with CuTensorNetHandle() as libhandle:`` so that cuTensorNet
-        handles are automatically destroyed at the end of execution.
-
-    Attributes:
-        handle (int): The cuTensorNet library handle created by this initialisation.
-        device_id (int): The ID of the device (GPU) where cuTensorNet is initialised.
-            If not provided, defaults to ``cp.cuda.Device()``.
-    """
-
-    def __init__(self, device_id: Optional[int] = None):
-        self.handle = cutn.create()
-        self._is_destroyed = False
-
-        # Make sure CuPy uses the specified device
-        cp.cuda.Device(device_id).use()
-
-        dev = cp.cuda.Device()
-        self.device_id = int(dev)
-
-    def __enter__(self) -> CuTensorNetHandle:
-        return self
-
-    def __exit__(self, exc_type: Any, exc_value: Any, exc_tb: Any) -> None:
-        cutn.destroy(self.handle)
-        self._is_destroyed = True
 
 
 class MPS:
