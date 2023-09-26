@@ -116,6 +116,9 @@ def simulate(
         mps.apply_gate(g)
         logger.info(f"Progress... {(100*i) // len(sorted_gates)}%")
 
+    # Apply the batched operations that are left (if any)
+    mps._flush()
+
     # Apply the circuit's phase to the leftmost tensor (any would work)
     mps.tensors[0] = mps.tensors[0] * np.exp(1j * np.pi * circuit.phase)
 
