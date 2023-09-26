@@ -13,6 +13,7 @@
 # limitations under the License.
 from __future__ import annotations  # type: ignore
 import warnings
+import logging
 
 import numpy as np  # type: ignore
 
@@ -287,4 +288,11 @@ class MPSxGate(MPS):
 
         self.tensors[l_pos] = L
         self.tensors[r_pos] = R
+
+        # If requested, provide info about memory usage.
+        if self._logger.isEnabledFor(logging.INFO):
+            # If-statetement used so that we only call `get_byte_size` if needed.
+            self._logger.info(f"MPS size (MiB)={self.get_byte_size() / 2**20}")
+            self._logger.info(f"MPS fidelity={self.fidelity}")
+
         return self

@@ -234,9 +234,9 @@ class MPS:
         # Debugger logging
         self._logger.debug(
             "Checking validity of MPS... "
-            f"chi_ok={chi_ok}"
-            f"phys_ok={phys_ok}"
-            f"shape_ok={shape_ok}"
+            f"chi_ok={chi_ok}, "
+            f"phys_ok={phys_ok}, "
+            f"shape_ok={shape_ok}, "
             f"ds_ok={ds_ok}"
         )
 
@@ -273,7 +273,7 @@ class MPS:
                 "Gates can only be applied to tensors with physical"
                 + " bond dimension of 2."
             )
-        self._logger.debug(f"Applying gate {gate}...")
+        self._logger.debug(f"Applying gate {gate}")
 
         if len(positions) == 1:
             self._apply_1q_gate(positions[0], gate.op)
@@ -294,11 +294,6 @@ class MPS:
             self.canonical_form[positions[0]] = None
             self.canonical_form[positions[1]] = None
 
-            # If requested, provide info about memory usage.
-            if self._logger.isEnabledFor(logging.INFO):
-                # If-statetement used so that we only call `get_byte_size` if needed.
-                self._logger.info(f"MPS size (MiB)={self.get_byte_size() / 2**20}")
-                self._logger.info(f"MPS fidelity={self.fidelity}")
         else:
             raise RuntimeError(
                 "Gates must act on only 1 or 2 qubits! "

@@ -504,7 +504,6 @@ class MPSxMPO(MPS):
             # Normalise F and update the variational MPS
             self._aux_mps.tensors[pos] = F / np.sqrt(optim_fidelity)
 
-            self._logger.debug(f"Tensor optimised. Current fidelity={optim_fidelity}")
             return optim_fidelity
 
         ##################################
@@ -564,7 +563,7 @@ class MPSxMPO(MPS):
                 sweep_direction = DirectionMPS.RIGHT
 
             self._logger.info(
-                f"Optimisation sweep completed. Current fidelity={self.fidelity}"
+                f"Optimisation sweep completed. Current fidelity={self.fidelity*sweep_fidelity}"
             )
 
         # Clear out the MPO

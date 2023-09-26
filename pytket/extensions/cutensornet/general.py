@@ -18,7 +18,7 @@ from logging import Logger
 def set_logger(
     logger_name: str,
     level: int = logging.WARNING,
-    fmt: str = "[%(asctime)s] %(name)s (%(levelname)-8s) - %(message)s",
+    fmt: str = "[%(asctime)s] %(name)s (%(levelname)s) - %(message)s",
 ) -> Logger:
     """Initialises and configures a logger object.
 
