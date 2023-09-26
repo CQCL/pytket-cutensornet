@@ -13,6 +13,7 @@
 # limitations under the License.
 from __future__ import annotations  # type: ignore
 import warnings
+import logging
 
 from typing import Optional, Union
 
@@ -29,7 +30,6 @@ except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
 from pytket.circuit import Op, Qubit
-from pytket.extensions.cutensornet.general import set_logger
 from .mps import (
     CuTensorNetHandle,
     DirectionMPS,
@@ -54,6 +54,7 @@ class MPSxMPO(MPS):
         k: Optional[int] = None,
         optim_delta: Optional[float] = None,
         float_precision: Optional[Union[np.float32, np.float64]] = None,
+        loglevel: int = logging.WARNING,
     ):
         """Initialise an MPS on the computational state ``|0>``.
 
@@ -89,8 +90,16 @@ class MPSxMPO(MPS):
                 choose from ``numpy`` types: ``np.float64`` or ``np.float32``.
                 Complex numbers are represented using two of such
                 ``float`` numbers. Default is ``np.float64``.
+            loglevel: Internal logger output level.
         """
-        super().__init__(libhandle, qubits, chi, truncation_fidelity, float_precision)
+        super().__init__(
+            libhandle=libhandle,
+            qubits=qubits,
+            chi=chi,
+            truncation_fidelity=truncation_fidelity,
+            float_precision=float_precision,
+            loglevel=loglevel,
+        )
 
         # Initialise the MPO data structure. This will keep a list of the gates
         # batched for application to the MPS; all of them will be applied at
@@ -110,7 +119,12 @@ class MPSxMPO(MPS):
         # Initialise the MPS that we will use as first approximation of the
         # variational algorithm.
         self._aux_mps = MPSxGate(
-            libhandle, qubits, chi, truncation_fidelity, float_precision
+            libhandle=libhandle,
+            qubits=qubits,
+            chi=chi,
+            truncation_fidelity=truncation_fidelity,
+            float_precision=float_precision,
+            loglevel=loglevel,
         )
 
         if k is None:
@@ -345,6 +359,8 @@ class MPSxMPO(MPS):
         The method applies variational optimisation of the MPS until it
         converges. Based on https://arxiv.org/abs/2207.05612.
         """
+        self._logger.info("Applying variational optimisation.")
+        self._logger.info(f"Fidelity before optimisation={self._aux_mps.fidelity}")
 
         l_cached_tensors: list[Tensor] = []
         r_cached_tensors: list[Tensor] = []
@@ -356,6 +372,7 @@ class MPSxMPO(MPS):
             Update the cache accordingly. Applies canonicalisation on the vMPS
             tensor before contracting.
             """
+            self._logger.debug("Updating the sweep cache...")
 
             # Canonicalise the tensor at ``pos``
             if direction == DirectionMPS.LEFT:
@@ -425,6 +442,8 @@ class MPSxMPO(MPS):
             elif direction == DirectionMPS.RIGHT:
                 l_cached_tensors.append(T)
 
+            self._logger.debug("Completed update of the sweep cache.")
+
         def update_variational_tensor(
             pos: int, left_tensor: Optional[Tensor], right_tensor: Optional[Tensor]
         ) -> float:
@@ -434,6 +453,8 @@ class MPSxMPO(MPS):
             Contract these with the MPS-MPO column at ``pos``.
             Return the current fidelity of this sweep.
             """
+            self._logger.debug(f"Optimising tensor at position={pos}")
+
             interleaved_rep = [
                 # The tensor of the MPS
                 self.tensors[pos],
@@ -483,6 +504,7 @@ class MPSxMPO(MPS):
             # Normalise F and update the variational MPS
             self._aux_mps.tensors[pos] = F / np.sqrt(optim_fidelity)
 
+            self._logger.debug(f"Tensor optimised. Current fidelity={optim_fidelity}")
             return optim_fidelity
 
         ##################################
@@ -500,6 +522,7 @@ class MPSxMPO(MPS):
         # Repeat sweeps until the fidelity converges
         sweep_direction = DirectionMPS.RIGHT
         while not np.isclose(prev_fidelity, sweep_fidelity, atol=self.optim_delta):
+            self._logger.info(f"Doing another optimisation sweep...")
             prev_fidelity = sweep_fidelity
 
             if sweep_direction == DirectionMPS.RIGHT:
@@ -540,6 +563,10 @@ class MPSxMPO(MPS):
 
                 sweep_direction = DirectionMPS.RIGHT
 
+            self._logger.info(
+                f"Optimisation sweep completed. Current fidelity={self.fidelity}"
+            )
+
         # Clear out the MPO
         self._mpo = [list() for _ in range(len(self))]
         self._bond_ids = [list() for _ in range(len(self))]
@@ -551,6 +578,8 @@ class MPSxMPO(MPS):
         # Update the fidelity estimate
         self.fidelity *= sweep_fidelity
         self._aux_mps.fidelity = self.fidelity
+
+        self._logger.info(f"Final fidelity after optimisation={self.fidelity}")
 
     def _new_bond_id(self) -> int:
         self._mpo_bond_counter += 1

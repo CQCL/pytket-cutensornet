@@ -138,12 +138,14 @@ class MPSxGate(MPS):
         result_bonds = "acLR"
 
         # Contract
+        self._logger.debug("Contracting the two-qubit gate with its site tensors...")
         T = cq.contract(
             gate_bonds + "," + left_bonds + "," + right_bonds + "->" + result_bonds,
             gate_tensor,
             self.tensors[l_pos],
             self.tensors[r_pos],
         )
+        self._logger.debug(f"Intermediate tensor of size (MiB)={T.nbytes / 2**20}")
 
         # Get the template of the MPS tensors involved
         L = self.tensors[l_pos]
@@ -161,6 +163,9 @@ class MPSxGate(MPS):
             # uses REL_SUM2_CUTOFF. Then the code in the `else` block should
             # be run; i.e. use standard cuTensorNet API to do the SVD
             # including normalisation and contraction of S with L.
+            self._logger.debug(
+                f"Truncating to target fidelity={self.truncation_fidelity}"
+            )
 
             options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
             svd_method = tensor.SVDMethod(abs_cutoff=self._atol / 1000)
@@ -179,6 +184,7 @@ class MPSxGate(MPS):
             # singular values that remain after truncation (before normalisation).
             denom = float(sum(cp.square(S)))  # Element-wise squaring
             numer = 0.0
+            old_dim = new_dim
             new_dim = 0
 
             # Take singular values until we surpass the target fidelity
@@ -222,11 +228,18 @@ class MPSxGate(MPS):
             # to keep track of a lower bound for the fidelity.
             self.fidelity *= this_fidelity
 
+            # Report to logger
+            self._logger.debug(f"Truncation done. Truncation fidelity={this_fidelity}")
+            self._logger.debug(
+                f"Reduced virtual bond dimension from {old_dim} to {new_dim}."
+            )
+
         elif new_dim > self.chi:
             # Apply SVD decomposition and truncate up to a `max_extent` (for the shared
             # bond) of `self.chi`. Ask cuTensorNet to contract S directly into the L
             # tensor and normalise the singular values so that the sum of its squares
             # is equal to one (i.e. the MPS is a normalised state after truncation).
+            self._logger.debug(f"Truncating to (or below) chosen chi={self.chi}")
 
             options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
             svd_method = tensor.SVDMethod(
@@ -252,16 +265,25 @@ class MPSxGate(MPS):
             #
             # We multiply the fidelity of the current step to the overall fidelity
             # to keep track of a lower bound for the fidelity.
-            self.fidelity *= 1.0 - svd_info.discarded_weight
+            this_fidelity = 1.0 - svd_info.discarded_weight
+            self.fidelity *= this_fidelity
+
+            # Report to logger
+            self._logger.debug(f"Truncation done. Truncation fidelity={this_fidelity}")
+            self._logger.debug(
+                f"Reduced virtual bond dimension from {new_dim} to {R.shape[0]}."
+            )
 
         else:
             # No truncation is necessary. In this case, simply apply a QR decomposition
             # to get back to MPS form. QR is cheaper than SVD.
+            self._logger.debug("No truncation is necessary, applying QR decomposition.")
 
             options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
             L, R = tensor.decompose(
                 "acLR->asL,scR", T, method=tensor.QRMethod(), options=options
             )
+            self._logger.debug("QR decomposition applied.")
 
         self.tensors[l_pos] = L
         self.tensors[r_pos] = R
