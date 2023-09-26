@@ -563,7 +563,8 @@ class MPSxMPO(MPS):
                 sweep_direction = DirectionMPS.RIGHT
 
             self._logger.info(
-                f"Optimisation sweep completed. Current fidelity={self.fidelity*sweep_fidelity}"
+                "Optimisation sweep completed. "
+                f"Current fidelity={self.fidelity*sweep_fidelity}"
             )
 
         # Clear out the MPO
