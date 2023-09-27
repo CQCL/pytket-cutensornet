@@ -1,11 +1,11 @@
-# Copyright 2019 Cambridge Quantum Computing
+# Copyright 2019-2023 Quantinuum
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-#
+##
 #     http://www.apache.org/licenses/LICENSE-2.0
-#
+##
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -13,6 +13,7 @@
 # limitations under the License.
 from __future__ import annotations  # type: ignore
 import warnings
+import logging
 from typing import Any, Optional, Union
 from enum import Enum
 
@@ -32,6 +33,8 @@ except ImportError:
 
 from pytket.circuit import Command, Op, OpType, Qubit
 from pytket.pauli import Pauli, QubitPauliString
+
+from pytket.extensions.cutensornet.general import set_logger
 
 # An alias so that `intptr_t` from CuQuantum's API (which is not available in
 # base python) has some meaningful type name.
@@ -92,6 +95,7 @@ class ConfigMPS:
         k: int = 4,
         optim_delta: float = 1e-5,
         float_precision: Union[np.float32, np.float64] = np.float64,  # type: ignore
+        loglevel: int = logging.WARNING,
     ):
         """Instantiate a configuration object for MPS simulation.
 
@@ -120,6 +124,7 @@ class ConfigMPS:
                 choose from ``numpy`` types: ``np.float64`` or ``np.float32``.
                 Complex numbers are represented using two of such
                 ``float`` numbers. Default is ``np.float64``.
+            loglevel: Internal logger output level.
 
         Raises:
             ValueError: If both ``chi`` and ``truncation_fidelity`` are fixed.
@@ -161,6 +166,7 @@ class ConfigMPS:
 
         self.k = k
         self.optim_delta = 1e-5
+        self.loglevel = loglevel
 
     def copy(self) -> ConfigMPS:
         """Standard copy of the contents."""
@@ -217,6 +223,7 @@ class MPS:
         """
         self._lib = libhandle
         self._cfg = config
+        self._logger = set_logger("MPS", level=config.loglevel)
         self.fidelity = 1.0
 
         n_tensors = len(qubits)
@@ -262,6 +269,15 @@ class MPS:
         ds_ok = set(self.canonical_form.keys()) == set(range(len(self)))
         ds_ok = ds_ok and set(self.qubit_position.values()) == set(range(len(self)))
 
+        # Debugger logging
+        self._logger.debug(
+            "Checking validity of MPS... "
+            f"chi_ok={chi_ok}, "
+            f"phys_ok={phys_ok}, "
+            f"shape_ok={shape_ok}, "
+            f"ds_ok={ds_ok}"
+        )
+
         return chi_ok and phys_ok and shape_ok and ds_ok
 
     def apply_gate(self, gate: Command) -> MPS:
@@ -295,6 +311,7 @@ class MPS:
                 "Gates can only be applied to tensors with physical"
                 + " bond dimension of 2."
             )
+        self._logger.debug(f"Applying gate {gate}")
 
         if len(positions) == 1:
             self._apply_1q_gate(positions[0], gate.op)
@@ -320,6 +337,7 @@ class MPS:
                 "Gates must act on only 1 or 2 qubits! "
                 + f"This is not satisfied by {gate}."
             )
+
         return self
 
     def canonicalise(self, l_pos: int, r_pos: int) -> None:
@@ -335,10 +353,14 @@ class MPS:
             r_pos: The position of the rightmost tensor that is not to be
                 canonicalised.
         """
+        self._logger.debug(f"Start canonicalisation... l_pos={l_pos}, r_pos={r_pos}")
+
         for pos in range(l_pos):
             self.canonicalise_tensor(pos, form=DirectionMPS.LEFT)
         for pos in reversed(range(r_pos + 1, len(self))):
             self.canonicalise_tensor(pos, form=DirectionMPS.RIGHT)
+
+        self._logger.debug(f"Finished canonicalisation.")
 
     def canonicalise_tensor(self, pos: int, form: DirectionMPS) -> None:
         """Canonicalises a tensor from an MPS object.
@@ -358,6 +380,7 @@ class MPS:
         """
         if form == self.canonical_form[pos]:
             # Tensor already in canonical form, nothing needs to be done
+            self._logger.debug(f"Position {pos} already in {form}.")
             return None
 
         if self._lib._is_destroyed:
@@ -366,6 +389,7 @@ class MPS:
                 "See the documentation of update_libhandle and CuTensorNetHandle.",
             )
 
+        self._logger.debug(f"Canonicalising {pos} to {form}.")
         # Glossary of bond IDs used here:
         # s -> shared virtual bond between T and Tnext
         # v -> the other virtual bond of T
@@ -397,15 +421,19 @@ class MPS:
             raise ValueError("Argument form must be a value in DirectionMPS.")
 
         # Apply QR decomposition
+        self._logger.debug(f"QR decompose a {T.nbytes / 2**20} MiB tensor.")
+
         subscripts = T_bonds + "->" + Q_bonds + "," + R_bonds
         options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
         Q, R = tensor.decompose(
             subscripts, T, method=tensor.QRMethod(), options=options
         )
+        self._logger.debug(f"QR decomposition finished.")
 
         # Contract R into Tnext
         subscripts = R_bonds + "," + Tnext_bonds + "->" + result_bonds
         result = cq.contract(subscripts, R, Tnext)
+        self._logger.debug(f"Contraction with {next_pos} applied.")
 
         # Update self.tensors
         self.tensors[pos] = Q
@@ -458,9 +486,12 @@ class MPS:
 
         # Special case if only one tensor remains
         if len(self) == 1:
+            self._logger.debug("Applying trivial vdot on single tensor MPS.")
             result = cq.contract("LRp,lrp->", self.tensors[0].conj(), other.tensors[0])
 
         else:
+            self._logger.debug("Applying vdot between two MPS.")
+
             # The two MPS will be contracted from left to right, storing the
             # ``partial_result`` tensor.
             partial_result = cq.contract(
@@ -482,6 +513,7 @@ class MPS:
                 other.tensors[-1],
             )
 
+        self._logger.debug(f"Result from vdot={result}")
         return complex(result)
 
     def sample(self) -> dict[Qubit, int]:
@@ -529,6 +561,7 @@ class MPS:
                 raise ValueError(f"Qubit {q} is not a qubit in the MPS.")
             position_qubit_map[self.qubit_position[q]] = q
         positions = sorted(position_qubit_map.keys())
+        self._logger.debug(f"Measuring qubits={position_qubit_map}")
 
         # Tensor for postselection to |0>
         zero_tensor = cp.zeros(2, dtype=self._cfg._complex_t)
@@ -561,6 +594,7 @@ class MPS:
             # Throw a coin to decide measurement outcome
             outcome = 0 if prob > random() else 1
             result[position_qubit_map[pos]] = outcome
+            self._logger.debug(f"Outcome of qubit at {pos} is {outcome}.")
 
             # Postselect the MPS for this outcome, renormalising at the same time
             postselection_tensor = cp.zeros(2, dtype=self._cfg._complex_t)
@@ -604,6 +638,7 @@ class MPS:
             raise ValueError(
                 "Cannot postselect all qubits. You may want to use get_amplitude()."
             )
+        self._logger.debug(f"Postselecting qubits={qubit_outcomes}")
 
         # Apply a postselection for each of the qubits
         for qubit, outcome in qubit_outcomes.items():
@@ -623,6 +658,7 @@ class MPS:
             self.tensors[0] = self.tensors[0] / np.sqrt(prob)
             self.canonical_form[0] = None
 
+        self._logger.debug(f"Probability of this postselection is {prob}.")
         return prob
 
     def _postselect_qubit(self, qubit: Qubit, postselection_tensor: cp.ndarray) -> None:
@@ -688,6 +724,7 @@ class MPS:
             if q not in self.qubit_position:
                 raise ValueError(f"Qubit {q} is not a qubit in the MPS.")
 
+        self._logger.debug(f"Calculating expectation value of {pauli_string}.")
         mps_copy = self.copy()
         pauli_optype = {Pauli.Z: OpType.Z, Pauli.X: OpType.X, Pauli.Y: OpType.Y}
 
@@ -710,6 +747,7 @@ class MPS:
         value = self.vdot(mps_copy)
         assert np.isclose(value.imag, 0.0, atol=self._cfg._atol)
 
+        self._logger.debug(f"Expectation value is {value.real}.")
         return value.real
 
     def get_statevector(self) -> np.ndarray:
@@ -783,7 +821,9 @@ class MPS:
             )
 
         assert result_tensor.shape == (1,)
-        return complex(result_tensor[0])
+        result = complex(result_tensor[0])
+        self._logger.debug(f"Amplitude of state {state} is {result}.")
+        return result
 
     def get_qubits(self) -> set[Qubit]:
         """Returns the set of qubits that this MPS is defined on."""
@@ -826,6 +866,13 @@ class MPS:
         physical_dim: int = self.tensors[position].shape[2]
         return physical_dim
 
+    def get_byte_size(self) -> int:
+        """
+        Returns:
+            The number of bytes the MPS currently occupies in GPU memory.
+        """
+        return sum(t.nbytes for t in self.tensors)
+
     def get_device_id(self) -> int:
         """
         Returns:
@@ -866,6 +913,10 @@ class MPS:
         new_mps.canonical_form = self.canonical_form.copy()
         new_mps.qubit_position = self.qubit_position.copy()
 
+        self._logger.debug(
+            "Successfully copied an MPS "
+            f"of size {new_mps.get_byte_size() / 2**20} MiB."
+        )
         return new_mps
 
     def __len__(self) -> int:

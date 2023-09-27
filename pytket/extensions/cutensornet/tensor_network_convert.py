@@ -27,34 +27,7 @@ from pytket.utils import Graph
 from pytket.pauli import QubitPauliString  # type: ignore
 from pytket.circuit import Circuit, Qubit  # type: ignore
 from pytket.utils import permute_rows_cols_in_unitary
-
-
-# TODO: decide whether to use logger.
-def set_logger(
-    logger_name: str,
-    level: int = logging.INFO,
-    fmt: str = "%(name)s - %(levelname)s - %(message)s",
-) -> Logger:
-    """Initialises and configures a logger object.
-
-    Args:
-        logger_name: Name for the logger object.
-        level: Logger output level.
-        fmt: Logger output format.
-
-    Returns:
-        New configured logger object.
-    """
-    logger = logging.getLogger(logger_name)
-    logger.setLevel(level)
-    logger.propagate = False
-    if not logger.handlers:
-        handler = logging.StreamHandler()
-        handler.setLevel(level)
-        formatter = logging.Formatter(fmt)
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
-    return logger
+from pytket.extensions.cutensornet.general import set_logger
 
 
 class TensorNetwork:

@@ -1,11 +1,11 @@
-# Copyright 2019 Cambridge Quantum Computing
+# Copyright 2019-2023 Quantinuum
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-#
+##
 #     http://www.apache.org/licenses/LICENSE-2.0
-#
+##
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -13,6 +13,7 @@
 # limitations under the License.
 from __future__ import annotations  # type: ignore
 import warnings
+import logging
 
 from typing import Optional, Union
 
@@ -308,6 +309,8 @@ class MPSxMPO(MPS):
         The method applies variational optimisation of the MPS until it
         converges. Based on https://arxiv.org/abs/2207.05612.
         """
+        self._logger.info("Applying variational optimisation.")
+        self._logger.info(f"Fidelity before optimisation={self._aux_mps.fidelity}")
 
         l_cached_tensors: list[Tensor] = []
         r_cached_tensors: list[Tensor] = []
@@ -319,6 +322,7 @@ class MPSxMPO(MPS):
             Update the cache accordingly. Applies canonicalisation on the vMPS
             tensor before contracting.
             """
+            self._logger.debug("Updating the sweep cache...")
 
             # Canonicalise the tensor at ``pos``
             if direction == DirectionMPS.LEFT:
@@ -388,6 +392,8 @@ class MPSxMPO(MPS):
             elif direction == DirectionMPS.RIGHT:
                 l_cached_tensors.append(T)
 
+            self._logger.debug("Completed update of the sweep cache.")
+
         def update_variational_tensor(
             pos: int, left_tensor: Optional[Tensor], right_tensor: Optional[Tensor]
         ) -> float:
@@ -397,6 +403,8 @@ class MPSxMPO(MPS):
             Contract these with the MPS-MPO column at ``pos``.
             Return the current fidelity of this sweep.
             """
+            self._logger.debug(f"Optimising tensor at position={pos}")
+
             interleaved_rep = [
                 # The tensor of the MPS
                 self.tensors[pos],
@@ -463,6 +471,7 @@ class MPSxMPO(MPS):
         # Repeat sweeps until the fidelity converges
         sweep_direction = DirectionMPS.RIGHT
         while not np.isclose(prev_fidelity, sweep_fidelity, atol=self._cfg.optim_delta):
+            self._logger.info(f"Doing another optimisation sweep...")
             prev_fidelity = sweep_fidelity
 
             if sweep_direction == DirectionMPS.RIGHT:
@@ -503,6 +512,11 @@ class MPSxMPO(MPS):
 
                 sweep_direction = DirectionMPS.RIGHT
 
+            self._logger.info(
+                "Optimisation sweep completed. "
+                f"Current fidelity={self.fidelity*sweep_fidelity}"
+            )
+
         # Clear out the MPO
         self._mpo = [list() for _ in range(len(self))]
         self._bond_ids = [list() for _ in range(len(self))]
@@ -514,6 +528,8 @@ class MPSxMPO(MPS):
         # Update the fidelity estimate
         self.fidelity *= sweep_fidelity
         self._aux_mps.fidelity = self.fidelity
+
+        self._logger.info(f"Final fidelity after optimisation={self.fidelity}")
 
     def _new_bond_id(self) -> int:
         self._mpo_bond_counter += 1
