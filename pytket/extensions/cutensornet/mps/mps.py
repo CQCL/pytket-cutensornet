@@ -372,9 +372,9 @@ class MPS:
 
         # Update self.tensors
         self.tensors[pos] = Q
-        self.tensors[pos].canonical_form = form
+        self.canonical_form[pos] = form
         self.tensors[next_pos] = result
-        self.tensors[next_pos].canonical_form = None
+        self.canonical_form[next_pos] = None
 
     def vdot(self, other: MPS) -> complex:
         """Obtain the inner product of the two MPS: ``<self|other>``.
