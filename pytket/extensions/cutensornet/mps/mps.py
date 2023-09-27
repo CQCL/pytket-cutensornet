@@ -372,7 +372,7 @@ class MPS:
 
         # Update self.tensors
         self.tensors[pos] = Q
-        self.canonical_form[pos] = form
+        self.canonical_form[pos] = form  # type: ignore
         self.tensors[next_pos] = result
         self.canonical_form[next_pos] = None
 
