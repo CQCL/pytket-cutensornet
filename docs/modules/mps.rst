@@ -10,6 +10,9 @@ Simulation
 .. autoenum:: pytket.extensions.cutensornet.mps.ContractionAlg()
     :members:
 
+.. autoclass:: pytket.extensions.cutensornet.mps.ConfigMPS()
+    .. automethod:: __init__
+
 .. autofunction:: pytket.extensions.cutensornet.mps.simulate
 
 

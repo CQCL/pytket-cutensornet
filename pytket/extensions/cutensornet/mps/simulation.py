@@ -10,7 +10,7 @@ from pytket.architecture import Architecture
 from pytket.passes import DefaultMappingPass
 from pytket.predicates import CompilationUnit
 
-from .mps import CuTensorNetHandle, MPS
+from .mps import CuTensorNetHandle, ConfigMPS, MPS
 from .mps_gate import MPSxGate
 from .mps_mpo import MPSxMPO
 
@@ -30,7 +30,7 @@ def simulate(
     libhandle: CuTensorNetHandle,
     circuit: Circuit,
     algorithm: ContractionAlg,
-    **kwargs: Any
+    config: ConfigMPS,
 ) -> MPS:
     """Simulate the given circuit and return the ``MPS`` representing the final state.
 
@@ -51,33 +51,23 @@ def simulate(
             tensor operations on the MPS.
         circuit: The pytket circuit to be simulated.
         algorithm: Choose between the values of the ``ContractionAlg`` enum.
-        **kwargs: Any argument accepted by the initialisers of the chosen
-            ``algorithm`` class can be passed as a keyword argument. See the
-            documentation of the corresponding class for details.
+        config: The configuration object for simulation.
 
     Returns:
         An instance of ``MPS`` containing (an approximation of) the final state
         of the circuit.
     """
-    chi = kwargs.get("chi", None)
-    truncation_fidelity = kwargs.get("truncation_fidelity", None)
-    float_precision = kwargs.get("float_precision", None)
-
     if algorithm == ContractionAlg.MPSxGate:
         mps = MPSxGate(  # type: ignore
-            libhandle, circuit.qubits, chi, truncation_fidelity, float_precision
+            libhandle,
+            circuit.qubits,
+            config,
         )
     elif algorithm == ContractionAlg.MPSxMPO:
-        k = kwargs.get("k", None)
-        optim_delta = kwargs.get("optim_delta", None)
         mps = MPSxMPO(  # type: ignore
             libhandle,
             circuit.qubits,
-            chi,
-            truncation_fidelity,
-            k,
-            optim_delta,
-            float_precision,
+            config,
         )
 
     # Sort the gates so there isn't much overhead from canonicalising back and forth.
