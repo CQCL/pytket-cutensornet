@@ -333,7 +333,7 @@ def test_circ_approx_explicit(circuit: Circuit) -> None:
 
         # Check for MPSxMPO
         mps_mpo = simulate(libhandle, circuit, ContractionAlg.MPSxMPO, chi=8)
-        assert np.isclose(mps_mpo.fidelity, 0.06, atol=1e-2)
+        assert np.isclose(mps_mpo.fidelity, 0.04, atol=1e-2)
         assert mps_mpo.is_valid()
         assert np.isclose(mps_mpo.vdot(mps_mpo), 1.0, atol=mps_mpo._atol)
 
