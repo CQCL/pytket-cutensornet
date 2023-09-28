@@ -95,6 +95,7 @@ class ConfigMPS:
         k: int = 4,
         optim_delta: float = 1e-5,
         float_precision: Union[np.float32, np.float64] = np.float64,  # type: ignore
+        value_of_zero: float = 1e-16,
         loglevel: int = logging.WARNING,
     ):
         """Instantiate a configuration object for MPS simulation.
@@ -124,6 +125,12 @@ class ConfigMPS:
                 choose from ``numpy`` types: ``np.float64`` or ``np.float32``.
                 Complex numbers are represented using two of such
                 ``float`` numbers. Default is ``np.float64``.
+            value_of_zero: Any number below this value will be considered equal to zero.
+                Even when no ``chi`` or ``truncation_fidelity`` is provided, singular
+                values below this number will be truncated.
+                We suggest to use a value slightly below what your chosen
+                ``float_precision`` can reasonably achieve. For instance, ``1e-16`` for
+                ``np.float64`` precision (default) and ``1e-7`` for ``np.float32``.
             loglevel: Internal logger output level.
 
         Raises:
@@ -163,6 +170,7 @@ class ConfigMPS:
             raise TypeError(
                 f"Value of float_precision must be in {allowed_precisions}."
             )
+        self.zero = value_of_zero
 
         self.k = k
         self.optim_delta = 1e-5

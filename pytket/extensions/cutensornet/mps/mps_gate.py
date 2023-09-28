@@ -169,7 +169,7 @@ class MPSxGate(MPS):
             )
 
             options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
-            svd_method = tensor.SVDMethod(abs_cutoff=self._cfg._atol / 1000)
+            svd_method = tensor.SVDMethod(abs_cutoff=self._cfg.zero)
             L, S, R = tensor.decompose(
                 "acLR->asL,scR", T, method=svd_method, options=options
             )
@@ -244,7 +244,7 @@ class MPSxGate(MPS):
 
             options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
             svd_method = tensor.SVDMethod(
-                abs_cutoff=self._cfg._atol / 1000,
+                abs_cutoff=self._cfg.zero,
                 max_extent=self._cfg.chi,
                 partition="U",  # Contract S directly into U (named L in our case)
                 normalization="L2",  # Sum of squares equal 1
@@ -276,15 +276,35 @@ class MPSxGate(MPS):
             )
 
         else:
-            # No truncation is necessary. In this case, simply apply a QR decomposition
-            # to get back to MPS form. QR is cheaper than SVD.
-            self._logger.debug("No truncation is necessary, applying QR decomposition.")
+            # The user did not explicitly ask for truncation, but it is advantageous to
+            # remove any singular values below ``self._cfg.zero``.
+            self._logger.debug(f"Truncating singular values below={self._cfg.zero}.")
+            if self._cfg.zero > self._cfg._atol / 1000:
+                self._logger.warning(
+                    "Your chosen value_of_zero is relatively large. "
+                    "Faithfulness of final fidelity estimate is not guaranteed."
+                )
 
+            # NOTE: There is no guarantee of canonical form in this case. This is fine
+            # since canonicalisation is just meant to detect the optimal singular values
+            # to truncate, but if we find values that are essentially zero, we are safe
+            # to remove them.
             options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
-            L, R = tensor.decompose(
-                "acLR->asL,scR", T, method=tensor.QRMethod(), options=options
+            svd_method = tensor.SVDMethod(
+                abs_cutoff=self._cfg.zero,
+                partition="U",  # Contract S directly into U (named L in our case)
+                normalization=None,  # Without canonicalisation we must not normalise
             )
-            self._logger.debug("QR decomposition applied.")
+            L, S, R = tensor.decompose(
+                "acLR->asL,scR", T, method=svd_method, options=options
+            )
+            assert S is None  # Due to "partition" option in SVDMethod
+
+            # Report to logger
+            self._logger.debug(f"Truncation done. Fidelity estimate unchanged.")
+            self._logger.debug(
+                f"Reduced virtual bond dimension from {new_dim} to {R.shape[0]}."
+            )
 
         self.tensors[l_pos] = L
         self.tensors[r_pos] = R
