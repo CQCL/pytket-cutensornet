@@ -172,6 +172,12 @@ class ConfigMPS:
             )
         self.zero = value_of_zero
 
+        if value_of_zero > self._atol / 1000:
+            logging.warning(
+                "Your chosen value_of_zero is relatively large. "
+                "Faithfulness of final fidelity estimate is not guaranteed."
+            )
+
         self.k = k
         self.optim_delta = 1e-5
         self.loglevel = loglevel
