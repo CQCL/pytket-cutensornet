@@ -131,7 +131,8 @@ class ConfigMPS:
                 We suggest to use a value slightly below what your chosen
                 ``float_precision`` can reasonably achieve. For instance, ``1e-16`` for
                 ``np.float64`` precision (default) and ``1e-7`` for ``np.float32``.
-            loglevel: Internal logger output level.
+            loglevel: Internal logger output level. Use 30 for warnings only, 20 for
+                verbose and 10 for debug mode.
 
         Raises:
             ValueError: If both ``chi`` and ``truncation_fidelity`` are fixed.
