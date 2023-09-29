@@ -1,5 +1,20 @@
+# Copyright 2019-2023 Quantinuum
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+##
+#     http://www.apache.org/licenses/LICENSE-2.0
+##
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 from typing import Any
 from enum import Enum
+import logging
+
 from random import choice  # type: ignore
 from collections import defaultdict  # type: ignore
 import numpy as np  # type: ignore
@@ -10,6 +25,7 @@ from pytket.architecture import Architecture
 from pytket.passes import DefaultMappingPass
 from pytket.predicates import CompilationUnit
 
+from pytket.extensions.cutensornet.general import set_logger
 from .mps import CuTensorNetHandle, MPS
 from .mps_gate import MPSxGate
 from .mps_mpo import MPSxMPO
@@ -30,7 +46,7 @@ def simulate(
     libhandle: CuTensorNetHandle,
     circuit: Circuit,
     algorithm: ContractionAlg,
-    **kwargs: Any
+    **kwargs: Any,
 ) -> MPS:
     """Simulate the given circuit and return the ``MPS`` representing the final state.
 
@@ -62,30 +78,46 @@ def simulate(
     chi = kwargs.get("chi", None)
     truncation_fidelity = kwargs.get("truncation_fidelity", None)
     float_precision = kwargs.get("float_precision", None)
+    loglevel = kwargs.get("loglevel", logging.WARNING)
+    logger = set_logger("Simulation", level=loglevel)
 
     if algorithm == ContractionAlg.MPSxGate:
         mps = MPSxGate(  # type: ignore
-            libhandle, circuit.qubits, chi, truncation_fidelity, float_precision
+            libhandle=libhandle,
+            qubits=circuit.qubits,
+            chi=chi,
+            truncation_fidelity=truncation_fidelity,
+            float_precision=float_precision,
+            loglevel=loglevel,
         )
     elif algorithm == ContractionAlg.MPSxMPO:
         k = kwargs.get("k", None)
         optim_delta = kwargs.get("optim_delta", None)
         mps = MPSxMPO(  # type: ignore
-            libhandle,
-            circuit.qubits,
-            chi,
-            truncation_fidelity,
-            k,
-            optim_delta,
-            float_precision,
+            libhandle=libhandle,
+            qubits=circuit.qubits,
+            chi=chi,
+            truncation_fidelity=truncation_fidelity,
+            k=k,
+            optim_delta=optim_delta,
+            float_precision=float_precision,
+            loglevel=loglevel,
         )
 
     # Sort the gates so there isn't much overhead from canonicalising back and forth.
+    logger.info(
+        "Ordering the gates in the circuit to reduce canonicalisation overhead."
+    )
     sorted_gates = _get_sorted_gates(circuit)
 
+    logger.info("Running simulation...")
     # Apply the gates
-    for g in sorted_gates:
+    for i, g in enumerate(sorted_gates):
         mps.apply_gate(g)
+        logger.info(f"Progress... {(100*i) // len(sorted_gates)}%")
+
+    # Apply the batched operations that are left (if any)
+    mps._flush()
 
     # Apply the batched operations that are left (if any)
     mps._flush()
@@ -93,6 +125,9 @@ def simulate(
     # Apply the circuit's phase to the leftmost tensor (any would work)
     mps.tensors[0] = mps.tensors[0] * np.exp(1j * np.pi * circuit.phase)
 
+    logger.info("Simulation completed.")
+    logger.info(f"Final MPS size={mps.get_byte_size() / 2**20} MiB")
+    logger.info(f"Final MPS fidelity={mps.fidelity}")
     return mps
 
 
@@ -146,6 +181,7 @@ def _get_sorted_gates(circuit: Circuit) -> list[Command]:
     Returns:
         The same gates, ordered in a beneficial way.
     """
+
     all_gates = circuit.get_commands()
     sorted_gates = []
     # Keep track of the qubit at the center of the canonical form; start arbitrarily
