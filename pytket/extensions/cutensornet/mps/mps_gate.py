@@ -305,7 +305,6 @@ class MPSxGate(MPS):
             self._logger.debug(
                 f"Reduced virtual bond dimension from {new_dim} to {R.shape[0]}."
             )
-            self._logger.debug("QR decomposition applied.")
 
         self.tensors[l_pos] = L
         self.tensors[r_pos] = R

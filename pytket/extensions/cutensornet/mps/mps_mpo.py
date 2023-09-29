@@ -13,7 +13,6 @@
 # limitations under the License.
 from __future__ import annotations  # type: ignore
 import warnings
-import logging
 
 from typing import Optional, Union
 
