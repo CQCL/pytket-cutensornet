@@ -28,6 +28,13 @@ except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
 
+# An alias for the CuPy type used for tensors
+try:
+    Tensor = cp.ndarray
+except NameError:
+    Tensor = Any
+
+
 class CuTensorNetHandle:
     """Initialise the cuTensorNet library with automatic workspace memory
     management.

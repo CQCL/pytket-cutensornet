@@ -13,7 +13,6 @@
 # limitations under the License.
 from __future__ import annotations  # type: ignore
 import warnings
-from typing import Any
 from enum import Enum
 
 from random import random  # type: ignore
@@ -34,13 +33,7 @@ from pytket.pauli import Pauli, QubitPauliString
 
 from pytket.extensions.cutensornet.general import set_logger
 
-from .general import CuTensorNetHandle, Config
-
-# An alias for the CuPy type used for tensors
-try:
-    Tensor = cp.ndarray
-except NameError:
-    Tensor = Any
+from .general import CuTensorNetHandle, Tensor, Config
 
 
 class DirectionMPS(Enum):
@@ -106,7 +99,7 @@ class MPS:
         self.qubit_position = {q: i for i, q in enumerate(qubits)}
 
         # Create the list of tensors
-        self.tensors = []
+        self.tensors: list[Tensor] = []
         self.canonical_form = {i: None for i in range(n_tensors)}
 
         # Append each of the tensors initialised in state |0>

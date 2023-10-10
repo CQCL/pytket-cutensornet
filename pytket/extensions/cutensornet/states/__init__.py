@@ -22,8 +22,6 @@ from .general import CuTensorNetHandle, Config
 
 from .mps import (
     DirectionMPS,
-    Handle,
-    Tensor,
     MPS,
 )
 

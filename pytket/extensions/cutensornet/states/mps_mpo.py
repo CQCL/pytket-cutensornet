@@ -29,10 +29,9 @@ except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
 from pytket.circuit import Op, Qubit
-from .general import CuTensorNetHandle, Config
+from .general import CuTensorNetHandle, Tensor, Config
 from .mps import (
     DirectionMPS,
-    Tensor,
     MPS,
 )
 from .mps_gate import MPSxGate
