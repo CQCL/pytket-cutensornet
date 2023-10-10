@@ -29,10 +29,9 @@ except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
 from pytket.circuit import Op, Qubit
-from .general import CuTensorNetHandle
+from .general import CuTensorNetHandle, Config
 from .mps import (
     DirectionMPS,
-    ConfigMPS,
     Tensor,
     MPS,
 )
@@ -49,7 +48,7 @@ class MPSxMPO(MPS):
         self,
         libhandle: CuTensorNetHandle,
         qubits: list[Qubit],
-        config: ConfigMPS,
+        config: Config,
     ):
         """Initialise an MPS on the computational state ``|0>``.
 

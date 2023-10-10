@@ -24,8 +24,8 @@ from pytket.passes import DefaultMappingPass
 from pytket.predicates import CompilationUnit
 
 from pytket.extensions.cutensornet.general import set_logger
-from .general import CuTensorNetHandle
-from .mps import ConfigMPS, MPS
+from .general import CuTensorNetHandle, Config
+from .mps import MPS
 from .mps_gate import MPSxGate
 from .mps_mpo import MPSxMPO
 
@@ -45,7 +45,7 @@ def simulate(
     libhandle: CuTensorNetHandle,
     circuit: Circuit,
     algorithm: ContractionAlg,
-    config: ConfigMPS,
+    config: Config,
 ) -> MPS:
     """Simulate the given circuit and return the ``MPS`` representing the final state.
 

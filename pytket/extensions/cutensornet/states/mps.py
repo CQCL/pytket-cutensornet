@@ -35,7 +35,7 @@ from pytket.pauli import Pauli, QubitPauliString
 
 from pytket.extensions.cutensornet.general import set_logger
 
-from .general import CuTensorNetHandle
+from .general import CuTensorNetHandle, Config
 
 # An alias so that `intptr_t` from CuQuantum's API (which is not available in
 # base python) has some meaningful type name.
@@ -52,116 +52,6 @@ class DirectionMPS(Enum):
 
     LEFT = 0
     RIGHT = 1
-
-
-class ConfigMPS:
-    """Configuration class for simulation using MPS."""
-
-    def __init__(
-        self,
-        chi: Optional[int] = None,
-        truncation_fidelity: Optional[float] = None,
-        k: int = 4,
-        optim_delta: float = 1e-5,
-        float_precision: Union[np.float32, np.float64] = np.float64,  # type: ignore
-        value_of_zero: float = 1e-16,
-        loglevel: int = logging.WARNING,
-    ):
-        """Instantiate a configuration object for MPS simulation.
-
-        Note:
-            Providing both a custom ``chi`` and ``truncation_fidelity`` will raise an
-            exception. Choose one or the other (or neither, for exact simulation).
-
-        Args:
-            chi: The maximum value allowed for the dimension of the virtual
-                bonds. Higher implies better approximation but more
-                computational resources. If not provided, ``chi`` will be unbounded.
-            truncation_fidelity: Every time a two-qubit gate is applied, the virtual
-                bond will be truncated to the minimum dimension that satisfies
-                ``|<psi|phi>|^2 >= trucantion_fidelity``, where ``|psi>`` and ``|phi>``
-                are the states before and after truncation (both normalised).
-                If not provided, it will default to its maximum value 1.
-            k: If using MPSxMPO, the maximum number of layers the MPO is allowed to
-                have before being contracted. Increasing this might increase fidelity,
-                but it will also increase resource requirements exponentially.
-                Ignored if not using MPSxMPO. Default value is 4.
-            optim_delta: If using MPSxMPO, stopping criteria for the optimisation when
-                contracting the ``k`` layers of MPO. Stops when the increase of fidelity
-                between iterations is smaller than ``optim_delta``.
-                Ignored if not using MPSxMPO. Default value is ``1e-5``.
-            float_precision: The floating point precision used in tensor calculations;
-                choose from ``numpy`` types: ``np.float64`` or ``np.float32``.
-                Complex numbers are represented using two of such
-                ``float`` numbers. Default is ``np.float64``.
-            value_of_zero: Any number below this value will be considered equal to zero.
-                Even when no ``chi`` or ``truncation_fidelity`` is provided, singular
-                values below this number will be truncated.
-                We suggest to use a value slightly below what your chosen
-                ``float_precision`` can reasonably achieve. For instance, ``1e-16`` for
-                ``np.float64`` precision (default) and ``1e-7`` for ``np.float32``.
-            loglevel: Internal logger output level. Use 30 for warnings only, 20 for
-                verbose and 10 for debug mode.
-
-        Raises:
-            ValueError: If both ``chi`` and ``truncation_fidelity`` are fixed.
-            ValueError: If the value of ``chi`` is set below 2.
-            ValueError: If the value of ``truncation_fidelity`` is not in [0,1].
-        """
-        if (
-            chi is not None
-            and truncation_fidelity is not None
-            and truncation_fidelity != 1.0
-        ):
-            raise ValueError("Cannot fix both chi and truncation_fidelity.")
-        if chi is None:
-            chi = 2**60  # In practice, this is like having it be unbounded
-        if truncation_fidelity is None:
-            truncation_fidelity = 1
-
-        if chi < 2:
-            raise ValueError("The max virtual bond dim (chi) must be >= 2.")
-        if truncation_fidelity < 0 or truncation_fidelity > 1:
-            raise ValueError("Provide a value of truncation_fidelity in [0,1].")
-
-        self.chi = chi
-        self.truncation_fidelity = truncation_fidelity
-
-        if float_precision is None or float_precision == np.float64:  # Double precision
-            self._real_t = np.float64  # type: ignore
-            self._complex_t = np.complex128  # type: ignore
-            self._atol = 1e-12
-        elif float_precision == np.float32:  # Single precision
-            self._real_t = np.float32  # type: ignore
-            self._complex_t = np.complex64  # type: ignore
-            self._atol = 1e-4
-        else:
-            allowed_precisions = [np.float64, np.float32]
-            raise TypeError(
-                f"Value of float_precision must be in {allowed_precisions}."
-            )
-        self.zero = value_of_zero
-
-        if value_of_zero > self._atol / 1000:
-            warnings.warn(
-                "Your chosen value_of_zero is relatively large. "
-                "Faithfulness of final fidelity estimate is not guaranteed.",
-                UserWarning,
-            )
-
-        self.k = k
-        self.optim_delta = 1e-5
-        self.loglevel = loglevel
-
-    def copy(self) -> ConfigMPS:
-        """Standard copy of the contents."""
-        return ConfigMPS(
-            chi=self.chi,
-            truncation_fidelity=self.truncation_fidelity,
-            k=self.k,
-            optim_delta=self.optim_delta,
-            float_precision=self._real_t,  # type: ignore
-        )
 
 
 class MPS:
@@ -188,7 +78,7 @@ class MPS:
         self,
         libhandle: CuTensorNetHandle,
         qubits: list[Qubit],
-        config: ConfigMPS,
+        config: Config,
     ):
         """Initialise an MPS on the computational state ``|0>``.
 

@@ -18,11 +18,10 @@ For an example of its use, see ``examples/mps_tutorial.ipynb`` in
 https://github.com/CQCL/pytket-cutensornet.
 """
 
-from .general import CuTensorNetHandle
+from .general import CuTensorNetHandle, Config
 
 from .mps import (
     DirectionMPS,
-    ConfigMPS,
     Handle,
     Tensor,
     MPS,
