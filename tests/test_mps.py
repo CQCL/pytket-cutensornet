@@ -339,9 +339,7 @@ def test_circ_approx_explicit(circuit: Circuit) -> None:
 
         # Fixed virtual bond dimension
         # Check for MPSxGate
-        mps_gate = simulate(
-            libhandle, circuit, ContractionAlg.MPSxGate, Config(chi=8)
-        )
+        mps_gate = simulate(libhandle, circuit, ContractionAlg.MPSxGate, Config(chi=8))
         assert np.isclose(mps_gate.fidelity, 0.03, atol=1e-2)
         assert mps_gate.is_valid()
         assert np.isclose(mps_gate.vdot(mps_gate), 1.0, atol=mps_gate._cfg._atol)

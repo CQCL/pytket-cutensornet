@@ -13,6 +13,7 @@
 # limitations under the License.
 from __future__ import annotations  # type: ignore
 import warnings
+from typing import Any
 from enum import Enum
 
 from random import random  # type: ignore
@@ -35,9 +36,6 @@ from pytket.extensions.cutensornet.general import set_logger
 
 from .general import CuTensorNetHandle, Config
 
-# An alias so that `intptr_t` from CuQuantum's API (which is not available in
-# base python) has some meaningful type name.
-Handle = int
 # An alias for the CuPy type used for tensors
 try:
     Tensor = cp.ndarray
