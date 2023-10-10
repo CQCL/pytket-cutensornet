@@ -26,7 +26,7 @@ def test_libhandle_manager() -> None:
 
     # Proper use of library handle
     with CuTensorNetHandle() as libhandle:
-        mps = MPS(libhandle, circ.qubits, ConfigMPS())
+        mps = MPS(libhandle, circ.qubits, Config())
         assert np.isclose(mps.vdot(mps), 1, atol=mps._cfg._atol)
 
     # Catch exception due to library handle out of scope
@@ -38,9 +38,9 @@ def test_init() -> None:
     circ = Circuit(5)
 
     with CuTensorNetHandle() as libhandle:
-        mps_gate = MPSxGate(libhandle, circ.qubits, ConfigMPS())
+        mps_gate = MPSxGate(libhandle, circ.qubits, Config())
         assert mps_gate.is_valid()
-        mps_mpo = MPSxMPO(libhandle, circ.qubits, ConfigMPS())
+        mps_mpo = MPSxMPO(libhandle, circ.qubits, Config())
         assert mps_mpo.is_valid()
 
 
@@ -49,7 +49,7 @@ def test_canonicalise() -> None:
     circ = Circuit(5)
 
     with CuTensorNetHandle() as libhandle:
-        mps_gate = MPSxGate(libhandle, circ.qubits, ConfigMPS())
+        mps_gate = MPSxGate(libhandle, circ.qubits, Config())
         # Fill up the tensors with random entries
 
         # Leftmost tensor
@@ -143,7 +143,7 @@ def test_exact_circ_sim(circuit: Circuit, algorithm: ContractionAlg) -> None:
     state = prep_circ.get_statevector()
 
     with CuTensorNetHandle() as libhandle:
-        mps = simulate(libhandle, prep_circ, algorithm, ConfigMPS())
+        mps = simulate(libhandle, prep_circ, algorithm, Config())
         assert mps.is_valid()
         # Check that there was no approximation
         assert np.isclose(mps.fidelity, 1.0, atol=mps._cfg._atol)
@@ -196,7 +196,7 @@ def test_approx_circ_sim_gate_fid(circuit: Circuit, algorithm: ContractionAlg) -
     prep_circ, _ = prepare_circuit(circuit)
     with CuTensorNetHandle() as libhandle:
         mps = simulate(
-            libhandle, prep_circ, algorithm, ConfigMPS(truncation_fidelity=0.99)
+            libhandle, prep_circ, algorithm, Config(truncation_fidelity=0.99)
         )
         assert mps.is_valid()
         # Check that overlap is 1
@@ -236,7 +236,7 @@ def test_approx_circ_sim_gate_fid(circuit: Circuit, algorithm: ContractionAlg) -
 def test_approx_circ_sim_chi(circuit: Circuit, algorithm: ContractionAlg) -> None:
     prep_circ, _ = prepare_circuit(circuit)
     with CuTensorNetHandle() as libhandle:
-        mps = simulate(libhandle, prep_circ, algorithm, ConfigMPS(chi=4))
+        mps = simulate(libhandle, prep_circ, algorithm, Config(chi=4))
         assert mps.is_valid()
         # Check that overlap is 1
         assert np.isclose(mps.vdot(mps), 1.0, atol=mps._cfg._atol)
@@ -275,7 +275,7 @@ def test_float_point_options(
     with CuTensorNetHandle() as libhandle:
         # Exact
         mps = simulate(
-            libhandle, prep_circ, algorithm, ConfigMPS(float_precision=fp_precision)
+            libhandle, prep_circ, algorithm, Config(float_precision=fp_precision)
         )
         assert mps.is_valid()
         # Check that overlap is 1
@@ -286,7 +286,7 @@ def test_float_point_options(
             libhandle,
             prep_circ,
             algorithm,
-            ConfigMPS(truncation_fidelity=0.99, float_precision=fp_precision),
+            Config(truncation_fidelity=0.99, float_precision=fp_precision),
         )
         assert mps.is_valid()
         # Check that overlap is 1
@@ -297,7 +297,7 @@ def test_float_point_options(
             libhandle,
             prep_circ,
             algorithm,
-            ConfigMPS(chi=4, float_precision=fp_precision),
+            Config(chi=4, float_precision=fp_precision),
         )
         assert mps.is_valid()
         # Check that overlap is 1
@@ -320,7 +320,7 @@ def test_circ_approx_explicit(circuit: Circuit) -> None:
             libhandle,
             circuit,
             ContractionAlg.MPSxGate,
-            ConfigMPS(truncation_fidelity=0.99),
+            Config(truncation_fidelity=0.99),
         )
         assert np.isclose(mps_gate.fidelity, 0.4, atol=1e-1)
         assert mps_gate.is_valid()
@@ -331,7 +331,7 @@ def test_circ_approx_explicit(circuit: Circuit) -> None:
             libhandle,
             circuit,
             ContractionAlg.MPSxMPO,
-            ConfigMPS(truncation_fidelity=0.99),
+            Config(truncation_fidelity=0.99),
         )
         assert np.isclose(mps_mpo.fidelity, 0.6, atol=1e-1)
         assert mps_mpo.is_valid()
@@ -340,14 +340,14 @@ def test_circ_approx_explicit(circuit: Circuit) -> None:
         # Fixed virtual bond dimension
         # Check for MPSxGate
         mps_gate = simulate(
-            libhandle, circuit, ContractionAlg.MPSxGate, ConfigMPS(chi=8)
+            libhandle, circuit, ContractionAlg.MPSxGate, Config(chi=8)
         )
         assert np.isclose(mps_gate.fidelity, 0.03, atol=1e-2)
         assert mps_gate.is_valid()
         assert np.isclose(mps_gate.vdot(mps_gate), 1.0, atol=mps_gate._cfg._atol)
 
         # Check for MPSxMPO
-        mps_mpo = simulate(libhandle, circuit, ContractionAlg.MPSxMPO, ConfigMPS(chi=8))
+        mps_mpo = simulate(libhandle, circuit, ContractionAlg.MPSxMPO, Config(chi=8))
         assert np.isclose(mps_mpo.fidelity, 0.04, atol=1e-2)
         assert mps_mpo.is_valid()
         assert np.isclose(mps_mpo.vdot(mps_mpo), 1.0, atol=mps_mpo._cfg._atol)
@@ -385,7 +385,7 @@ def test_postselect_2q_circ(circuit: Circuit, postselect_dict: dict) -> None:
         sv = sv / np.sqrt(sv_prob)  # Normalise
 
     with CuTensorNetHandle() as libhandle:
-        mps = simulate(libhandle, circuit, ContractionAlg.MPSxGate, ConfigMPS())
+        mps = simulate(libhandle, circuit, ContractionAlg.MPSxGate, Config())
         prob = mps.postselect(postselect_dict)
         assert np.isclose(prob, sv_prob, atol=mps._cfg._atol)
         assert np.allclose(mps.get_statevector(), sv, atol=mps._cfg._atol)
@@ -415,7 +415,7 @@ def test_postselect_circ(circuit: Circuit, postselect_dict: dict) -> None:
         sv = sv / np.sqrt(sv_prob)  # Normalise
 
     with CuTensorNetHandle() as libhandle:
-        mps = simulate(libhandle, circuit, ContractionAlg.MPSxGate, ConfigMPS())
+        mps = simulate(libhandle, circuit, ContractionAlg.MPSxGate, Config())
         prob = mps.postselect(postselect_dict)
         assert np.isclose(prob, sv_prob, atol=mps._cfg._atol)
         assert np.allclose(mps.get_statevector(), sv, atol=mps._cfg._atol)
@@ -460,7 +460,7 @@ def test_expectation_value(circuit: Circuit, observable: QubitPauliString) -> No
 
     # Simulate the circuit and obtain the expectation value
     with CuTensorNetHandle() as libhandle:
-        mps = simulate(libhandle, circuit, ContractionAlg.MPSxGate, ConfigMPS())
+        mps = simulate(libhandle, circuit, ContractionAlg.MPSxGate, Config())
         assert np.isclose(
             mps.expectation_value(observable), expectation_value, atol=mps._cfg._atol
         )
@@ -490,7 +490,7 @@ def test_sample_circ_2q(circuit: Circuit) -> None:
     # Compute the samples
     sample_dict = {0: 0, 1: 0, 2: 0, 3: 0}
     with CuTensorNetHandle() as libhandle:
-        mps = simulate(libhandle, circuit, ContractionAlg.MPSxGate, ConfigMPS())
+        mps = simulate(libhandle, circuit, ContractionAlg.MPSxGate, Config())
 
         # Take samples measuring both qubits at once
         for _ in range(n_samples):
@@ -517,7 +517,7 @@ def test_measure_circ(circuit: Circuit) -> None:
     qB = circuit.qubits[-3]  # Third list significant qubit
 
     with CuTensorNetHandle() as libhandle:
-        mps = simulate(libhandle, circuit, ContractionAlg.MPSxGate, ConfigMPS())
+        mps = simulate(libhandle, circuit, ContractionAlg.MPSxGate, Config())
 
         # Compute the probabilities of each outcome
         p = {(0, 0): 0.0, (0, 1): 0.0, (1, 0): 0.0, (1, 1): 0.0}

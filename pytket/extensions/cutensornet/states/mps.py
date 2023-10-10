@@ -13,8 +13,6 @@
 # limitations under the License.
 from __future__ import annotations  # type: ignore
 import warnings
-import logging
-from typing import Any, Optional, Union
 from enum import Enum
 
 from random import random  # type: ignore

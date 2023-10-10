@@ -13,7 +13,10 @@
 # limitations under the License.
 from __future__ import annotations  # type: ignore
 import warnings
-from typing import Any, Optional
+import logging
+from typing import Any, Optional, Union
+
+import numpy as np  # type: ignore
 
 try:
     import cupy as cp  # type: ignore
@@ -156,9 +159,9 @@ class Config:
         self.optim_delta = 1e-5
         self.loglevel = loglevel
 
-    def copy(self) -> ConfigMPS:
+    def copy(self) -> Config:
         """Standard copy of the contents."""
-        return ConfigMPS(
+        return Config(
             chi=self.chi,
             truncation_fidelity=self.truncation_fidelity,
             k=self.k,
