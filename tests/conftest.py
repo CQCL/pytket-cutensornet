@@ -51,6 +51,18 @@ def quantum_volume_circuit(n_qubits: int) -> Circuit:
 
 
 @pytest.fixture
+def q5_empty() -> Circuit:
+    circuit = Circuit(5)
+    return circuit
+
+
+@pytest.fixture
+def q8_empty() -> Circuit:
+    circuit = Circuit(8)
+    return circuit
+
+
+@pytest.fixture
 def q2_x0() -> Circuit:
     circuit = Circuit(2)
     circuit.X(0)
@@ -174,12 +186,6 @@ def q4_multicontrols() -> Circuit:
 
 
 @pytest.fixture
-def q5_empty() -> Circuit:
-    circuit = Circuit(5)
-    return circuit
-
-
-@pytest.fixture
 def q5_h0s1rz2ry3tk4tk13() -> Circuit:
     circuit = Circuit(5)
     circuit.H(0)
@@ -188,6 +194,16 @@ def q5_h0s1rz2ry3tk4tk13() -> Circuit:
     circuit.Ry(0.1, 3)
     circuit.TK1(0.2, 0.9, 0.8, 4)
     circuit.TK2(0.6, 0.5, 0.7, 1, 3)
+    return circuit
+
+
+@pytest.fixture
+def q8_x0h2v5z6() -> Circuit:
+    circuit = Circuit(8)
+    circuit.X(0)
+    circuit.H(2)
+    circuit.V(5)
+    circuit.Z(6)
     return circuit
 
 

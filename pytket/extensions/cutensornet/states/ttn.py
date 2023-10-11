@@ -13,7 +13,7 @@
 # limitations under the License.
 from __future__ import annotations  # type: ignore
 import warnings
-from typing import Optional, NamedTuple
+from typing import Optional
 from enum import IntEnum
 
 from random import random  # type: ignore
@@ -50,7 +50,7 @@ class DirTTN(IntEnum):
 RootPath = tuple[DirTTN, ...]
 
 
-class TreeNode(NamedTuple):
+class TreeNode:
     """Represents a single tensor in the TTN.
 
     The shape of the tensor agrees with the convention set in ``DirTTN``, meaning
@@ -60,19 +60,21 @@ class TreeNode(NamedTuple):
 
     In the case the TreeNode is a leaf, it will contain only one virtual bond
     (the parent) and as many physical bonds as qubits in the group it represents.
-    These qubits will correspond to bonds from ``0`` to ``len(tensor.shape)``.
+    These qubits will correspond to bonds from ``0`` to ``len(tensor.shape)-2``.
     """
 
-    tensor: Tensor
-    is_leaf: bool = False
-    canonical_form: Optional[DirTTN] = None
+    def __init__(self, tensor: Tensor, is_leaf: bool = False):
+        self.tensor = tensor
+        self.is_leaf = is_leaf
+        self.canonical_form: Optional[DirTTN] = None
 
     def copy(self) -> TreeNode:
-        return TreeNode(
+        new_ttn = TreeNode(
             self.tensor.copy(),
             is_leaf=self.is_leaf,
-            canonical_form=self.canonical_form,
         )
+        new_ttn.canonical_form = self.canonical_form
+        return new_ttn
 
 
 class TTN:
@@ -117,6 +119,8 @@ class TTN:
             ValueError: If the keys of ``qubit_partition`` do not range from ``0`` to
                 ``2^l - 1`` for some ``l``.
             ValueError: If a ``Qubit`` is repeated in ``qubit_partition``.
+            NotImplementedError: If the value of ``truncation_fidelity`` in ``config``
+                is smaller than one.
         """
         self._lib = libhandle
         self._cfg = config
@@ -124,6 +128,11 @@ class TTN:
         self.fidelity = 1.0
         self.nodes: dict[RootPath, TreeNode] = dict()
         self.qubit_position: dict[Qubit, tuple[RootPath, int]] = dict()
+
+        if self._cfg.truncation_fidelity < 1:
+            raise NotImplementedError(
+                "Truncation fidelity mode not currently implemented on TTN."
+            )
 
         n_groups = len(qubit_partition)
         if n_groups == 0:  # There's no initialisation to be done
@@ -216,13 +225,52 @@ class TTN:
 
         # Debugger logging
         self._logger.debug(
-            "Checking validity of MPS... "
+            "Checking validity of TTN... "
             f"chi_ok={chi_ok}, "
             f"phys_ok={phys_ok}, "
             f"rank_ok={rank_ok}, "
             f"shape_ok={shape_ok}"
         )
         return chi_ok and phys_ok and rank_ok and shape_ok
+
+    def apply_gate(self, gate: Command) -> TTN:
+        """Apply the gate to the TTN.
+
+        Note:
+            Only single-qubit gates and two-qubit gates are supported.
+
+        Args:
+            gate: The gate to be applied.
+
+        Returns:
+            ``self``, to allow for method chaining.
+
+        Raises:
+            RuntimeError: If the ``CuTensorNetHandle`` is out of scope.
+            RuntimeError: If gate acts on more than 2 qubits.
+        """
+        if self._lib._is_destroyed:
+            raise RuntimeError(
+                "The cuTensorNet library handle is out of scope.",
+                "See the documentation of update_libhandle and CuTensorNetHandle.",
+            )
+
+        self._logger.debug(f"Applying gate {gate}")
+
+        if len(gate.qubits) == 1:
+            self._apply_1q_gate(gate.qubits[0], gate.op)
+
+        elif len(gate.qubits) == 2:
+            self._apply_2q_gate(gate.qubits[0], gate.qubits[1], gate.op)
+
+        else:
+            # NOTE: This could be supported if gate acts on same group of qubits
+            raise RuntimeError(
+                "Gates must act on only 1 or 2 qubits! "
+                + f"This is not satisfied by {gate}."
+            )
+
+        return self
 
     def get_qubits(self) -> set[Qubit]:
         """Returns the set of qubits that this TTN is defined on."""
@@ -298,13 +346,13 @@ class TTN:
         )
         return new_ttn
 
-    def _apply_1q_gate(self, position: int, gate: Op) -> TTN:
+    def _apply_1q_gate(self, qubit: Qubit, gate: Op) -> TTN:
         raise NotImplementedError(
             "TTN is a base class with no contraction algorithm implemented."
             + " You must use a subclass of TTN, such as TTNxGate."
         )
 
-    def _apply_2q_gate(self, positions: tuple[int, int], gate: Op) -> TTN:
+    def _apply_2q_gate(self, q0: Qubit, q1: Qubit, gate: Op) -> TTN:
         raise NotImplementedError(
             "TTN is a base class with no contraction algorithm implemented."
             + " You must use a subclass of TTN, such as TTNxGate."
