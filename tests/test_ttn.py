@@ -18,11 +18,12 @@ from pytket.extensions.cutensornet.utils import circuit_statevector_postselect
 
 
 def test_libhandle_manager() -> None:
-    circ = Circuit(5)
+    circ = Circuit(4)
+    qubit_partition = {i: [q] for i, q in enumerate(circ.qubits)}
 
     # Proper use of library handle
     with CuTensorNetHandle() as libhandle:
-        ttn = TTN(libhandle, circ.qubits, Config())
+        ttn = TTN(libhandle, qubit_partition, Config())
         assert np.isclose(ttn.vdot(ttn), 1, atol=ttn._cfg._atol)
 
     # Catch exception due to library handle out of scope
@@ -31,11 +32,13 @@ def test_libhandle_manager() -> None:
 
 
 def test_init() -> None:
-    circ = Circuit(5)
+    circ = Circuit(4)
+    qubit_partition = {i: [q] for i, q in enumerate(circ.qubits)}
 
     with CuTensorNetHandle() as libhandle:
-        ttn_gate = TTNxGate(libhandle, circ.qubits, Config())
+        ttn_gate = TTNxGate(libhandle, qubit_partition, Config())
         assert ttn_gate.is_valid()
+
 
 @pytest.mark.parametrize(
     "circuit",
@@ -64,7 +67,7 @@ def test_init() -> None:
 )
 def test_exact_circ_sim(circuit: Circuit) -> None:
     n_qubits = len(circuit.qubits)
-    qubit_partition = {i: q for i, q in enumerate(circuit.qubits)}
+    qubit_partition = {i: [q] for i, q in enumerate(circuit.qubits)}
     state = circuit.get_statevector()
 
     with CuTensorNetHandle() as libhandle:

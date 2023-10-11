@@ -69,12 +69,12 @@ class TreeNode:
         self.canonical_form: Optional[DirTTN] = None
 
     def copy(self) -> TreeNode:
-        new_ttn = TreeNode(
+        new_node = TreeNode(
             self.tensor.copy(),
             is_leaf=self.is_leaf,
         )
-        new_ttn.canonical_form = self.canonical_form
-        return new_ttn
+        new_node.canonical_form = self.canonical_form
+        return new_node
 
 
 class TTN:
@@ -152,8 +152,8 @@ class TTN:
                 )
 
             # Calculate the root path of this group
+            path = []
             for l in reversed(range(n_levels)):
-                path = []
                 if k < 2**l:
                     path.append(DirTTN.LEFT)
                 else:
@@ -182,7 +182,7 @@ class TTN:
 
         # Create the internal TreeNodes
         paths: list[list[DirTTN]] = [[]]
-        for _ in range(n_levels - 1):
+        for _ in range(n_levels):
             # Create the TreeNode at this path
             for p in paths:
                 tensor = cp.ones(shape=(1, 1, 1), dtype=self._cfg._complex_t)
@@ -193,6 +193,8 @@ class TTN:
                 for p in paths
                 for direction in [DirTTN.LEFT, DirTTN.RIGHT]
             ]
+        self._logger.debug(f"qubit_position={self.qubit_position}")
+        self._logger.debug(f"All root paths: {list(self.nodes.keys())}")
 
     def is_valid(self) -> bool:
         """Verify that the TTN object is valid.
@@ -214,13 +216,13 @@ class TTN:
             for path, bond in self.qubit_position.values()
         )
         rank_ok = all(
-            node.is_leaf or node.tensor.shape == 3 for node in self.nodes.values()
+            node.is_leaf or len(node.tensor.shape) == 3 for node in self.nodes.values()
         )
         shape_ok = all(
             self.get_dimension(path, DirTTN.PARENT)
-            == self.get_dimension(path, path[-1])
+            == self.get_dimension(path[:-1], path[-1])
             for path in self.nodes.keys()
-            if path != []
+            if len(path) != 0
         )
 
         # Debugger logging

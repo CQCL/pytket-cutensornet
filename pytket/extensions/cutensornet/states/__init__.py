@@ -19,18 +19,11 @@ https://github.com/CQCL/pytket-cutensornet.
 """
 
 from .general import CuTensorNetHandle, Config
-
-from .mps import (
-    DirectionMPS,
-    MPS,
-)
-
-from .mps_gate import (
-    MPSxGate,
-)
-
-from .mps_mpo import (
-    MPSxMPO,
-)
-
 from .simulation import ContractionAlg, simulate, prepare_circuit
+
+from .mps import DirectionMPS, MPS
+from .mps_gate import MPSxGate
+from .mps_mpo import MPSxMPO
+
+from .ttn import TTN, DirTTN
+from .ttn_gate import TTNxGate
