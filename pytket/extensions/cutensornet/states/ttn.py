@@ -302,7 +302,7 @@ class TTN:
 
         if len(self.qubit_position) != len(other.qubit_position):
             raise RuntimeError("Number of qubits do not match.")
-        if self.get_qubits != other.get_qubits:
+        if self.get_qubits() != other.get_qubits():
             raise RuntimeError(
                 "The sets of qubits are not the same."
                 "\n\tself has {self.get_qubits()}"
@@ -327,6 +327,72 @@ class TTN:
 
         self._logger.debug(f"Result from vdot={result}")
         return complex(result)
+
+    def get_statevector(self) -> np.ndarray:
+        """Returns the statevector with qubits in Increasing Lexicographic Order (ILO)."""
+
+        # Create the interleaved representation with all tensors
+        interleaved_rep = self.get_interleaved_representation()
+
+        # Specify the output bond IDs in ILO order
+        output_bonds = []
+        for q in sorted(self.get_qubits()):
+            output_bonds.append(str(q))
+        interleaved_rep.append(output_bonds)
+
+        # Contract
+        result_tensor = cq.contract(
+            *interleaved_rep,
+            options={"handle": self._lib.handle, "device_id": self._lib.device_id},
+            optimize={"samples": 1},  # There is little to no optimisation to be done
+        )
+
+        # Convert to numpy vector and flatten
+        statevector: np.ndarray = cp.asnumpy(result_tensor).flatten()
+        return statevector
+
+    def get_amplitude(self, state: int) -> complex:
+        """Returns the amplitude of the chosen computational state.
+
+        Notes:
+            The result is equivalent to ``self.get_statevector[b]``, but this method
+            is faster when querying a single amplitude.
+
+        Args:
+            state: The integer whose bitstring describes the computational state.
+                The qubits in the bitstring are in increasing lexicographic order.
+
+        Returns:
+            The amplitude of the computational state in the TTN.
+        """
+
+        interleaved_rep = self.get_interleaved_representation()
+        ilo_qubits = sorted(self.get_qubits())
+
+        for i, q in enumerate(ilo_qubits):
+            # Create the tensors for each qubit in ``state``
+            bitvalue = 1 if state & 2 ** (len(ilo_qubits) - i - 1) else 0
+            tensor = cp.zeros(shape=(2,), dtype=self._cfg._complex_t)
+            tensor[bitvalue] = 1
+            # Append it to the interleaved representation
+            interleaved_rep.append(tensor)
+            interleaved_rep.append([str(q)])  # The bond
+        # Ignore the dim=1 tensors in the output
+        interleaved_rep.append([])
+
+        # Contract
+        result = cq.contract(
+            *interleaved_rep,
+            options={"handle": self._lib.handle, "device_id": self._lib.device_id},
+            optimize={"samples": 1},  # There is little to no optimisation to be done
+        )
+
+        self._logger.debug(f"Amplitude of state {state} is {result}.")
+        return complex(result)
+
+    def get_qubits(self) -> set[Qubit]:
+        """Returns the set of qubits that this TTN is defined on."""
+        return set(self.qubit_position.keys())
 
     def get_interleaved_representation(
         self, conj: bool = False
@@ -370,10 +436,6 @@ class TTN:
             self._logger.debug(f"Bond IDs: {bonds}")
 
         return interleaved_rep
-
-    def get_qubits(self) -> set[Qubit]:
-        """Returns the set of qubits that this TTN is defined on."""
-        return set(self.qubit_position.keys())
 
     def get_dimension(self, path: RootPath, direction: DirTTN) -> int:
         """Returns the dimension of bond ``dir`` of the node at ``path``.
