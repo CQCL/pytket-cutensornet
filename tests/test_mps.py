@@ -8,7 +8,7 @@ import numpy as np  # type: ignore
 
 from pytket.circuit import Circuit, Qubit, OpType  # type: ignore
 from pytket.pauli import Pauli, QubitPauliString  # type: ignore
-from pytket.extensions.cutensornet.states import (
+from pytket.extensions.cutensornet.tnstate import (
     CuTensorNetHandle,
     Config,
     MPS,
