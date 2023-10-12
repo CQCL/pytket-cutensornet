@@ -315,7 +315,7 @@ class MPS:
             The state that is conjugated is ``self``.
 
         Args:
-            other: The other MPS to compare against.
+            other: The other MPS.
 
         Returns:
             The resulting complex number.

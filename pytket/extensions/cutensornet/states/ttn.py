@@ -224,6 +224,7 @@ class TTN:
             for path in self.nodes.keys()
             if len(path) != 0
         )
+        shape_ok = shape_ok and self.get_dimension((), DirTTN.PARENT) == 1
 
         # Debugger logging
         self._logger.debug(
@@ -273,6 +274,99 @@ class TTN:
             )
 
         return self
+
+    def vdot(self, other: TTN) -> complex:
+        """Obtain the inner product of the two TTN: ``<self|other>``.
+
+        It can be used to compute the squared norm of a TTN ``ttn`` as
+        ``ttn.vdot(ttn)``. The tensors within the TTN are not modified.
+
+        Note:
+            The state that is conjugated is ``self``.
+
+        Args:
+            other: The other TTN.
+
+        Returns:
+            The resulting complex number.
+
+        Raises:
+            RuntimeError: If the two TTNs do not have the same qubits.
+            RuntimeError: If the ``CuTensorNetHandle`` is out of scope.
+        """
+        if self._lib._is_destroyed:
+            raise RuntimeError(
+                "The cuTensorNet library handle is out of scope.",
+                "See the documentation of update_libhandle and CuTensorNetHandle.",
+            )
+
+        if len(self.qubit_position) != len(other.qubit_position):
+            raise RuntimeError("Number of qubits do not match.")
+        if self.get_qubits != other.get_qubits:
+            raise RuntimeError(
+                "The sets of qubits are not the same."
+                "\n\tself has {self.get_qubits()}"
+                "\n\tother has {other.get_qubits()}"
+            )
+        if len(self.qubit_position) == 0:
+            raise RuntimeError("There are no qubits in the TTN.")
+
+        self._logger.debug("Applying vdot between two TTNs.")
+
+        # We convert both TTNs to their interleaved representation and
+        # contract them using cuQuantum. A single sample is enough for
+        # contraction path optimisation, since there is little to optimise.
+        ttn1 = self.get_interleaved_representation(conj=True)
+        ttn2 = other.get_interleaved_representation(conj=False)
+        interleaved_rep = tt1 + tt2 + [[]]  # Discards dim=1 bonds with []
+        result = cq.contract(
+            *interleaved_rep,
+            options={"handle": self._lib.handle, "device_id": self._lib.device_id},
+            optimize={"samples": 1}
+        )
+
+        self._logger.debug(f"Result from vdot={result}")
+        return complex(result)
+
+    def get_interleaved_representation(self, conj: bool = False) -> list[Union[Tensor, str]]:
+        """Returns the interleaved representation of the TTN used by cuQuantum.
+
+        Args:
+            conj: If True, all tensors are conjugated and bonds IDs are prefixed
+                with * (except physical bonds). Defaults to False.
+        """
+        self._logger.debug("Creating interleaved representation...")
+
+        # Auxiliar dictionary of physical bonds to qubit IDs
+        qubit_id = {location: str(qubit) for qubit, location in self.qubit_position.items()}
+
+        interleaved_rep = []
+        for path, node in self.nodes.items():
+
+            # Append the tensor
+            if conj:
+                interleaved_rep.append(node.tensor.conj())
+            else:
+                interleaved_rep.append(node.tensor)
+
+            # Create the ID for the parent bond
+            parentID = "".join(str(int(d)) for d in path)
+            if conj:
+                parentID = "*" + parentID
+
+            # Append the bonds
+            if node.isleaf:
+                bonds = []
+                for b in range(len(node.tensor.shape) - 1):
+                    bonds.append(qubit_id[(path,b)])
+                bonds.append(parentID)
+            else:
+                bonds = [parentID+"0", parentID+"1", parentID]
+
+            interleaved_rep.append(bonds)
+            self._logger.debug(f"Bond IDs: {bonds}")
+
+        return interleaved_rep
 
     def get_qubits(self) -> set[Qubit]:
         """Returns the set of qubits that this TTN is defined on."""
