@@ -13,7 +13,7 @@
 # limitations under the License.
 from __future__ import annotations  # type: ignore
 import warnings
-from typing import Optional
+from typing import Optional, Union
 from enum import IntEnum
 
 from random import random  # type: ignore
@@ -318,17 +318,19 @@ class TTN:
         # contraction path optimisation, since there is little to optimise.
         ttn1 = self.get_interleaved_representation(conj=True)
         ttn2 = other.get_interleaved_representation(conj=False)
-        interleaved_rep = tt1 + tt2 + [[]]  # Discards dim=1 bonds with []
+        interleaved_rep = ttn1 + ttn2 + [[]]  # Discards dim=1 bonds with []
         result = cq.contract(
             *interleaved_rep,
             options={"handle": self._lib.handle, "device_id": self._lib.device_id},
-            optimize={"samples": 1}
+            optimize={"samples": 1},
         )
 
         self._logger.debug(f"Result from vdot={result}")
         return complex(result)
 
-    def get_interleaved_representation(self, conj: bool = False) -> list[Union[Tensor, str]]:
+    def get_interleaved_representation(
+        self, conj: bool = False
+    ) -> list[Union[Tensor, str]]:
         """Returns the interleaved representation of the TTN used by cuQuantum.
 
         Args:
@@ -338,11 +340,12 @@ class TTN:
         self._logger.debug("Creating interleaved representation...")
 
         # Auxiliar dictionary of physical bonds to qubit IDs
-        qubit_id = {location: str(qubit) for qubit, location in self.qubit_position.items()}
+        qubit_id = {
+            location: str(qubit) for qubit, location in self.qubit_position.items()
+        }
 
         interleaved_rep = []
         for path, node in self.nodes.items():
-
             # Append the tensor
             if conj:
                 interleaved_rep.append(node.tensor.conj())
@@ -355,13 +358,13 @@ class TTN:
                 parentID = "*" + parentID
 
             # Append the bonds
-            if node.isleaf:
+            if node.is_leaf:
                 bonds = []
                 for b in range(len(node.tensor.shape) - 1):
-                    bonds.append(qubit_id[(path,b)])
+                    bonds.append(qubit_id[(path, b)])
                 bonds.append(parentID)
             else:
-                bonds = [parentID+"0", parentID+"1", parentID]
+                bonds = [parentID + "0", parentID + "1", parentID]
 
             interleaved_rep.append(bonds)
             self._logger.debug(f"Bond IDs: {bonds}")
