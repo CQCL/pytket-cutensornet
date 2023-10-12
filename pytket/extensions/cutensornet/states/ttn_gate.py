@@ -54,8 +54,8 @@ class TTNxGate(TTN):
         gate_tensor = cp.asarray(gate_unitary, dtype=self._cfg._complex_t)
 
         path, target = self.qubit_position[qubit]
-        tensor = self.nodes[path].tensor
-        n_qbonds = len(tensor.shape) - 1  # Total number of physical bonds in this node
+        node_tensor = self.nodes[path].tensor
+        n_qbonds = len(node_tensor.shape) - 1  # Total number of physical bonds in this node
 
         # Glossary of bond IDs
         # qX -> where X is the X-th physical bond (qubit) in the TTN node
@@ -70,7 +70,7 @@ class TTNxGate(TTN):
 
         interleaved_rep = [
             # The tensor of the TTN
-            tensor,
+            node_tensor,
             node_bonds,
             # The tensor of the gate
             gate_tensor,

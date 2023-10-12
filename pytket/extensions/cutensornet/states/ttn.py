@@ -119,6 +119,7 @@ class TTN:
             ValueError: If the keys of ``qubit_partition`` do not range from ``0`` to
                 ``2^l - 1`` for some ``l``.
             ValueError: If a ``Qubit`` is repeated in ``qubit_partition``.
+            ValueError: If there is only one entry in ``qubit_partition``.
             NotImplementedError: If the value of ``truncation_fidelity`` in ``config``
                 is smaller than one.
         """
@@ -137,6 +138,11 @@ class TTN:
         n_groups = len(qubit_partition)
         if n_groups == 0:  # There's no initialisation to be done
             return None
+        if n_groups == 1:
+            raise ValueError(
+                "Only one entry to qubit_partition provided."
+                "Introduce a finer partition of qubits."
+            )
 
         n_levels = math.floor(math.log2(n_groups))
         if n_groups != 2**n_levels:
@@ -274,6 +280,185 @@ class TTN:
             )
 
         return self
+
+    def canonicalise(self, center: Union[RootPath, Qubit]) -> Tensor
+        """Canonicalise the TTN so that all tensors are isometries from ``center``.
+
+        Args:
+            center: Identifies the bond that is to become the center of the canonical
+                form. If it is a ``RootPath`` it refers to the parent bond of
+                ``self.nodes[center]``. If it is a ``Qubit`` it refers to its physical
+                bond.
+
+        Returns:
+            The tensor created at ``center`` when all other bonds are canonicalised.
+            Applying SVD to this tensor yields the global SVD of the TTN.
+        """
+        options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
+
+        if isinstance(center, Qubit):
+            target_path = self.qubit_position[center][0]
+        else:
+            target_path = center
+
+        # Separate nodes to be canonicalised towards children from those towards parent
+        towards_child = []
+        towards_parent = []
+        for path in self.nodes.keys():
+            # Nodes towards children are closer to the root and coincide in the path
+            if (
+                len(path) < len(target_path) and
+                all(path[l] == target_path[l] for l in len(path))
+            ):
+                towards_child.append(path)
+            # If the center is a physical bond (qubit), its node is skipped
+            if path == target_path and isinstance(center, Qubit):
+                continue
+            # All other nodes are canonicalised towards their parent
+            else:
+                towards_parent.append(path)
+        # Sanity checks
+        assert len(towards_child) != 0
+        assert len(towards_parent) != 0
+
+        # Glossary of bond IDs
+        # chr(x) -> bond of the x-th qubit in the node (if it is a leaf)
+        # l -> left child bond of the TTN node
+        # r -> right child bond of the TTN node
+        # p -> parent bond of the TTN node
+        # s -> bond between Q and R after decomposition
+
+        # Canonicalise all towards parent, starting from the furthest away from the root
+        for path in sorted(towards_parent, key=len, reverse=True):
+            # If already in desired canonical form, do nothing
+            if self.nodes[path].canonical_form == DirTTN.PARENT:
+                continue
+
+            # Otherwise, apply QR decomposition
+            if self.nodes[path].is_leaf:
+                n_qbonds = len(self.nodes[path].tensor.shape) - 1  # Num of qubit bonds
+                q_bonds = "".join(chr(x) for x in range(n_qbonds))
+                node_bonds = q_bonds + "p"
+                Q_bonds = q_bonds + "s"
+            else:
+                node_bonds = "lrp"
+                Q_bonds = "lrs"
+            R_bonds = "sp"
+
+            Q, R = tensor.decompose(
+                node_bonds + "->" + Q_bonds + "," + R_bonds,
+                self.nodes[path].tensor,
+                method=tensor.QRMethod(),
+                options=options,
+            )
+
+            # Update the tensor
+            self.nodes[path].tensor = Q
+            self.nodes[path].canonical_form = TreeDir.PARENT
+
+            # Contract R with the parent node
+            if path[-1] == TreeDir.LEFT:
+                R_bonds = "sl"
+            else:
+                R_bonds = "sr"
+            parent_node = self.nodes[path[:-1]]
+
+            parent_node.tensor = cq.contract(
+                R_bonds + ",lrp->srp",
+                R, parent_node.tensor,
+                options=options,
+                optimize={"samples": 1},
+            )
+            # The canonical form of the parent node is lost
+            parent_node.canonical_form = None
+
+        # Canonicalise the rest of the nodes, from the root up to the center
+        for path in sorted(towards_child, key=len):
+            # Identify the direction of the canonicalisation
+            target_direction = target_path[len(path)]
+            # Sanity checks
+            assert not self.nodes[path].is_leaf
+            assert target_direction != TreeDir.PARENT
+
+            # If already in the desired canonical form, do nothing
+            if self.nodes[path].canonical_form == target_direction:
+                continue
+
+            # Otherwise, apply QR decomposition
+            if target_direction == TreeDir.LEFT:
+                Q_bonds = "srp"
+                R_bonds = "ls"
+            else
+                Q_bonds = "lsp"
+                R_bonds = "rs"
+            node_bonds = "lrp"
+
+            Q, R = tensor.decompose(
+                node_bonds + "->" + Q_bonds + "," + R_bonds,
+                self.nodes[path].tensor,
+                method=tensor.QRMethod(),
+                options=options,
+            )
+
+            # If the child bond is not the center yet, contract R with child node
+            child_path = path+[target_direction]
+            if child_path != target_path:
+                child_node = self.nodes[child_path]
+
+                # Contract R with the child node
+                child_node.tensor = cq.contract(
+                    "lrp,ps->srp",
+                    child_node.tensor, R,
+                    options=options,
+                    optimize={"samples": 1},
+                )
+
+                # The canonical form of the child node is lost
+                child_node.canonical_form = None
+                # Update the tensor
+                self.nodes[path].tensor = Q
+                self.nodes[path].canonical_form = target_direction
+
+        # If ``center`` is not a physical bond, we are done canonicalising and R is
+        # the tensor to return. Otherwise, we need to do a final contraction and QR
+        # decomposition on the leaf node corresponding to ``target_path``.
+        if isinstance(center, Qubit):
+            leaf_node = self.nodes[target_path]
+
+            n_qbonds = len(leaf_node.tensor.shape) - 1  # Number of qubit bonds
+            q_bonds = "".join(chr(x) for x in range(n_qbonds))
+            node_bonds = q_bonds + "p"
+            new_bonds = q_bonds + "s"
+            R_bonds = "ps"
+
+            # Contract R with the leaf node
+            leaf_node.tensor = cq.contract(
+                node_bonds + "," + R_bonds + "->" + new_bonds,
+                leaf_node.tensor, R,
+                options=options,
+                optimize={"samples": 1},
+            )
+
+            # The canonical form of the leaf node is lost
+            leaf_node.canonical_form = None
+
+            # Finally, apply QR decomposition on the leaf_node to obtain the R
+            # tensor to be returned
+            target_bond = self.qubit_position[center][1]
+            Q_bonds = node_bonds[:target_bond] + "s" + node_bonds[target_bond+1:]
+            R_bonds = chr(target_bond) + "s"
+
+            Q, R = tensor.decompose(
+                node_bonds + "->" + Q_bonds + "," + R_bonds,
+                leaf_node.tensor,
+                method=tensor.QRMethod(),
+                options=options,
+            )
+            # Note: Since R is not contracted with any other tensor, we cannot update
+            #   the leaf node to Q. That'd change the state represented by the TTN.
+
+        return R
+
 
     def vdot(self, other: TTN) -> complex:
         """Obtain the inner product of the two TTN: ``<self|other>``.
