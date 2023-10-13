@@ -55,7 +55,9 @@ class TTNxGate(TTN):
 
         path, target = self.qubit_position[qubit]
         node_tensor = self.nodes[path].tensor
-        n_qbonds = len(node_tensor.shape) - 1  # Total number of physical bonds in this node
+        n_qbonds = (
+            len(node_tensor.shape) - 1
+        )  # Total number of physical bonds in this node
 
         # Glossary of bond IDs
         # qX -> where X is the X-th physical bond (qubit) in the TTN node

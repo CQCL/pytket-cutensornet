@@ -281,7 +281,7 @@ class TTN:
 
         return self
 
-    def canonicalise(self, center: Union[RootPath, Qubit]) -> Tensor
+    def canonicalise(self, center: Union[RootPath, Qubit]) -> Tensor:
         """Canonicalise the TTN so that all tensors are isometries from ``center``.
 
         Args:
@@ -306,9 +306,8 @@ class TTN:
         towards_parent = []
         for path in self.nodes.keys():
             # Nodes towards children are closer to the root and coincide in the path
-            if (
-                len(path) < len(target_path) and
-                all(path[l] == target_path[l] for l in len(path))
+            if len(path) < len(target_path) and all(
+                path[l] == target_path[l] for l in range(len(path))
             ):
                 towards_child.append(path)
             # If the center is a physical bond (qubit), its node is skipped
@@ -354,10 +353,10 @@ class TTN:
 
             # Update the tensor
             self.nodes[path].tensor = Q
-            self.nodes[path].canonical_form = TreeDir.PARENT
+            self.nodes[path].canonical_form = DirTTN.PARENT
 
             # Contract R with the parent node
-            if path[-1] == TreeDir.LEFT:
+            if path[-1] == DirTTN.LEFT:
                 R_bonds = "sl"
             else:
                 R_bonds = "sr"
@@ -365,7 +364,8 @@ class TTN:
 
             parent_node.tensor = cq.contract(
                 R_bonds + ",lrp->srp",
-                R, parent_node.tensor,
+                R,
+                parent_node.tensor,
                 options=options,
                 optimize={"samples": 1},
             )
@@ -378,17 +378,17 @@ class TTN:
             target_direction = target_path[len(path)]
             # Sanity checks
             assert not self.nodes[path].is_leaf
-            assert target_direction != TreeDir.PARENT
+            assert target_direction != DirTTN.PARENT
 
             # If already in the desired canonical form, do nothing
             if self.nodes[path].canonical_form == target_direction:
                 continue
 
             # Otherwise, apply QR decomposition
-            if target_direction == TreeDir.LEFT:
+            if target_direction == DirTTN.LEFT:
                 Q_bonds = "srp"
                 R_bonds = "ls"
-            else
+            else:
                 Q_bonds = "lsp"
                 R_bonds = "rs"
             node_bonds = "lrp"
@@ -401,14 +401,15 @@ class TTN:
             )
 
             # If the child bond is not the center yet, contract R with child node
-            child_path = path+[target_direction]
+            child_path = tuple(list(path) + [target_direction])
             if child_path != target_path:
                 child_node = self.nodes[child_path]
 
                 # Contract R with the child node
                 child_node.tensor = cq.contract(
                     "lrp,ps->srp",
-                    child_node.tensor, R,
+                    child_node.tensor,
+                    R,
                     options=options,
                     optimize={"samples": 1},
                 )
@@ -434,7 +435,8 @@ class TTN:
             # Contract R with the leaf node
             leaf_node.tensor = cq.contract(
                 node_bonds + "," + R_bonds + "->" + new_bonds,
-                leaf_node.tensor, R,
+                leaf_node.tensor,
+                R,
                 options=options,
                 optimize={"samples": 1},
             )
@@ -445,7 +447,7 @@ class TTN:
             # Finally, apply QR decomposition on the leaf_node to obtain the R
             # tensor to be returned
             target_bond = self.qubit_position[center][1]
-            Q_bonds = node_bonds[:target_bond] + "s" + node_bonds[target_bond+1:]
+            Q_bonds = node_bonds[:target_bond] + "s" + node_bonds[target_bond + 1 :]
             R_bonds = chr(target_bond) + "s"
 
             Q, R = tensor.decompose(
@@ -458,7 +460,6 @@ class TTN:
             #   the leaf node to Q. That'd change the state represented by the TTN.
 
         return R
-
 
     def vdot(self, other: TTN) -> complex:
         """Obtain the inner product of the two TTN: ``<self|other>``.
@@ -514,7 +515,9 @@ class TTN:
         return complex(result)
 
     def get_statevector(self) -> np.ndarray:
-        """Returns the statevector with qubits in Increasing Lexicographic Order (ILO)."""
+        """Returns the statevector represented by the TTN, with qubits ordered
+        in Increasing Lexicographic Order (ILO).
+        """
 
         # Create the interleaved representation with all tensors
         interleaved_rep = self.get_interleaved_representation()
