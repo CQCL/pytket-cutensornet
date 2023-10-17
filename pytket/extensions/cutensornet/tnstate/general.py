@@ -174,4 +174,7 @@ class Config:
             k=self.k,
             optim_delta=self.optim_delta,
             float_precision=self._real_t,  # type: ignore
+            value_of_zero=self.zero,
+            loglevel=self.loglevel,
+
         )

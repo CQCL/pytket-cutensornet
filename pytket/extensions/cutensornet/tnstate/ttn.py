@@ -296,6 +296,8 @@ class TTN:
         """
         options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
 
+        self._logger.debug(f"Canonicalising to {str(center)}")
+
         if isinstance(center, Qubit):
             target_path = self.qubit_position[center][0]
         else:
@@ -311,7 +313,7 @@ class TTN:
             ):
                 towards_child.append(path)
             # If the center is a physical bond (qubit), its node is skipped
-            if path == target_path and isinstance(center, Qubit):
+            elif path == target_path and isinstance(center, Qubit):
                 continue
             # All other nodes are canonicalised towards their parent
             else:
@@ -327,10 +329,13 @@ class TTN:
         # p -> parent bond of the TTN node
         # s -> bond between Q and R after decomposition
 
-        # Canonicalise all towards parent, starting from the furthest away from the root
+        # Canonicalise nodes towards parent, start from the furthest away from root
         for path in sorted(towards_parent, key=len, reverse=True):
+            self._logger.debug(f"Canonicalising node at {path} towards parent.")
+
             # If already in desired canonical form, do nothing
             if self.nodes[path].canonical_form == DirTTN.PARENT:
+                self._logger.debug("Skipping, already in canonical form.")
                 continue
 
             # Otherwise, apply QR decomposition
@@ -358,12 +363,15 @@ class TTN:
             # Contract R with the parent node
             if path[-1] == DirTTN.LEFT:
                 R_bonds = "sl"
+                result_bonds = "srp"
             else:
                 R_bonds = "sr"
-            parent_node = self.nodes[path[:-1]]
+                result_bonds = "lsp"
+            node_bonds = "lrp"
 
+            parent_node = self.nodes[path[:-1]]
             parent_node.tensor = cq.contract(
-                R_bonds + ",lrp->srp",
+                R_bonds + "," + node_bonds + "->" + result_bonds,
                 R,
                 parent_node.tensor,
                 options=options,
@@ -371,6 +379,8 @@ class TTN:
             )
             # The canonical form of the parent node is lost
             parent_node.canonical_form = None
+
+            self._logger.debug(f"Node canonicalised. Shape: {Q.shape}")
 
         # Canonicalise the rest of the nodes, from the root up to the center
         for path in sorted(towards_child, key=len):
@@ -380,8 +390,13 @@ class TTN:
             assert not self.nodes[path].is_leaf
             assert target_direction != DirTTN.PARENT
 
+            self._logger.debug(
+                f"Canonicalising node at {path} towards {str(target_direction)}."
+            )
+
             # If already in the desired canonical form, do nothing
             if self.nodes[path].canonical_form == target_direction:
+                self._logger.debug("Skipping, already in canonical form.")
                 continue
 
             # Otherwise, apply QR decomposition
@@ -420,12 +435,17 @@ class TTN:
                 self.nodes[path].tensor = Q
                 self.nodes[path].canonical_form = target_direction
 
+                self._logger.debug(f"Node canonicalised. Shape: {Q.shape}")
+
         # If ``center`` is not a physical bond, we are done canonicalising and R is
         # the tensor to return. Otherwise, we need to do a final contraction and QR
         # decomposition on the leaf node corresponding to ``target_path``.
         if isinstance(center, Qubit):
-            leaf_node = self.nodes[target_path]
+            self._logger.debug(
+                f"Applying QR decomposition on leaf node at {target_path}."
+            )
 
+            leaf_node = self.nodes[target_path]
             n_qbonds = len(leaf_node.tensor.shape) - 1  # Number of qubit bonds
             q_bonds = "".join(chr(x) for x in range(n_qbonds))
             node_bonds = q_bonds + "p"
@@ -459,6 +479,9 @@ class TTN:
             # Note: Since R is not contracted with any other tensor, we cannot update
             #   the leaf node to Q. That'd change the state represented by the TTN.
 
+        self._logger.debug(
+            f"Finished canonicalisation. Returning R tensor of shape {R.shape}"
+        )
         return R
 
     def vdot(self, other: TTN) -> complex:
