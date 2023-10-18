@@ -422,7 +422,7 @@ class TTN:
 
                 # Contract R with the child node
                 child_node.tensor = cq.contract(
-                    "lrp,ps->srp",
+                    "lrp,ps->lrs",
                     child_node.tensor,
                     R,
                     options=options,
@@ -463,6 +463,11 @@ class TTN:
 
             # The canonical form of the leaf node is lost
             leaf_node.canonical_form = None
+            # Update the parent tensor
+            parent_path = target_path[:-1]
+            self.nodes[parent_path].tensor = Q
+            self.nodes[parent_path].canonical_form = target_path[-1]
+            self._logger.debug(f"Node canonicalised. Shape: {Q.shape}")
 
             # Finally, apply QR decomposition on the leaf_node to obtain the R
             # tensor to be returned

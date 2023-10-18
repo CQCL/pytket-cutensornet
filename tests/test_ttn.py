@@ -89,25 +89,28 @@ def test_canonicalise(center: Union[RootPath, Qubit]) -> None:
 
         # Canonicalise at target path
         R = ttn.canonicalise(center)
+        assert ttn.is_valid()
 
         # Check that canonicalisation did not change the vector
         overlap = ttn.vdot(ttn_copy)
-        assert np.isclose(overlap, norm_sq, atol=ttn._cfg._atol)
+        assert np.isclose(overlap / norm_sq, 1.0, atol=ttn._cfg._atol)
 
         # Check that the tensor R returned agrees with the norm
         overlap_R = cq.contract("ud,ud->", R, R.conj())
-        assert np.isclose(overlap_R, norm_sq, atol=ttn._cfg._atol)
+        assert np.isclose(overlap_R / norm_sq, 1.0, atol=ttn._cfg._atol)
 
         # Check that the corresponding tensors are in orthogonal form
         for path, node in ttn.nodes.items():
             # If it's the node just below the center of canonicalisation, it
             # cannot be in orthogonal form
-            if isinstance(center, Qubit) and path == ttn.qubit_position[center][0]:
-                assert node.canonical_form is None
-                continue
-            elif path == center[:-1]:  # type: ignore
-                assert node.canonical_form is None
-                continue
+            if isinstance(center, Qubit):
+                if path == ttn.qubit_position[center][0]:
+                    assert node.canonical_form is None
+                    continue
+            else:
+                if path == center[:-1]:
+                    assert node.canonical_form is None
+                    continue
             # Otherwise, it should be in orthogonal form
             assert node.canonical_form is not None
 
