@@ -176,5 +176,4 @@ class Config:
             float_precision=self._real_t,  # type: ignore
             value_of_zero=self.zero,
             loglevel=self.loglevel,
-
         )
