@@ -271,7 +271,9 @@ class TTNxGate(TTN):
             # `self._cfg.chi`. Ask cuTensorNet to contract S directly into U/V and
             # normalise the singular values so that the sum of its squares is equal
             # to one (i.e. the TTN is a normalised state after truncation).
-            self._logger.debug(f"Truncating to (or below) chosen chi={self._cfg.chi}")
+            self._logger.debug(
+                f"Truncating at {path} to (or below) chosen chi={self._cfg.chi}"
+            )
 
             options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
             svd_method = tensor.SVDMethod(
@@ -344,7 +346,7 @@ class TTNxGate(TTN):
             # Report to logger
             self._logger.debug(f"Truncation done. Truncation fidelity={this_fidelity}")
             self._logger.debug(
-                f"Reduced virtual bond dimension from {bond_tensor.shape[0]} to {V.shape[0]}."
+                f"Reduced bond dimension from {bond_tensor.shape[0]} to {V.shape[0]}."
             )
 
         return self
