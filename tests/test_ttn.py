@@ -161,7 +161,7 @@ def test_canonicalise(center: Union[RootPath, Qubit]) -> None:
 )
 def test_exact_circ_sim(circuit: Circuit) -> None:
     n_qubits = len(circuit.qubits)
-    n_groups = 2**math.floor(math.log2(n_qubits))
+    n_groups = 2 ** math.floor(math.log2(n_qubits))
     qubit_partition: dict[int, list[Qubit]] = {i: [] for i in range(n_groups)}
     for i, q in enumerate(circuit.qubits):
         qubit_partition[i % n_groups].append(q)
@@ -172,6 +172,9 @@ def test_exact_circ_sim(circuit: Circuit) -> None:
         ttn = TTNxGate(libhandle, qubit_partition, Config())
         for g in circuit.get_commands():
             ttn.apply_gate(g)
+            ttn.canonicalise((DirTTN.LEFT,))  # TODO: Remove. Just a hack for now
+        # TODO: Remove. Just a hack for now. Move to simulate
+        ttn.nodes[()].tensor *= np.exp(1j * np.pi * circuit.phase)
 
         assert ttn.is_valid()
         # Check that there was no approximation

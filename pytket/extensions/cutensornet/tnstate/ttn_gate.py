@@ -193,7 +193,8 @@ class TTNxGate(TTN):
         )
         self.nodes[common_path].canonical_form = None
         self._logger.debug(
-            f"New tensor size (MiB)={self.nodes[common_path].tensor.nbytes / 2**20}"
+            f"New tensor of shape {self.nodes[common_path].tensor.shape} and "
+            f"size (MiB)={self.nodes[common_path].tensor.nbytes / 2**20}"
         )
 
         # For each bond along the path, add two identity dim 2 wires
@@ -208,22 +209,21 @@ class TTNxGate(TTN):
             parent_funnel = self._create_funnel_tensor(path, DirTTN.PARENT)
 
             if child_dir == DirTTN.LEFT:
-                node_bonds = "cCp"
-                result_bonds = "fCF"
+                indices = "fcab,Fpab,cCp->fCF"
             else:
-                node_bonds = "Ccp"
-                result_bonds = "CfF"
+                indices = "fcab,Fpab,Ccp->CfF"
 
             self._logger.debug(f"Adding funnels at {path}.")
             self.nodes[path].tensor = cq.contract(
-                "fcab,Fpab," + node_bonds + "->" + result_bonds,
+                indices,
                 child_funnel,
                 parent_funnel,
                 self.nodes[path].tensor,
             )
             self.nodes[path].canonical_form = None
             self._logger.debug(
-                f"New tensor size (MiB)={self.nodes[path].tensor.nbytes / 2**20}"
+                f"New tensor of shape {self.nodes[path].tensor.shape} and "
+                f"size (MiB)={self.nodes[path].tensor.nbytes / 2**20}"
             )
 
         # Update the leaf tensors containing qL and qR
@@ -238,6 +238,7 @@ class TTNxGate(TTN):
             node_bonds[bond] = "a"
             result_bonds = aux_bonds.copy()
             result_bonds[bond] = "b"
+            result_bonds[-1] = "f"
 
             self._logger.debug(f"Adding funnels at leaf node at {path}.")
             leaf_node.tensor = cq.contract(
@@ -249,11 +250,14 @@ class TTNxGate(TTN):
             )
             leaf_node.canonical_form = None
             self._logger.debug(
-                f"New tensor size (MiB)={leaf_node.tensor.nbytes / 2**20}"
+                f"New tensor of shape {leaf_node.tensor.shape} and "
+                f"size (MiB)={leaf_node.tensor.nbytes / 2**20}"
             )
 
         # Truncate to chi (if needed) on all bonds along the path from qL to qR
         # TODO!
+
+        return self
 
     def _create_funnel_tensor(self, path: RootPath, direction: DirTTN) -> Tensor:
         """Creates a funnel tensor for the given bond.
