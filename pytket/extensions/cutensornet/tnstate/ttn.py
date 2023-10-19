@@ -281,7 +281,9 @@ class TTN:
 
         return self
 
-    def canonicalise(self, center: Union[RootPath, Qubit]) -> Tensor:
+    def canonicalise(
+        self, center: Union[RootPath, Qubit], unsafe: bool = False
+    ) -> Tensor:
         """Canonicalise the TTN so that all tensors are isometries from ``center``.
 
         Args:
@@ -289,10 +291,17 @@ class TTN:
                 form. If it is a ``RootPath`` it refers to the parent bond of
                 ``self.nodes[center]``. If it is a ``Qubit`` it refers to its physical
                 bond.
+            unsafe: If True, the final state will be different than the starting one.
+                Specifically, the information in the returned bond tensor at ``center``
+                is removed from the TTN. It is expected that the caller will reintroduce
+                the bond tensor after some processing (e.g. after SVD truncation).
 
         Returns:
-            The tensor created at ``center`` when all other bonds are canonicalised.
+            The bond tensor created at ``center`` when canonicalisation is complete.
             Applying SVD to this tensor yields the global SVD of the TTN.
+
+        Raises:
+            ValueError: If the ``center`` is ``tuple()``.
         """
         options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
 
@@ -300,6 +309,9 @@ class TTN:
 
         if isinstance(center, Qubit):
             target_path = self.qubit_position[center][0]
+            assert not unsafe  # Unsafe disallowed when ``center`` is a qubit
+        elif center == ():
+            raise ValueError("There is no bond at path ().")
         else:
             target_path = center
 
@@ -483,6 +495,13 @@ class TTN:
             )
             # Note: Since R is not contracted with any other tensor, we cannot update
             #   the leaf node to Q. That'd change the state represented by the TTN.
+
+        # Otherwise, if ``unsafe`` is enabled, update the last tensor to Q
+        elif unsafe:
+            self.nodes[target_path[:-1]].tensor = Q
+            self.nodes[target_path[:-1]].canonical_form = target_path[-1]
+
+            self._logger.debug(f"Node canonicalised (unsafe!). Shape: {Q.shape}")
 
         self._logger.debug(
             f"Finished canonicalisation. Returning R tensor of shape {R.shape}"

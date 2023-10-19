@@ -254,8 +254,98 @@ class TTNxGate(TTN):
                 f"size (MiB)={leaf_node.tensor.nbytes / 2**20}"
             )
 
-        # Truncate to chi (if needed) on all bonds along the path from qL to qR
-        # TODO!
+        # Truncate (if needed) bonds along the path from q0 to q1
+        trunc_paths = [  # From q0 to the common ancestor
+            path_q0[:i] for i in reversed(range(len(common_path) + 1, len(path_q0) + 1))
+        ]
+        trunc_paths += [  # From the common ancestor to q1
+            path_q1[:i] for i in range(len(common_path) + 1, len(path_q1) + 1)
+        ]
+
+        towards_root = True
+        for path in trunc_paths:
+            # Canonicalise to this bond (unsafely, so we must reintroduce bond_tensor)
+            bond_tensor = self.canonicalise(path, unsafe=True)
+
+            # Apply SVD decomposition on bond_tensor and truncate up to
+            # `self._cfg.chi`. Ask cuTensorNet to contract S directly into U/V and
+            # normalise the singular values so that the sum of its squares is equal
+            # to one (i.e. the TTN is a normalised state after truncation).
+            self._logger.debug(f"Truncating to (or below) chosen chi={self._cfg.chi}")
+
+            options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
+            svd_method = tensor.SVDMethod(
+                abs_cutoff=self._cfg.zero,
+                max_extent=self._cfg.chi,
+                partition="V" if towards_root else "U",
+                normalization="L2",  # Sum of squares equal 1
+            )
+
+            U, S, V, svd_info = tensor.decompose(
+                "cp->cs,sp",
+                bond_tensor,
+                method=svd_method,
+                options=options,
+                return_info=True,
+            )
+            assert S is None  # Due to "partition" option in SVDMethod
+
+            # discarded_weight is calculated within cuTensorNet as:
+            #                             sum([s**2 for s in S'])
+            #     discarded_weight = 1 - -------------------------
+            #                             sum([s**2 for s in S])
+            # where S is the list of original singular values and S' is the set of
+            # singular values that remain after truncation (before normalisation).
+            # It can be shown that the fidelity |<psi|phi>|^2 (for |phi> and |psi>
+            # unit vectors before and after truncation) is equal to 1 - disc_weight.
+            #
+            # We multiply the fidelity of the current step to the overall fidelity
+            # to keep track of a lower bound for the fidelity.
+            this_fidelity = 1.0 - svd_info.discarded_weight
+            self.fidelity *= this_fidelity
+
+            # Contract V to the parent node of the bond
+            direction = path[-1]
+            if direction == DirTTN.LEFT:
+                indices = "lrp,sl->srp"
+            else:
+                indices = "lrp,sr->lsp"
+            self.nodes[path[:-1]].tensor = cq.contract(
+                indices,
+                self.nodes[path[:-1]].tensor,
+                V,
+            )
+
+            # Contract U to the child node of the bond
+            if self.nodes[path].is_leaf:
+                node_bonds = [f"q{x}" for x in range(n_qbonds)] + ["p"]
+            else:
+                node_bonds = ["l", "r", "p"]
+            result_bonds = node_bonds.copy()
+            result_bonds[-1] = "s"
+
+            self.nodes[path].tensor = cq.contract(
+                self.nodes[path].tensor,
+                node_bonds,
+                U,
+                ["p", "s"],
+                result_bonds,
+            )
+            # With these two contractions, bond_tensor has been reintroduced, as
+            # required when calling ``canonicalise(.., unsafe=True)``
+
+            # The next node in the path towards qR loses its canonical form, since
+            # S was contracted to it (either via U or V)
+            if towards_root:
+                self.nodes[path[:-1]].canonical_form = None
+            else:
+                self.nodes[path].canonical_form = None
+
+            # Report to logger
+            self._logger.debug(f"Truncation done. Truncation fidelity={this_fidelity}")
+            self._logger.debug(
+                f"Reduced virtual bond dimension from {bond_tensor.shape[0]} to {V.shape[0]}."
+            )
 
         return self
 

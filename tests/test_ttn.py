@@ -172,7 +172,6 @@ def test_exact_circ_sim(circuit: Circuit) -> None:
         ttn = TTNxGate(libhandle, qubit_partition, Config())
         for g in circuit.get_commands():
             ttn.apply_gate(g)
-            ttn.canonicalise((DirTTN.LEFT,))  # TODO: Remove. Just a hack for now
         # TODO: Remove. Just a hack for now. Move to simulate
         ttn.nodes[()].tensor *= np.exp(1j * np.pi * circuit.phase)
 
