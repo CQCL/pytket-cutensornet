@@ -1,5 +1,6 @@
 from typing import Any, Union
 import random  # type: ignore
+import math
 import pytest
 
 import cuquantum as cq  # type: ignore
@@ -55,7 +56,7 @@ def test_canonicalise(center: Union[RootPath, Qubit]) -> None:
     cp.random.seed(1)
     n_levels = 3
     n_qubits = 2**n_levels
-    max_dim = 2 ** (n_qubits // 2)
+    max_dim = 8
 
     circ = Circuit(n_qubits)
     qubit_partition = {i: [q] for i, q in enumerate(circ.qubits)}
@@ -136,31 +137,35 @@ def test_canonicalise(center: Union[RootPath, Qubit]) -> None:
 @pytest.mark.parametrize(
     "circuit",
     [
-        # pytest.lazy_fixture("q5_empty"),  # type: ignore
+        pytest.lazy_fixture("q5_empty"),  # type: ignore
         pytest.lazy_fixture("q8_empty"),  # type: ignore
         pytest.lazy_fixture("q2_x0"),  # type: ignore
         pytest.lazy_fixture("q2_x1"),  # type: ignore
         pytest.lazy_fixture("q2_v0"),  # type: ignore
         pytest.lazy_fixture("q8_x0h2v5z6"),  # type: ignore
-        # pytest.lazy_fixture("q2_x0cx01"),  # type: ignore
-        # pytest.lazy_fixture("q2_x1cx10x1"),  # type: ignore
-        # pytest.lazy_fixture("q2_x0cx01cx10"),  # type: ignore
-        # pytest.lazy_fixture("q2_v0cx01cx10"),  # type: ignore
-        # pytest.lazy_fixture("q2_hadamard_test"),  # type: ignore
-        # pytest.lazy_fixture("q2_lcu1"),  # type: ignore
-        # pytest.lazy_fixture("q2_lcu2"),  # type: ignore
-        # pytest.lazy_fixture("q2_lcu3"),  # type: ignore
-        # pytest.lazy_fixture("q3_v0cx02"),  # type: ignore
-        # pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
+        pytest.lazy_fixture("q2_x0cx01"),  # type: ignore
+        pytest.lazy_fixture("q2_x1cx10x1"),  # type: ignore
+        pytest.lazy_fixture("q2_x0cx01cx10"),  # type: ignore
+        pytest.lazy_fixture("q2_v0cx01cx10"),  # type: ignore
+        pytest.lazy_fixture("q2_hadamard_test"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu1"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu2"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu3"),  # type: ignore
+        pytest.lazy_fixture("q3_v0cx02"),  # type: ignore
+        pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
         # pytest.lazy_fixture("q4_lcu1"),  # TTN doesn't support n-qubit gates with n>2
-        # pytest.lazy_fixture("q5_h0s1rz2ry3tk4tk13"),  # type: ignore
-        # pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
-        # pytest.lazy_fixture("q6_qvol"),  # type: ignore
+        pytest.lazy_fixture("q5_h0s1rz2ry3tk4tk13"),  # type: ignore
+        pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
+        pytest.lazy_fixture("q6_qvol"),  # type: ignore
     ],
 )
 def test_exact_circ_sim(circuit: Circuit) -> None:
     n_qubits = len(circuit.qubits)
-    qubit_partition = {i: [q] for i, q in enumerate(circuit.qubits)}
+    n_groups = 2**math.floor(math.log2(n_qubits))
+    qubit_partition: dict[int, list[Qubit]] = {i: [] for i in range(n_groups)}
+    for i, q in enumerate(circuit.qubits):
+        qubit_partition[i % n_groups].append(q)
+
     state = circuit.get_statevector()
 
     with CuTensorNetHandle() as libhandle:

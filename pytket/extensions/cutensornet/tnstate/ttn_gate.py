@@ -29,7 +29,7 @@ except ImportError:
 
 from pytket.circuit import Op, Qubit
 from .general import Tensor
-from .ttn import TTN, RootPath
+from .ttn import TTN, DirTTN, RootPath
 
 
 class TTNxGate(TTN):
@@ -119,7 +119,7 @@ class TTNxGate(TTN):
         # There is no truncation needed.
         if path_q0 == path_q1:
             n_qbonds = (
-                len(node_tensor.shape) - 1
+                len(self.nodes[path_q0].tensor.shape) - 1
             )  # Total number of physical bonds in this node
 
             # Glossary of bond IDs
@@ -147,6 +147,10 @@ class TTNxGate(TTN):
                 result_bonds,
             )
 
+            self._logger.debug(
+                "The qubits the gate acts on are on the same group. "
+                "Gate trivially applied, no dimensions changed."
+            )
             return self
 
         # Otherwise, we must include the gate in the common ancestor tensor and
@@ -170,7 +174,7 @@ class TTNxGate(TTN):
         # p -> the parent bond of the TTN node
         # f -> the output bond of a funnel
         # F -> the output bond of another funnel
-        if dir_q0 == DirTTN.LEFT:
+        if qL == q0:
             gate_bonds = "LRlr"
         else:  # Implicit swap
             gate_bonds = "RLrl"
@@ -179,6 +183,7 @@ class TTNxGate(TTN):
         left_funnel = self._create_funnel_tensor(common_path, DirTTN.LEFT)
         right_funnel = self._create_funnel_tensor(common_path, DirTTN.RIGHT)
 
+        self._logger.debug(f"Including gate in tensor at {common_path}.")
         self.nodes[common_path].tensor = cq.contract(
             "cCp,fclL,FCrR," + gate_bonds + "->fFp",
             self.nodes[common_path].tensor,
@@ -187,6 +192,9 @@ class TTNxGate(TTN):
             gate_tensor,
         )
         self.nodes[common_path].canonical_form = None
+        self._logger.debug(
+            f"New tensor size (MiB)={self.nodes[common_path].tensor.nbytes / 2**20}"
+        )
 
         # For each bond along the path, add two identity dim 2 wires
         mid_paths = [
@@ -206,16 +214,43 @@ class TTNxGate(TTN):
                 node_bonds = "Ccp"
                 result_bonds = "CfF"
 
+            self._logger.debug(f"Adding funnels at {path}.")
             self.nodes[path].tensor = cq.contract(
-                "fcab,Fpab," + node_bonds + "->" + result_bonds
+                "fcab,Fpab," + node_bonds + "->" + result_bonds,
                 child_funnel,
                 parent_funnel,
                 self.nodes[path].tensor,
             )
             self.nodes[path].canonical_form = None
+            self._logger.debug(
+                f"New tensor size (MiB)={self.nodes[path].tensor.nbytes / 2**20}"
+            )
 
         # Update the leaf tensors containing qL and qR
-        # TODO!
+        for path, bond in [self.qubit_position[q] for q in [qL, qR]]:
+            leaf_node = self.nodes[path]
+            n_qbonds = (
+                len(leaf_node.tensor.shape) - 1
+            )  # Total number of physical bonds in this node
+
+            aux_bonds = [f"q{x}" for x in range(n_qbonds)] + ["p"]
+            node_bonds = aux_bonds.copy()
+            node_bonds[bond] = "a"
+            result_bonds = aux_bonds.copy()
+            result_bonds[bond] = "b"
+
+            self._logger.debug(f"Adding funnels at leaf node at {path}.")
+            leaf_node.tensor = cq.contract(
+                leaf_node.tensor,
+                node_bonds,
+                self._create_funnel_tensor(path, DirTTN.PARENT),
+                ["f", "p", "a", "b"],
+                result_bonds,
+            )
+            leaf_node.canonical_form = None
+            self._logger.debug(
+                f"New tensor size (MiB)={leaf_node.tensor.nbytes / 2**20}"
+            )
 
         # Truncate to chi (if needed) on all bonds along the path from qL to qR
         # TODO!
@@ -231,5 +266,5 @@ class TTNxGate(TTN):
         ``funnel.shape[x] == 2`` for ``x`` 2 and 3.
         """
         dim = self.get_dimension(path, direction)
-        identity = cp.eye(4*dim)
-        return cp.reshape(identity, (4*dim, dim, 2, 2))
+        identity = cp.eye(4 * dim, dtype=self._cfg._complex_t)
+        return cp.reshape(identity, (4 * dim, dim, 2, 2))
