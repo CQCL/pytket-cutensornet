@@ -157,6 +157,7 @@ def test_canonicalise(center: Union[RootPath, Qubit]) -> None:
         pytest.lazy_fixture("q5_h0s1rz2ry3tk4tk13"),  # type: ignore
         pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
         pytest.lazy_fixture("q6_qvol"),  # type: ignore
+        pytest.lazy_fixture("q8_qvol"),  # type: ignore
     ],
 )
 def test_exact_circ_sim(circuit: Circuit) -> None:
@@ -216,6 +217,7 @@ def test_exact_circ_sim(circuit: Circuit) -> None:
         pytest.lazy_fixture("q5_h0s1rz2ry3tk4tk13"),  # type: ignore
         pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
         pytest.lazy_fixture("q6_qvol"),  # type: ignore
+        pytest.lazy_fixture("q8_qvol"),  # type: ignore
     ],
 )
 def test_approx_circ_sim_chi(circuit: Circuit) -> None:
@@ -232,3 +234,29 @@ def test_approx_circ_sim_chi(circuit: Circuit) -> None:
         assert ttn.is_valid()
         # Check that overlap is 1
         assert np.isclose(ttn.vdot(ttn), 1.0, atol=ttn._cfg._atol)
+
+
+@pytest.mark.parametrize(
+    "circuit",
+    [
+        pytest.lazy_fixture("q15_qvol"),  # type: ignore
+    ],
+)
+def test_circ_approx_explicit(circuit: Circuit) -> None:
+    random.seed(1)
+
+    n_qubits = len(circuit.qubits)
+    n_groups = 2 ** math.floor(math.log2(n_qubits))
+    qubit_partition: dict[int, list[Qubit]] = {i: [] for i in range(n_groups)}
+    for i, q in enumerate(circuit.qubits):
+        qubit_partition[i % n_groups].append(q)
+
+    with CuTensorNetHandle() as libhandle:
+        # Fixed virtual bond dimension
+        # Check for TTNxGate
+        ttn_gate = TTNxGate(libhandle, qubit_partition, Config(chi=120))
+        for g in circuit.get_commands():
+            ttn_gate.apply_gate(g)
+        assert np.isclose(ttn_gate.fidelity, 0.80, atol=1e-2)
+        assert ttn_gate.is_valid()
+        assert np.isclose(ttn_gate.vdot(ttn_gate), 1.0, atol=ttn_gate._cfg._atol)

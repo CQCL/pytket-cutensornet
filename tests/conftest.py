@@ -223,3 +223,15 @@ def q20_line_circ_20_layers() -> Circuit:
 def q6_qvol() -> Circuit:
     np.random.seed(1)
     return quantum_volume_circuit(n_qubits=6)
+
+
+@pytest.fixture
+def q8_qvol() -> Circuit:
+    np.random.seed(1)
+    return quantum_volume_circuit(n_qubits=8)
+
+
+@pytest.fixture
+def q15_qvol() -> Circuit:
+    np.random.seed(1)
+    return quantum_volume_circuit(n_qubits=15)
