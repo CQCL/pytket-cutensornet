@@ -24,6 +24,7 @@ except ImportError:
     warnings.warn("local settings failed to import cupy", ImportWarning)
 try:
     import cuquantum.cutensornet as cutn  # type: ignore
+    from cuquantum.cutensornet import tensor  # type: ignore
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
@@ -177,3 +178,29 @@ class Config:
             value_of_zero=self.zero,
             loglevel=self.loglevel,
         )
+
+
+def _safe_qr(
+    libhandle: CuTensorNetHandle, indices: str, T: cp.ndarray
+) -> tuple[cp.ndarray, cp.ndarray]:
+    """Wrapper of cuTensorNet QR decomposition to work around a bug in 23.6.0.
+
+    The bug has been reported https://github.com/NVIDIA/cuQuantum/discussions/96.
+    """
+    try:
+        Q, R = tensor.decompose(
+            indices,
+            T,
+            method=tensor.QRMethod(),
+            options={"handle": libhandle.handle, "device_id": libhandle.device_id},
+        )
+    except cutn.cuTensorNetError:
+        Q, S, R = tensor.decompose(
+            indices,
+            T,
+            method=tensor.SVDMethod(partition="U"),  # Contracts S to Q
+            options={"handle": libhandle.handle, "device_id": libhandle.device_id},
+        )
+        assert S is None
+
+    return (Q, R)

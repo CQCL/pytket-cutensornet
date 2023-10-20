@@ -71,19 +71,14 @@ class TTNxGate(TTN):
         node_bonds[target] = "i"  # Target bond must match with the gate input bond
         result_bonds[target] = "o"  # After contraction it matches the output bond
 
-        interleaved_rep = [
-            # The tensor of the TTN
+        # Contract
+        new_tensor = cq.contract(
             node_tensor,
             node_bonds,
-            # The tensor of the gate
             gate_tensor,
             ["o", "i"],
-            # The bonds of the resulting tensor
             result_bonds,
-        ]
-
-        # Contract
-        new_tensor = cq.contract(*interleaved_rep)
+        )
 
         # Update ``self.nodes``
         # NOTE: Canonicalisation of the node does not change
@@ -319,7 +314,11 @@ class TTNxGate(TTN):
             )
 
             # Contract U to the child node of the bond
+
             if self.nodes[path].is_leaf:
+                n_qbonds = (
+                    len(self.nodes[path].tensor.shape) - 1
+                )  # Total number of physical bonds in this node
                 node_bonds = [f"q{x}" for x in range(n_qbonds)] + ["p"]
             else:
                 node_bonds = ["l", "r", "p"]

@@ -35,7 +35,7 @@ from pytket.pauli import Pauli, QubitPauliString
 
 from pytket.extensions.cutensornet.general import set_logger
 
-from .general import CuTensorNetHandle, Tensor, Config
+from .general import CuTensorNetHandle, Tensor, Config, _safe_qr
 
 
 class DirTTN(IntEnum):
@@ -303,9 +303,8 @@ class TTN:
         Raises:
             ValueError: If the ``center`` is ``tuple()``.
         """
-        options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
-
         self._logger.debug(f"Canonicalising to {str(center)}")
+        options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
 
         if isinstance(center, Qubit):
             target_path = self.qubit_position[center][0]
@@ -361,11 +360,10 @@ class TTN:
                 Q_bonds = "lrs"
             R_bonds = "sp"
 
-            Q, R = tensor.decompose(
+            Q, R = _safe_qr(
+                self._lib,
                 node_bonds + "->" + Q_bonds + "," + R_bonds,
                 self.nodes[path].tensor,
-                method=tensor.QRMethod(),
-                options=options,
             )
 
             # Update the tensor
@@ -420,11 +418,10 @@ class TTN:
                 R_bonds = "rs"
             node_bonds = "lrp"
 
-            Q, R = tensor.decompose(
+            Q, R = _safe_qr(
+                self._lib,
                 node_bonds + "->" + Q_bonds + "," + R_bonds,
                 self.nodes[path].tensor,
-                method=tensor.QRMethod(),
-                options=options,
             )
 
             # If the child bond is not the center yet, contract R with child node
@@ -487,11 +484,8 @@ class TTN:
             Q_bonds = node_bonds[:target_bond] + "s" + node_bonds[target_bond + 1 :]
             R_bonds = chr(target_bond) + "s"
 
-            Q, R = tensor.decompose(
-                node_bonds + "->" + Q_bonds + "," + R_bonds,
-                leaf_node.tensor,
-                method=tensor.QRMethod(),
-                options=options,
+            Q, R = _safe_qr(
+                self._lib, node_bonds + "->" + Q_bonds + "," + R_bonds, leaf_node.tensor
             )
             # Note: Since R is not contracted with any other tensor, we cannot update
             #   the leaf node to Q. That'd change the state represented by the TTN.

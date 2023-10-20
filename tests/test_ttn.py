@@ -191,3 +191,44 @@ def test_exact_circ_sim(circuit: Circuit) -> None:
 
         # Check that the statevector is correct
         assert np.allclose(ttn.get_statevector(), state, atol=ttn._cfg._atol)
+
+
+@pytest.mark.parametrize(
+    "circuit",
+    [
+        pytest.lazy_fixture("q5_empty"),  # type: ignore
+        pytest.lazy_fixture("q8_empty"),  # type: ignore
+        pytest.lazy_fixture("q2_x0"),  # type: ignore
+        pytest.lazy_fixture("q2_x1"),  # type: ignore
+        pytest.lazy_fixture("q2_v0"),  # type: ignore
+        pytest.lazy_fixture("q8_x0h2v5z6"),  # type: ignore
+        pytest.lazy_fixture("q2_x0cx01"),  # type: ignore
+        pytest.lazy_fixture("q2_x1cx10x1"),  # type: ignore
+        pytest.lazy_fixture("q2_x0cx01cx10"),  # type: ignore
+        pytest.lazy_fixture("q2_v0cx01cx10"),  # type: ignore
+        pytest.lazy_fixture("q2_hadamard_test"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu1"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu2"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu3"),  # type: ignore
+        pytest.lazy_fixture("q3_v0cx02"),  # type: ignore
+        pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
+        # pytest.lazy_fixture("q4_lcu1"),  # TTN doesn't support n-qubit gates with n>2
+        pytest.lazy_fixture("q5_h0s1rz2ry3tk4tk13"),  # type: ignore
+        pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
+        pytest.lazy_fixture("q6_qvol"),  # type: ignore
+    ],
+)
+def test_approx_circ_sim_chi(circuit: Circuit) -> None:
+    n_qubits = len(circuit.qubits)
+    n_groups = 2 ** math.floor(math.log2(n_qubits))
+    qubit_partition: dict[int, list[Qubit]] = {i: [] for i in range(n_groups)}
+    for i, q in enumerate(circuit.qubits):
+        qubit_partition[i % n_groups].append(q)
+
+    with CuTensorNetHandle() as libhandle:
+        ttn = TTNxGate(libhandle, qubit_partition, Config(chi=4))
+        for g in circuit.get_commands():
+            ttn.apply_gate(g)
+        assert ttn.is_valid()
+        # Check that overlap is 1
+        assert np.isclose(ttn.vdot(ttn), 1.0, atol=ttn._cfg._atol)
