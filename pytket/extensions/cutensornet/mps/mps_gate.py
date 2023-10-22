@@ -71,7 +71,7 @@ class MPSxGate(MPS):
             gate_tensor,
             self.tensors[position],
             options={"handle": self._lib.handle, "device_id": self._lib.device_id},
-            optimize={"samples": 1},
+            optimize={"path": [(0, 1)]},
         )
 
         # Update ``self.tensors``
@@ -148,7 +148,7 @@ class MPSxGate(MPS):
             self.tensors[l_pos],
             self.tensors[r_pos],
             options={"handle": self._lib.handle, "device_id": self._lib.device_id},
-            optimize={"samples": 1},
+            optimize={"path": [(0, 1), (0, 1)]},
         )
         self._logger.debug(f"Intermediate tensor of size (MiB)={T.nbytes / 2**20}")
 
@@ -232,7 +232,7 @@ class MPSxGate(MPS):
                 L,
                 S,
                 options={"handle": self._lib.handle, "device_id": self._lib.device_id},
-                optimize={"samples": 1},
+                optimize={"path": [(0, 1)]},
             )
 
             # We multiply the fidelity of the current step to the overall fidelity

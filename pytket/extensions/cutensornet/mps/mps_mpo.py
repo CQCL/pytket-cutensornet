@@ -196,7 +196,7 @@ class MPSxMPO(MPS):
             gate_tensor,
             last_tensor,
             options={"handle": self._lib.handle, "device_id": self._lib.device_id},
-            optimize={"samples": 1},
+            optimize={"path": [(0, 1)]},
         )
 
         # Update the tensor
@@ -516,7 +516,7 @@ class MPSxMPO(MPS):
                         "handle": self._lib.handle,
                         "device_id": self._lib.device_id,
                     },
-                    optimize={"samples": 1},
+                    optimize={"path": [(0, 1)]},
                 )
             )
             assert np.isclose(optim_fidelity.imag, 0.0, atol=self._atol)

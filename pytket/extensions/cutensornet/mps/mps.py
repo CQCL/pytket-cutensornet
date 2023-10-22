@@ -399,7 +399,7 @@ class MPS:
             R,
             Tnext,
             options=options,
-            optimize={"samples": 1},
+            optimize={"path": [(0, 1)]},
         )
         self._logger.debug(f"Contraction with {next_pos} applied.")
 
@@ -459,7 +459,8 @@ class MPS:
         # contraction path optimisation, since there is little to optimise.
         mps1 = self._get_interleaved_representation(conj=True)
         mps2 = other._get_interleaved_representation(conj=False)
-        interleaved_rep = mps1 + mps2 + [[]]  # Discards dim=1 bonds with []
+        interleaved_rep = mps1 + mps2
+        interleaved_rep.append([])  # Discards dim=1 bonds with []
         result = cq.contract(
             *interleaved_rep,
             options={"handle": self._lib.handle, "device_id": self._lib.device_id},
@@ -471,7 +472,7 @@ class MPS:
 
     def _get_interleaved_representation(
         self, conj: bool = False
-    ) -> list[Union[Tensor, str]]:
+    ) -> list[Union[cp.ndarray, str]]:
         """Returns the interleaved representation of the MPS used by cuQuantum.
 
         Args:
@@ -569,13 +570,13 @@ class MPS:
             # Since the MPS is in canonical form, this corresponds to the probability
             # if we were to take all of the other tensors into account.
             prob = cq.contract(
-                "lrp,lrP,p,P->",  # No open bonds remain; this is just a scalar
+                "lrp,p,lrP,P->",  # No open bonds remain; this is just a scalar
                 self.tensors[pos].conj(),
+                zero_tensor,
                 self.tensors[pos],
                 zero_tensor,
-                zero_tensor,
                 options={"handle": self._lib.handle, "device_id": self._lib.device_id},
-                optimize={"samples": 1},
+                optimize={"path": [(0, 1), (0, 1), (0, 1)]},
             )
 
             # Throw a coin to decide measurement outcome
@@ -657,7 +658,7 @@ class MPS:
             self.tensors[pos],
             postselection_tensor,
             options={"handle": self._lib.handle, "device_id": self._lib.device_id},
-            optimize={"samples": 1},
+            optimize={"path": [(0, 1)]},
         )
 
         # Glossary of bond IDs:
@@ -676,7 +677,7 @@ class MPS:
                 self.tensors[pos],
                 self.tensors[pos - 1],
                 options={"handle": self._lib.handle, "device_id": self._lib.device_id},
-                optimize={"samples": 1},
+                optimize={"path": [(0, 1)]},
             )
             self.canonical_form[pos - 1] = None
         else:  # There are no tensors on the left, contract with the one on the right
@@ -685,7 +686,7 @@ class MPS:
                 self.tensors[pos],
                 self.tensors[pos + 1],
                 options={"handle": self._lib.handle, "device_id": self._lib.device_id},
-                optimize={"samples": 1},
+                optimize={"path": [(0, 1)]},
             )
             self.canonical_form[pos + 1] = None
 
@@ -740,7 +741,7 @@ class MPS:
                         "handle": self._lib.handle,
                         "device_id": self._lib.device_id,
                     },
-                    optimize={"samples": 1},
+                    optimize={"path": [(0, 1)]},
                 )
 
         # Obtain the inner product
