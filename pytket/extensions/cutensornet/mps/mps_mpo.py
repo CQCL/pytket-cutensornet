@@ -195,6 +195,8 @@ class MPSxMPO(MPS):
             "go," + last_bonds + "->" + new_bonds,
             gate_tensor,
             last_tensor,
+            options={"handle": self._lib.handle, "device_id": self._lib.device_id},
+            optimize={"samples": 1},
         )
 
         # Update the tensor
@@ -436,7 +438,11 @@ class MPSxMPO(MPS):
                 interleaved_rep.append(["r", "R"] + result_bonds)
 
             # Contract and store
-            T = cq.contract(*interleaved_rep)
+            T = cq.contract(
+                *interleaved_rep,
+                options={"handle": self._lib.handle, "device_id": self._lib.device_id},
+                optimize={"samples": 1},
+            )
             if direction == DirectionMPS.LEFT:
                 r_cached_tensors.append(T)
             elif direction == DirectionMPS.RIGHT:
@@ -494,10 +500,25 @@ class MPSxMPO(MPS):
             interleaved_rep.append(result_bonds)
 
             # Contract and store tensor
-            F = cq.contract(*interleaved_rep)
+            F = cq.contract(
+                *interleaved_rep,
+                options={"handle": self._lib.handle, "device_id": self._lib.device_id},
+                optimize={"samples": 1},
+            )
 
             # Get the fidelity
-            optim_fidelity = complex(cq.contract("LRP,LRP->", F.conj(), F))
+            optim_fidelity = complex(
+                cq.contract(
+                    "LRP,LRP->",
+                    F.conj(),
+                    F,
+                    options={
+                        "handle": self._lib.handle,
+                        "device_id": self._lib.device_id,
+                    },
+                    optimize={"samples": 1},
+                )
+            )
             assert np.isclose(optim_fidelity.imag, 0.0, atol=self._atol)
             optim_fidelity = float(optim_fidelity.real)
 

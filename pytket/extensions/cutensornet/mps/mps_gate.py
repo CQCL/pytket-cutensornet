@@ -70,6 +70,8 @@ class MPSxGate(MPS):
             gate_bonds + "," + T_bonds + "->" + result_bonds,
             gate_tensor,
             self.tensors[position],
+            options={"handle": self._lib.handle, "device_id": self._lib.device_id},
+            optimize={"samples": 1},
         )
 
         # Update ``self.tensors``
@@ -145,6 +147,8 @@ class MPSxGate(MPS):
             gate_tensor,
             self.tensors[l_pos],
             self.tensors[r_pos],
+            options={"handle": self._lib.handle, "device_id": self._lib.device_id},
+            optimize={"samples": 1},
         )
         self._logger.debug(f"Intermediate tensor of size (MiB)={T.nbytes / 2**20}")
 
@@ -223,7 +227,13 @@ class MPSxGate(MPS):
             # Use some einsum index magic: since the virtual bond "s" appears in the
             # list of bonds of the output, it is not summed over.
             # This causes S to act as the intended diagonal matrix.
-            L = cq.contract("asL,s->asL", L, S)
+            L = cq.contract(
+                "asL,s->asL",
+                L,
+                S,
+                options={"handle": self._lib.handle, "device_id": self._lib.device_id},
+                optimize={"samples": 1},
+            )
 
             # We multiply the fidelity of the current step to the overall fidelity
             # to keep track of a lower bound for the fidelity.

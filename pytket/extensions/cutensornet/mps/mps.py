@@ -394,7 +394,13 @@ class MPS:
 
         # Contract R into Tnext
         subscripts = R_bonds + "," + Tnext_bonds + "->" + result_bonds
-        result = cq.contract(subscripts, R, Tnext)
+        result = cq.contract(
+            subscripts,
+            R,
+            Tnext,
+            options=options,
+            optimize={"samples": 1},
+        )
         self._logger.debug(f"Contraction with {next_pos} applied.")
 
         # Update self.tensors
@@ -446,37 +452,54 @@ class MPS:
         self._flush()
         other._flush()
 
-        # Special case if only one tensor remains
-        if len(self) == 1:
-            self._logger.debug("Applying trivial vdot on single tensor MPS.")
-            result = cq.contract("LRp,lrp->", self.tensors[0].conj(), other.tensors[0])
+        self._logger.debug("Applying vdot between two MPS.")
 
-        else:
-            self._logger.debug("Applying vdot between two MPS.")
-
-            # The two MPS will be contracted from left to right, storing the
-            # ``partial_result`` tensor.
-            partial_result = cq.contract(
-                "LRp,lrp->Rr", self.tensors[0].conj(), other.tensors[0]
-            )
-            # Contract all tensors in the middle
-            for pos in range(1, len(self) - 1):
-                partial_result = cq.contract(
-                    "Ll,LRp,lrp->Rr",
-                    partial_result,
-                    self.tensors[pos].conj(),
-                    other.tensors[pos],
-                )
-            # Finally, contract the last tensor
-            result = cq.contract(
-                "Ll,LRp,lrp->",  # R and r are dim 1, so they are omitted; scalar result
-                partial_result,
-                self.tensors[-1].conj(),
-                other.tensors[-1],
-            )
+        # We convert both MPS to their interleaved representation and
+        # contract them using cuQuantum. A single sample is enough for
+        # contraction path optimisation, since there is little to optimise.
+        mps1 = self._get_interleaved_representation(conj=True)
+        mps2 = other._get_interleaved_representation(conj=False)
+        interleaved_rep = mps1 + mps2 + [[]]  # Discards dim=1 bonds with []
+        result = cq.contract(
+            *interleaved_rep,
+            options={"handle": self._lib.handle, "device_id": self._lib.device_id},
+            optimize={"samples": 1},
+        )
 
         self._logger.debug(f"Result from vdot={result}")
         return complex(result)
+
+    def _get_interleaved_representation(
+        self, conj: bool = False
+    ) -> list[Union[Tensor, str]]:
+        """Returns the interleaved representation of the MPS used by cuQuantum.
+
+        Args:
+            conj: If True, all tensors are conjugated and bonds IDs are prefixed
+                with * (except physical bonds). Defaults to False.
+        """
+        self._logger.debug("Creating interleaved representation...")
+
+        # Auxiliar dictionary of physical bonds to qubit IDs
+        qubit_id = {location: qubit for qubit, location in self.qubit_position.items()}
+
+        interleaved_rep = []
+        for i, t in enumerate(self.tensors):
+            # Append the tensor
+            if conj:
+                interleaved_rep.append(t.conj())
+            else:
+                interleaved_rep.append(t)
+
+            # Create the ID for the bonds involved
+            bonds = [str(i), str(i + 1), str(qubit_id[i])]
+            if conj:
+                bonds[0] = "*" + bonds[0]
+                bonds[1] = "*" + bonds[1]
+            interleaved_rep.append(bonds)
+            self._logger.debug(f"Bond IDs: {bonds}")
+
+        return interleaved_rep
 
     def sample(self) -> dict[Qubit, int]:
         """Returns a sample from a Z measurement applied on every qubit.
@@ -551,6 +574,8 @@ class MPS:
                 self.tensors[pos],
                 zero_tensor,
                 zero_tensor,
+                options={"handle": self._lib.handle, "device_id": self._lib.device_id},
+                optimize={"samples": 1},
             )
 
             # Throw a coin to decide measurement outcome
@@ -631,6 +656,8 @@ class MPS:
             "lrp,p->lr",
             self.tensors[pos],
             postselection_tensor,
+            options={"handle": self._lib.handle, "device_id": self._lib.device_id},
+            optimize={"samples": 1},
         )
 
         # Glossary of bond IDs:
@@ -648,6 +675,8 @@ class MPS:
                 "sv,VsP->VvP",
                 self.tensors[pos],
                 self.tensors[pos - 1],
+                options={"handle": self._lib.handle, "device_id": self._lib.device_id},
+                optimize={"samples": 1},
             )
             self.canonical_form[pos - 1] = None
         else:  # There are no tensors on the left, contract with the one on the right
@@ -655,6 +684,8 @@ class MPS:
                 "vs,sVP->vVP",
                 self.tensors[pos],
                 self.tensors[pos + 1],
+                options={"handle": self._lib.handle, "device_id": self._lib.device_id},
+                optimize={"samples": 1},
             )
             self.canonical_form[pos + 1] = None
 
@@ -702,7 +733,14 @@ class MPS:
 
                 # Contract the Pauli to the MPS tensor of the corresponding qubit
                 mps_copy.tensors[pos] = cq.contract(
-                    "lrp,Pp->lrP", mps_copy.tensors[pos], pauli_tensor
+                    "lrp,Pp->lrP",
+                    mps_copy.tensors[pos],
+                    pauli_tensor,
+                    options={
+                        "handle": self._lib.handle,
+                        "device_id": self._lib.device_id,
+                    },
+                    optimize={"samples": 1},
                 )
 
         # Obtain the inner product
@@ -741,7 +779,11 @@ class MPS:
             interleaved_rep.append(output_bonds)
 
             # Contract
-            result_tensor = cq.contract(*interleaved_rep)
+            result_tensor = cq.contract(
+                *interleaved_rep,
+                options={"handle": self._lib.handle, "device_id": self._lib.device_id},
+                optimize={"samples": 1},
+            )
 
         # Convert to numpy vector and flatten
         statevector: np.ndarray = cp.asnumpy(result_tensor).flatten()
@@ -762,6 +804,9 @@ class MPS:
             The amplitude of the computational state in the MPS.
         """
 
+        # Auxiliar dictionary of physical bonds to qubit IDs
+        qubit_id = {location: qubit for qubit, location in self.qubit_position.items()}
+
         # Find out what the map MPS_position -> bit value is
         ilo_qubits = sorted(self.qubit_position.keys())
         mps_pos_bitvalue = dict()
@@ -771,21 +816,25 @@ class MPS:
             bitvalue = 1 if state & 2 ** (len(self) - i - 1) else 0
             mps_pos_bitvalue[pos] = bitvalue
 
-        # Carry out the contraction, starting from a dummy tensor
-        result_tensor = cp.ones(1, dtype=self._complex_t)  # rank-1, dimension 1
-
+        # Create the interleaved representation including all postselection tensors
+        interleaved_rep = self._get_interleaved_representation()
         for pos in range(len(self)):
             postselection_tensor = cp.zeros(2, dtype=self._complex_t)
             postselection_tensor[mps_pos_bitvalue[pos]] = 1
-            # Contract postselection with qubit into the result_tensor
-            result_tensor = cq.contract(
-                "l,lrp,p->r", result_tensor, self.tensors[pos], postselection_tensor
-            )
+            interleaved_rep.append(postselection_tensor)
+            interleaved_rep.append([str(qubit_id[pos])])
+        # Append [] so that all dim=1 bonds are ignored in the result of contract
+        interleaved_rep.append([])
 
-        assert result_tensor.shape == (1,)
-        result = complex(result_tensor[0])
+        # Apply the contraction
+        result = cq.contract(
+            *interleaved_rep,
+            options={"handle": self._lib.handle, "device_id": self._lib.device_id},
+            optimize={"samples": 1},
+        )
+
         self._logger.debug(f"Amplitude of state {state} is {result}.")
-        return result
+        return complex(result)
 
     def get_qubits(self) -> set[Qubit]:
         """Returns the set of qubits that this MPS is defined on."""
