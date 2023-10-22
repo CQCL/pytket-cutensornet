@@ -13,6 +13,7 @@
 # limitations under the License.
 from enum import Enum
 
+import math  # type: ignore
 from random import choice  # type: ignore
 from collections import defaultdict  # type: ignore
 import numpy as np  # type: ignore
@@ -24,21 +25,22 @@ from pytket.passes import DefaultMappingPass
 from pytket.predicates import CompilationUnit
 
 from pytket.extensions.cutensornet.general import set_logger
-from .general import CuTensorNetHandle, Config
-from .mps import MPS
+from .general import CuTensorNetHandle, Config, TNState
 from .mps_gate import MPSxGate
 from .mps_mpo import MPSxMPO
+from .ttn_gate import TTNxGate
 
 
 class ContractionAlg(Enum):
-    """An enum to refer to the MPS contraction algorithm.
+    """An enum to refer to the TNState contraction algorithm.
 
     Each enum value corresponds to the class with the same name; see its docs for
-    information of the algorithm.
+    information about the algorithm.
     """
 
     MPSxGate = 0
     MPSxMPO = 1
+    TTNxGate = 2
 
 
 def simulate(
@@ -46,8 +48,8 @@ def simulate(
     circuit: Circuit,
     algorithm: ContractionAlg,
     config: Config,
-) -> MPS:
-    """Simulate the given circuit and return the ``MPS`` representing the final state.
+) -> TNState:
+    """Simulates the circuit and returns the ``TNState`` representing the final state.
 
     Note:
         A ``libhandle`` should be created via a ``with CuTensorNet() as libhandle:``
@@ -57,65 +59,65 @@ def simulate(
         The input ``circuit`` must be composed of one-qubit and two-qubit gates only.
         Any gateset supported by ``pytket`` can be used.
 
-        Two-qubit gates must act between adjacent qubits, i.e. on ``circuit.qubits[i]``
-        and ``circuit.qubits[i+1]`` for any ``i``. If this is not satisfied by your
-        circuit, consider using ``prepare_circuit()`` on it.
-
     Args:
         libhandle: The cuTensorNet library handle that will be used to carry out
-            tensor operations on the MPS.
+            tensor operations.
         circuit: The pytket circuit to be simulated.
         algorithm: Choose between the values of the ``ContractionAlg`` enum.
         config: The configuration object for simulation.
 
     Returns:
-        An instance of ``MPS`` containing (an approximation of) the final state
-        of the circuit.
+        An instance of ``TNState`` containing (an approximation of) the final state
+        of the circuit. The instance be of the class matching ``algorithm``.
     """
     logger = set_logger("Simulation", level=config.loglevel)
 
-    if algorithm == ContractionAlg.MPSxGate:
-        mps = MPSxGate(  # type: ignore
-            libhandle,
-            circuit.qubits,
-            config,
-        )
-
-    elif algorithm == ContractionAlg.MPSxMPO:
-        mps = MPSxMPO(  # type: ignore
-            libhandle,
-            circuit.qubits,
-            config,
-        )
-
-    # Sort the gates so there isn't much overhead from canonicalising back and forth.
     logger.info(
         "Ordering the gates in the circuit to reduce canonicalisation overhead."
     )
-    sorted_gates = _get_sorted_gates(circuit)
+    if algorithm == ContractionAlg.MPSxGate:
+        tnstate = MPSxGate(  # type: ignore
+            libhandle,
+            circuit.qubits,
+            config,
+        )
+        sorted_gates = _get_sorted_gates(circuit)
+
+    elif algorithm == ContractionAlg.MPSxMPO:
+        tnstate = MPSxMPO(  # type: ignore
+            libhandle,
+            circuit.qubits,
+            config,
+        )
+        sorted_gates = _get_sorted_gates(circuit)
+
+    elif algorithm == ContractionAlg.TTNxGate:
+        tnstate = TTNxGate(  # type: ignore
+            libhandle,
+            _get_qubit_partition(circuit),
+            config,
+        )
+        sorted_gates = circuit.get_commands()  # TODO: change!
 
     logger.info("Running simulation...")
     # Apply the gates
     for i, g in enumerate(sorted_gates):
-        mps.apply_gate(g)
+        tnstate.apply_gate(g)
         logger.info(f"Progress... {(100*i) // len(sorted_gates)}%")
 
     # Apply the batched operations that are left (if any)
-    mps._flush()
+    tnstate._flush()
 
-    # Apply the batched operations that are left (if any)
-    mps._flush()
-
-    # Apply the circuit's phase to the leftmost tensor (any would work)
-    mps.tensors[0] = mps.tensors[0] * np.exp(1j * np.pi * circuit.phase)
+    # Apply the circuit's phase to the state
+    tnstate.apply_scalar(np.exp(1j * np.pi * circuit.phase))
 
     logger.info("Simulation completed.")
-    logger.info(f"Final MPS size={mps.get_byte_size() / 2**20} MiB")
-    logger.info(f"Final MPS fidelity={mps.fidelity}")
-    return mps
+    logger.info(f"Final TNState size={tnstate.get_byte_size() / 2**20} MiB")
+    logger.info(f"Final TNState fidelity={tnstate.fidelity}")
+    return tnstate
 
 
-def prepare_circuit(circuit: Circuit) -> tuple[Circuit, dict[Qubit, Qubit]]:
+def prepare_circuit_mps(circuit: Circuit) -> tuple[Circuit, dict[Qubit, Qubit]]:
     """Prepares a circuit in a specific, ``MPS``-friendly, manner.
 
     Returns an equivalent circuit with the appropriate structure to be simulated by
@@ -149,6 +151,22 @@ def prepare_circuit(circuit: Circuit) -> tuple[Circuit, dict[Qubit, Qubit]]:
         qubit_map[arch_q] = orig_q
 
     return (prep_circ, qubit_map)
+
+
+def _get_qubit_partition(circuit: Circuit) -> dict[int, list[Qubit]]:
+    """Returns a qubit partition for a TTN.
+
+    Proceeds by recursive bisection of the qubit connectivity graph, so that
+    qubits that interact with each other less are connected by a common ancestor
+    closer to the root.
+    """
+    # TODO: This current one is a naive approach, not using bisections. REPLACE!
+    n_qubits = len(circuit.qubits)
+    n_groups = 2 ** math.floor(math.log2(n_qubits))
+    qubit_partition: dict[int, list[Qubit]] = {i: [] for i in range(n_groups)}
+    for i, q in enumerate(circuit.qubits):
+        qubit_partition[i % n_groups].append(q)
+    return qubit_partition
 
 
 def _get_sorted_gates(circuit: Circuit) -> list[Command]:
@@ -214,7 +232,7 @@ def _get_sorted_gates(circuit: Circuit) -> list[Command]:
         if left_distance is None and right_distance is None:
             raise RuntimeError(
                 "Some two-qubit gate in the circuit is not acting between",
-                "nearest neighbour qubits. Consider using prepare_circuit().",
+                "nearest neighbour qubits. Consider using prepare_circuit_mps().",
             )
         elif left_distance is None:
             assert right_distance is not None

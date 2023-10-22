@@ -35,7 +35,7 @@ from pytket.pauli import Pauli, QubitPauliString
 
 from pytket.extensions.cutensornet.general import set_logger
 
-from .general import CuTensorNetHandle, Tensor, Config, _safe_qr
+from .general import CuTensorNetHandle, Config, TNState, Tensor, _safe_qr
 
 
 class DirTTN(IntEnum):
@@ -77,7 +77,7 @@ class TreeNode:
         return new_node
 
 
-class TTN:
+class TTN(TNState):
     """Represents a state as a Tree Tensor Network.
 
     Attributes:
@@ -279,6 +279,18 @@ class TTN:
                 + f"This is not satisfied by {gate}."
             )
 
+        return self
+
+    def apply_scalar(self, scalar: complex) -> TNState:
+        """Multiplies the state by a complex number.
+
+        Args:
+            scalar: The complex number to be multiplied.
+
+        Returns:
+            ``self``, to allow for method chaining.
+        """
+        self.nodes[()].tensor *= scalar
         return self
 
     def canonicalise(
@@ -502,7 +514,7 @@ class TTN:
         )
         return R
 
-    def vdot(self, other: TTN) -> complex:
+    def vdot(self, other: TTN) -> complex:  # type: ignore
         """Obtain the inner product of the two TTN: ``<self|other>``.
 
         It can be used to compute the squared norm of a TTN ``ttn`` as
@@ -555,10 +567,89 @@ class TTN:
         self._logger.debug(f"Result from vdot={result}")
         return complex(result)
 
+    def sample(self) -> dict[Qubit, int]:
+        """Returns a sample from a Z measurement applied on every qubit.
+
+        Notes:
+            The contents of ``self`` are not updated. This is equivalent to applying
+            ``tnstate = self.copy()`` then ``tnstate.measure(tnstate.get_qubits())``.
+
+        Returns:
+            A dictionary mapping each qubit in the state to its 0 or 1 outcome.
+        """
+        raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
+
+    def measure(self, qubits: set[Qubit]) -> dict[Qubit, int]:
+        """Applies a Z measurement on ``qubits``, updates the state and returns outcome.
+
+        Notes:
+            After applying this function, ``self`` will contain the projected
+            state over the non-measured qubits.
+
+            The resulting state has been normalised.
+
+        Args:
+            qubits: The subset of qubits to be measured.
+
+        Returns:
+            A dictionary mapping the given ``qubits`` to their measurement outcome,
+            i.e. either ``0`` or ``1``.
+
+        Raises:
+            ValueError: If an element in ``qubits`` is not a qubit in the state.
+        """
+        raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
+
+    def postselect(self, qubit_outcomes: dict[Qubit, int]) -> float:
+        """Applies a postselection, updates the states and returns its probability.
+
+        Notes:
+            After applying this function, ``self`` will contain the projected
+            state over the non-postselected qubits.
+
+            The resulting state has been normalised.
+
+        Args:
+            qubit_outcomes: A dictionary mapping a subset of qubits to their
+                desired outcome value (either ``0`` or ``1``).
+
+        Returns:
+            The probability of this postselection to occur in a measurement.
+
+        Raises:
+            ValueError: If a key in ``qubit_outcomes`` is not a qubit in the state.
+            ValueError: If a value in ``qubit_outcomes`` is other than ``0`` or ``1``.
+            ValueError: If all of the qubits in the state are being postselected. Instead,
+                you may wish to use ``get_amplitude()``.
+        """
+        raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
+
+    def expectation_value(self, pauli_string: QubitPauliString) -> float:
+        """Obtains the expectation value of the Pauli string observable.
+
+        Args:
+            pauli_string: A pytket object representing a tensor product of Paulis.
+
+        Returns:
+            The expectation value.
+
+        Raises:
+            ValueError: If a key in ``pauli_string`` is not a qubit in the state.
+        """
+        raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
+
+    def get_fidelity(self) -> float:
+        """Returns the current fidelity of the state."""
+        return self.fidelity
+
     def get_statevector(self) -> np.ndarray:
         """Returns the statevector represented by the TTN, with qubits ordered
         in Increasing Lexicographic Order (ILO).
+        Raises:
+            ValueError: If there are no qubits left in the TTN.
         """
+        if len(self.get_qubits()) == 0:
+            raise ValueError("There are no qubits left in this TTN.")
 
         # Create the interleaved representation with all tensors
         interleaved_rep = self.get_interleaved_representation()
@@ -747,3 +838,9 @@ class TTN:
             "TTN is a base class with no contraction algorithm implemented."
             + " You must use a subclass of TTN, such as TTNxGate."
         )
+
+    def _flush(self) -> None:
+        # Does nothing in the general MPS case; but children classes with batched
+        # gate contraction will redefine this method so that the last batch of
+        # gates is applied.
+        return None

@@ -33,7 +33,7 @@ from pytket.pauli import Pauli, QubitPauliString
 
 from pytket.extensions.cutensornet.general import set_logger
 
-from .general import CuTensorNetHandle, Tensor, Config
+from .general import CuTensorNetHandle, Config, TNState, Tensor
 
 
 class DirectionMPS(Enum):
@@ -43,7 +43,7 @@ class DirectionMPS(Enum):
     RIGHT = 1
 
 
-class MPS:
+class MPS(TNState):
     """Represents a state as a Matrix Product State.
 
     Attributes:
@@ -204,6 +204,18 @@ class MPS:
 
         return self
 
+    def apply_scalar(self, scalar: complex) -> TNState:
+        """Multiplies the state by a complex number.
+
+        Args:
+            scalar: The complex number to be multiplied.
+
+        Returns:
+            ``self``, to allow for method chaining.
+        """
+        self.tensors[0] *= scalar
+        return self
+
     def canonicalise(self, l_pos: int, r_pos: int) -> None:
         """Canonicalises the MPS object.
 
@@ -305,7 +317,7 @@ class MPS:
         self.tensors[next_pos] = result
         self.canonical_form[next_pos] = None
 
-    def vdot(self, other: MPS) -> complex:
+    def vdot(self, other: MPS) -> complex:  # type: ignore
         """Obtain the inner product of the two MPS: ``<self|other>``.
 
         It can be used to compute the squared norm of an MPS ``mps`` as
@@ -613,6 +625,10 @@ class MPS:
 
         self._logger.debug(f"Expectation value is {value.real}.")
         return value.real
+
+    def get_fidelity(self) -> float:
+        """Returns the current fidelity of the state."""
+        return self.fidelity
 
     def get_statevector(self) -> np.ndarray:
         """Returns the statevector with qubits in Increasing Lexicographic Order (ILO).

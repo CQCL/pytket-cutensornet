@@ -12,11 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from __future__ import annotations  # type: ignore
+from abc import ABC, abstractmethod
 import warnings
 import logging
 from typing import Any, Optional, Union
 
 import numpy as np  # type: ignore
+
+from pytket.circuit import Command, Op, OpType, Qubit
+from pytket.pauli import Pauli, QubitPauliString
 
 try:
     import cupy as cp  # type: ignore
@@ -69,7 +73,7 @@ class CuTensorNetHandle:
 
 
 class Config:
-    """Configuration class for simulation using MPS."""
+    """Configuration class for simulation using ``TNState``."""
 
     def __init__(
         self,
@@ -81,7 +85,7 @@ class Config:
         value_of_zero: float = 1e-16,
         loglevel: int = logging.WARNING,
     ):
-        """Instantiate a configuration object for MPS simulation.
+        """Instantiate a configuration object for ``TNState`` simulation.
 
         Note:
             Providing both a custom ``chi`` and ``truncation_fidelity`` will raise an
@@ -178,6 +182,223 @@ class Config:
             value_of_zero=self.zero,
             loglevel=self.loglevel,
         )
+
+    def _flush(self) -> None:
+        # Does nothing in the general case; but children classes with batched
+        # gate contraction will redefine this method so that the last batch of
+        # gates is applied.
+        return None
+
+
+class TNState(ABC):
+    """Abstract class to refer to a Tensor Network state.
+
+    This class does not implement any of the methods it offers. You will need
+    to use an instance of a child class to call them.
+    """
+
+    @abstractmethod
+    def is_valid(self) -> bool:
+        """Verify that the tensor network state is valid.
+
+        Returns:
+            False if a violation was detected or True otherwise.
+        """
+        raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
+
+    @abstractmethod
+    def apply_gate(self, gate: Command) -> TNState:
+        """Applies the gate to the TNState.
+
+        Args:
+            gate: The gate to be applied.
+
+        Returns:
+            ``self``, to allow for method chaining.
+
+        Raises:
+            RuntimeError: If the ``CuTensorNetHandle`` is out of scope.
+            RuntimeError: If gate is not supported.
+        """
+        raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
+
+    @abstractmethod
+    def apply_scalar(self, scalar: complex) -> TNState:
+        """Multiplies the state by a complex number.
+
+        Args:
+            scalar: The complex number to be multiplied.
+
+        Returns:
+            ``self``, to allow for method chaining.
+        """
+        raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
+
+    @abstractmethod
+    def vdot(self, other: TNState) -> complex:
+        """Obtain the inner product of the two states: ``<self|other>``.
+
+        It can be used to compute the squared norm of a state ``tnstate`` as
+        ``tnstate.vdot(tnstate)``. The tensors within the state are not modified.
+
+        Note:
+            The state that is conjugated is ``self``.
+
+        Args:
+            other: The other ``TNState``.
+
+        Returns:
+            The resulting complex number.
+
+        Raises:
+            RuntimeError: If the two states do not have the same qubits.
+            RuntimeError: If the ``CuTensorNetHandle`` is out of scope.
+        """
+        raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
+
+    @abstractmethod
+    def sample(self) -> dict[Qubit, int]:
+        """Returns a sample from a Z measurement applied on every qubit.
+
+        Notes:
+            The contents of ``self`` are not updated. This is equivalent to applying
+            ``tnstate = self.copy()`` then ``tnstate.measure(tnstate.get_qubits())``.
+
+        Returns:
+            A dictionary mapping each qubit in the state to its 0 or 1 outcome.
+        """
+        raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
+
+    @abstractmethod
+    def measure(self, qubits: set[Qubit]) -> dict[Qubit, int]:
+        """Applies a Z measurement on ``qubits``, updates the state and returns outcome.
+
+        Notes:
+            After applying this function, ``self`` will contain the projected
+            state over the non-measured qubits.
+
+            The resulting state has been normalised.
+
+        Args:
+            qubits: The subset of qubits to be measured.
+
+        Returns:
+            A dictionary mapping the given ``qubits`` to their measurement outcome,
+            i.e. either ``0`` or ``1``.
+
+        Raises:
+            ValueError: If an element in ``qubits`` is not a qubit in the state.
+        """
+        raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
+
+    @abstractmethod
+    def postselect(self, qubit_outcomes: dict[Qubit, int]) -> float:
+        """Applies a postselection, updates the states and returns its probability.
+
+        Notes:
+            After applying this function, ``self`` will contain the projected
+            state over the non-postselected qubits.
+
+            The resulting state has been normalised.
+
+        Args:
+            qubit_outcomes: A dictionary mapping a subset of qubits to their
+                desired outcome value (either ``0`` or ``1``).
+
+        Returns:
+            The probability of this postselection to occur in a measurement.
+
+        Raises:
+            ValueError: If a key in ``qubit_outcomes`` is not a qubit in the state.
+            ValueError: If a value in ``qubit_outcomes`` is other than ``0`` or ``1``.
+            ValueError: If all of the qubits in the state are being postselected. Instead,
+                you may wish to use ``get_amplitude()``.
+        """
+        raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
+
+    @abstractmethod
+    def expectation_value(self, pauli_string: QubitPauliString) -> float:
+        """Obtains the expectation value of the Pauli string observable.
+
+        Args:
+            pauli_string: A pytket object representing a tensor product of Paulis.
+
+        Returns:
+            The expectation value.
+
+        Raises:
+            ValueError: If a key in ``pauli_string`` is not a qubit in the state.
+        """
+        raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
+
+    @abstractmethod
+    def get_fidelity(self) -> float:
+        """Returns the current fidelity of the state."""
+        raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
+
+    @abstractmethod
+    def get_statevector(self) -> np.ndarray:
+        """Returns the statevector with qubits in Increasing Lexicographic Order (ILO).
+
+        Raises:
+            ValueError: If there are no qubits left in the state.
+        """
+        raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
+
+    @abstractmethod
+    def get_amplitude(self, state: int) -> complex:
+        """Returns the amplitude of the chosen computational state.
+
+        Notes:
+            The result is equivalent to ``tnstate.get_statevector[b]``, but this method
+            is faster when querying a single amplitude (or just a few).
+
+        Args:
+            state: The integer whose bitstring describes the computational state.
+                The qubits in the bitstring are in increasing lexicographic order.
+
+        Returns:
+            The amplitude of the computational state in ``self``.
+        """
+        raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
+
+    @abstractmethod
+    def get_qubits(self) -> set[Qubit]:
+        """Returns the set of qubits that ``self`` is defined on."""
+        raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
+
+    @abstractmethod
+    def get_byte_size(self) -> int:
+        """Returns the number of bytes ``self`` currently occupies in GPU memory."""
+        raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
+
+    @abstractmethod
+    def get_device_id(self) -> int:
+        """Returns the identifier of the device (GPU) where the tensors are stored."""
+        raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
+
+    @abstractmethod
+    def update_libhandle(self, libhandle: CuTensorNetHandle) -> None:
+        """Update the ``CuTensorNetHandle`` used by ``self``. Multiple
+        objects may use the same handle.
+
+        Args:
+            libhandle: The new cuTensorNet library handle.
+
+        Raises:
+            RuntimeError: If the device (GPU) where ``libhandle`` was initialised
+                does not match the one where the tensors of ``self`` are stored.
+        """
+        raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
+
+    @abstractmethod
+    def copy(self) -> TNState:
+        """Returns a deep copy of ``self`` on the same device."""
+        raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
+
+    @abstractmethod
+    def _flush(self) -> None:
+        raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
 
 
 def _safe_qr(

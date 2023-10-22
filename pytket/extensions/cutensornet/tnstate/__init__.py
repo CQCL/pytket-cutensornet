@@ -18,8 +18,8 @@ For an example of its use, see ``examples/mps_tutorial.ipynb`` in
 https://github.com/CQCL/pytket-cutensornet.
 """
 
-from .general import CuTensorNetHandle, Config
-from .simulation import ContractionAlg, simulate, prepare_circuit
+from .general import CuTensorNetHandle, Config, TNState
+from .simulation import ContractionAlg, simulate, prepare_circuit_mps
 
 from .mps import DirectionMPS, MPS
 from .mps_gate import MPSxGate
