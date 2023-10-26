@@ -455,16 +455,29 @@ class MPS:
         self._logger.debug("Applying vdot between two MPS.")
 
         # We convert both MPS to their interleaved representation and
-        # contract them using cuQuantum. A single sample is enough for
-        # contraction path optimisation, since there is little to optimise.
+        # contract them using cuQuantum.
         mps1 = self._get_interleaved_representation(conj=True)
         mps2 = other._get_interleaved_representation(conj=False)
         interleaved_rep = mps1 + mps2
         interleaved_rep.append([])  # Discards dim=1 bonds with []
+
+        # We define the contraction path ourselves
+        end_mps1 = len(self) - 1  # Rightmost tensor of mps1 in interleaved_rep
+        end_mps2 = len(self) + len(other) - 1  # Rightmost tensor of mps2
+        contraction_path = [(end_mps1, end_mps2)]  # Contract ends of mps1 and mps2
+        for _ in range(len(self) - 1):
+            # Update the position markers
+            end_mps1 -= 1  # One tensor was removed from mps1
+            end_mps2 -= 2  # One tensor removed from mps1 and another from mps2
+            # Contract the result from last iteration with the ends of mps1 and mps2
+            contraction_path.append((end_mps2, end_mps2 + 1))  # End of mps2 and result
+            contraction_path.append((end_mps1, end_mps2))  # End of mps1 and ^ outcome
+
+        # Apply the contraction
         result = cq.contract(
             *interleaved_rep,
             options={"handle": self._lib.handle, "device_id": self._lib.device_id},
-            optimize={"samples": 1},
+            optimize={"path": contraction_path},
         )
 
         self._logger.debug(f"Result from vdot={result}")
@@ -779,11 +792,21 @@ class MPS:
                 output_bonds.append("p" + str(self.qubit_position[q]))
             interleaved_rep.append(output_bonds)
 
+            # We define the contraction path ourselves
+            end_mps = len(self) - 1
+            contraction_path = [(end_mps - 1, end_mps)]  # Contract the last two tensors
+            end_mps -= 2  # Two tensors removed from the MPS
+            for _ in range(len(self) - 2):
+                # Contract the result from last iteration and the last tensor in the MPS
+                contraction_path.append((end_mps, end_mps + 1))
+                # Update the position marker
+                end_mps -= 1  # One tensor was removed from the MPS
+
             # Contract
             result_tensor = cq.contract(
                 *interleaved_rep,
                 options={"handle": self._lib.handle, "device_id": self._lib.device_id},
-                optimize={"samples": 1},
+                optimize={"path": contraction_path},
             )
 
         # Convert to numpy vector and flatten
@@ -826,6 +849,18 @@ class MPS:
             interleaved_rep.append([str(qubit_id[pos])])
         # Append [] so that all dim=1 bonds are ignored in the result of contract
         interleaved_rep.append([])
+
+        # We define the contraction path ourselves
+        end_mps = len(self) - 1  # Rightmost tensor of MPS in interleaved_rep
+        end_rep = 2 * len(self) - 1  # Last position in the representation
+        contraction_path = [(end_mps, end_rep)]  # Contract ends
+        for _ in range(len(self) - 1):
+            # Update the position markers
+            end_mps -= 1  # One tensor was removed from mps
+            end_rep -= 2  # One tensor removed from mps and another from postselect
+            # Contract the result from last iteration with the ends
+            contraction_path.append((end_mps, end_rep + 1))  # End of mps and result
+            contraction_path.append((end_rep - 1, end_rep))  # End of mps1 and ^ outcome
 
         # Apply the contraction
         result = cq.contract(
