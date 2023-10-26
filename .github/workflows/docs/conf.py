@@ -32,6 +32,7 @@ html_theme_options = {
     "repository_url": "https://github.com/CQCL/pytket-cutensornet",
     "use_repository_button": True,
     "use_issues_button": True,
+    "navigation_with_keys": True,
     "logo": {
         "image_light": "Quantinuum_logo_black.png",
         "image_dark": "Quantinuum_logo_white.png",
