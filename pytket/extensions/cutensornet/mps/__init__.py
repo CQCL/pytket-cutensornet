@@ -20,6 +20,7 @@ https://github.com/CQCL/pytket-cutensornet.
 from .mps import (
     CuTensorNetHandle,
     DirectionMPS,
+    ConfigMPS,
     Handle,
     Tensor,
     MPS,

@@ -13,7 +13,6 @@
 # limitations under the License.
 from __future__ import annotations  # type: ignore
 import warnings
-import logging
 
 from typing import Optional, Union
 
@@ -33,6 +32,7 @@ from pytket.circuit import Op, Qubit
 from .mps import (
     CuTensorNetHandle,
     DirectionMPS,
+    ConfigMPS,
     Tensor,
     MPS,
 )
@@ -49,12 +49,7 @@ class MPSxMPO(MPS):
         self,
         libhandle: CuTensorNetHandle,
         qubits: list[Qubit],
-        chi: Optional[int] = None,
-        truncation_fidelity: Optional[float] = None,
-        k: Optional[int] = None,
-        optim_delta: Optional[float] = None,
-        float_precision: Optional[Union[np.float32, np.float64]] = None,
-        loglevel: int = logging.WARNING,
+        config: ConfigMPS,
     ):
         """Initialise an MPS on the computational state ``|0>``.
 
@@ -63,43 +58,13 @@ class MPSxMPO(MPS):
             statement. The device where the MPS is stored will match the one specified
             by the library handle.
 
-            Providing both a custom ``chi`` and ``truncation_fidelity`` will raise an
-            exception. Choose one or the other (or neither, for exact simulation).
-
         Args:
             libhandle: The cuTensorNet library handle that will be used to carry out
                 tensor operations on the MPS.
             qubits: The list of qubits in the circuit to be simulated.
-            chi: The maximum value allowed for the dimension of the virtual
-                bonds. Higher implies better approximation but more
-                computational resources. If not provided, ``chi`` will be set
-                to ``2**(len(qubits) // 2)``, which is enough for exact contraction.
-            truncation_fidelity: Every time a two-qubit gate is applied, the virtual
-                bond will be truncated to the minimum dimension that satisfies
-                ``|<psi|phi>|^2 >= trucantion_fidelity``, where ``|psi>`` and ``|phi>``
-                are the states before and after truncation (both normalised).
-                If not provided, it will default to its maximum value 1.
-            k: The maximum number of layers the MPO is allowed to have before
-                being contracted. Increasing this might increase fidelity, but
-                it will also increase resource requirements exponentially.
-                Default value is 4.
-            optim_delta: Stopping criteria for the optimisation when contracting the
-                ``k`` layers of MPO. Stops when the increase of fidelity between
-                iterations is smaller than ``optim_delta``. Default value is ``1e-5``.
-            float_precision: The floating point precision used in tensor calculations;
-                choose from ``numpy`` types: ``np.float64`` or ``np.float32``.
-                Complex numbers are represented using two of such
-                ``float`` numbers. Default is ``np.float64``.
-            loglevel: Internal logger output level.
+            config: The object describing the configuration for simulation.
         """
-        super().__init__(
-            libhandle=libhandle,
-            qubits=qubits,
-            chi=chi,
-            truncation_fidelity=truncation_fidelity,
-            float_precision=float_precision,
-            loglevel=loglevel,
-        )
+        super().__init__(libhandle, qubits, config)
 
         # Initialise the MPO data structure. This will keep a list of the gates
         # batched for application to the MPS; all of them will be applied at
@@ -118,23 +83,7 @@ class MPSxMPO(MPS):
 
         # Initialise the MPS that we will use as first approximation of the
         # variational algorithm.
-        self._aux_mps = MPSxGate(
-            libhandle=libhandle,
-            qubits=qubits,
-            chi=chi,
-            truncation_fidelity=truncation_fidelity,
-            float_precision=float_precision,
-            loglevel=loglevel,
-        )
-
-        if k is None:
-            self.k = 4
-        else:
-            self.k = k
-        if optim_delta is None:
-            self.optim_delta = 1e-5
-        else:
-            self.optim_delta = optim_delta
+        self._aux_mps = MPSxGate(libhandle, qubits, config)
 
         self._mpo_bond_counter = 0
 
@@ -170,8 +119,8 @@ class MPSxMPO(MPS):
         self._aux_mps._apply_1q_gate(position, gate)
 
         # Load the gate's unitary to the GPU memory
-        gate_unitary = gate.get_unitary().astype(dtype=self._complex_t, copy=False)
-        gate_tensor = cp.asarray(gate_unitary, dtype=self._complex_t)
+        gate_unitary = gate.get_unitary().astype(dtype=self._cfg._complex_t, copy=False)
+        gate_tensor = cp.asarray(gate_unitary, dtype=self._cfg._complex_t)
 
         # Glossary of bond IDs
         # i -> input to the MPO tensor
@@ -224,15 +173,15 @@ class MPSxMPO(MPS):
         r_pos = max(positions)
 
         # Check whether the MPO is large enough to flush it
-        if any(len(self._mpo[pos]) >= self.k for pos in [l_pos, r_pos]):
+        if any(len(self._mpo[pos]) >= self._cfg.k for pos in [l_pos, r_pos]):
             self._flush()
 
         # Apply the gate to the MPS with eager approximation
         self._aux_mps._apply_2q_gate(positions, gate)
 
         # Load the gate's unitary to the GPU memory
-        gate_unitary = gate.get_unitary().astype(dtype=self._complex_t, copy=False)
-        gate_tensor = cp.asarray(gate_unitary, dtype=self._complex_t)
+        gate_unitary = gate.get_unitary().astype(dtype=self._cfg._complex_t, copy=False)
+        gate_tensor = cp.asarray(gate_unitary, dtype=self._cfg._complex_t)
 
         # Reshape into a rank-4 tensor
         gate_tensor = cp.reshape(gate_tensor, (2, 2, 2, 2))
@@ -498,7 +447,7 @@ class MPSxMPO(MPS):
 
             # Get the fidelity
             optim_fidelity = complex(cq.contract("LRP,LRP->", F.conj(), F))
-            assert np.isclose(optim_fidelity.imag, 0.0, atol=self._atol)
+            assert np.isclose(optim_fidelity.imag, 0.0, atol=self._cfg._atol)
             optim_fidelity = float(optim_fidelity.real)
 
             # Normalise F and update the variational MPS
@@ -520,7 +469,7 @@ class MPSxMPO(MPS):
 
         # Repeat sweeps until the fidelity converges
         sweep_direction = DirectionMPS.RIGHT
-        while not np.isclose(prev_fidelity, sweep_fidelity, atol=self.optim_delta):
+        while not np.isclose(prev_fidelity, sweep_fidelity, atol=self._cfg.optim_delta):
             self._logger.info(f"Doing another optimisation sweep...")
             prev_fidelity = sweep_fidelity
 

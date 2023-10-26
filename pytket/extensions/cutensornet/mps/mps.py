@@ -85,12 +85,122 @@ class CuTensorNetHandle:
         self._is_destroyed = True
 
 
+class ConfigMPS:
+    """Configuration class for simulation using MPS."""
+
+    def __init__(
+        self,
+        chi: Optional[int] = None,
+        truncation_fidelity: Optional[float] = None,
+        k: int = 4,
+        optim_delta: float = 1e-5,
+        float_precision: Union[np.float32, np.float64] = np.float64,  # type: ignore
+        value_of_zero: float = 1e-16,
+        loglevel: int = logging.WARNING,
+    ):
+        """Instantiate a configuration object for MPS simulation.
+
+        Note:
+            Providing both a custom ``chi`` and ``truncation_fidelity`` will raise an
+            exception. Choose one or the other (or neither, for exact simulation).
+
+        Args:
+            chi: The maximum value allowed for the dimension of the virtual
+                bonds. Higher implies better approximation but more
+                computational resources. If not provided, ``chi`` will be unbounded.
+            truncation_fidelity: Every time a two-qubit gate is applied, the virtual
+                bond will be truncated to the minimum dimension that satisfies
+                ``|<psi|phi>|^2 >= trucantion_fidelity``, where ``|psi>`` and ``|phi>``
+                are the states before and after truncation (both normalised).
+                If not provided, it will default to its maximum value 1.
+            k: If using MPSxMPO, the maximum number of layers the MPO is allowed to
+                have before being contracted. Increasing this might increase fidelity,
+                but it will also increase resource requirements exponentially.
+                Ignored if not using MPSxMPO. Default value is 4.
+            optim_delta: If using MPSxMPO, stopping criteria for the optimisation when
+                contracting the ``k`` layers of MPO. Stops when the increase of fidelity
+                between iterations is smaller than ``optim_delta``.
+                Ignored if not using MPSxMPO. Default value is ``1e-5``.
+            float_precision: The floating point precision used in tensor calculations;
+                choose from ``numpy`` types: ``np.float64`` or ``np.float32``.
+                Complex numbers are represented using two of such
+                ``float`` numbers. Default is ``np.float64``.
+            value_of_zero: Any number below this value will be considered equal to zero.
+                Even when no ``chi`` or ``truncation_fidelity`` is provided, singular
+                values below this number will be truncated.
+                We suggest to use a value slightly below what your chosen
+                ``float_precision`` can reasonably achieve. For instance, ``1e-16`` for
+                ``np.float64`` precision (default) and ``1e-7`` for ``np.float32``.
+            loglevel: Internal logger output level. Use 30 for warnings only, 20 for
+                verbose and 10 for debug mode.
+
+        Raises:
+            ValueError: If both ``chi`` and ``truncation_fidelity`` are fixed.
+            ValueError: If the value of ``chi`` is set below 2.
+            ValueError: If the value of ``truncation_fidelity`` is not in [0,1].
+        """
+        if (
+            chi is not None
+            and truncation_fidelity is not None
+            and truncation_fidelity != 1.0
+        ):
+            raise ValueError("Cannot fix both chi and truncation_fidelity.")
+        if chi is None:
+            chi = 2**60  # In practice, this is like having it be unbounded
+        if truncation_fidelity is None:
+            truncation_fidelity = 1
+
+        if chi < 2:
+            raise ValueError("The max virtual bond dim (chi) must be >= 2.")
+        if truncation_fidelity < 0 or truncation_fidelity > 1:
+            raise ValueError("Provide a value of truncation_fidelity in [0,1].")
+
+        self.chi = chi
+        self.truncation_fidelity = truncation_fidelity
+
+        if float_precision is None or float_precision == np.float64:  # Double precision
+            self._real_t = np.float64  # type: ignore
+            self._complex_t = np.complex128  # type: ignore
+            self._atol = 1e-12
+        elif float_precision == np.float32:  # Single precision
+            self._real_t = np.float32  # type: ignore
+            self._complex_t = np.complex64  # type: ignore
+            self._atol = 1e-4
+        else:
+            allowed_precisions = [np.float64, np.float32]
+            raise TypeError(
+                f"Value of float_precision must be in {allowed_precisions}."
+            )
+        self.zero = value_of_zero
+
+        if value_of_zero > self._atol / 1000:
+            warnings.warn(
+                "Your chosen value_of_zero is relatively large. "
+                "Faithfulness of final fidelity estimate is not guaranteed.",
+                UserWarning,
+            )
+
+        self.k = k
+        self.optim_delta = optim_delta
+        self.loglevel = loglevel
+
+    def copy(self) -> ConfigMPS:
+        """Standard copy of the contents."""
+        return ConfigMPS(
+            chi=self.chi,
+            truncation_fidelity=self.truncation_fidelity,
+            k=self.k,
+            optim_delta=self.optim_delta,
+            float_precision=self._real_t,  # type: ignore
+            value_of_zero=self.zero,
+            loglevel=self.loglevel,
+        )
+
+
 class MPS:
     """Represents a state as a Matrix Product State.
 
     Attributes:
-        chi (int): The maximum allowed dimension of a virtual bond.
-        truncation_fidelity (float): The target fidelity of SVD truncation.
         tensors (list[Tensor]): A list of tensors in the MPS; ``tensors[0]`` is
             the leftmost and ``tensors[len(self)-1]`` is the rightmost; ``tensors[i]``
             and ``tensors[i+1]`` are connected in the MPS via a bond. All of the
@@ -111,10 +221,7 @@ class MPS:
         self,
         libhandle: CuTensorNetHandle,
         qubits: list[Qubit],
-        chi: Optional[int] = None,
-        truncation_fidelity: Optional[float] = None,
-        float_precision: Optional[Union[np.float32, np.float64]] = None,
-        loglevel: int = logging.WARNING,
+        config: ConfigMPS,
     ):
         """Initialise an MPS on the computational state ``|0>``.
 
@@ -123,69 +230,18 @@ class MPS:
             statement. The device where the MPS is stored will match the one specified
             by the library handle.
 
-            Providing both a custom ``chi`` and ``truncation_fidelity`` will raise an
-            exception. Choose one or the other (or neither, for exact simulation).
-
         Args:
             libhandle: The cuTensorNet library handle that will be used to carry out
                 tensor operations on the MPS.
             qubits: The list of qubits in the circuit to be simulated.
-            chi: The maximum value allowed for the dimension of the virtual
-                bonds. Higher implies better approximation but more
-                computational resources. If not provided, ``chi`` will be set
-                to ``2**(len(qubits) // 2)``, which is enough for exact contraction.
-            truncation_fidelity: Every time a two-qubit gate is applied, the virtual
-                bond will be truncated to the minimum dimension that satisfies
-                ``|<psi|phi>|^2 >= trucantion_fidelity``, where ``|psi>`` and ``|phi>``
-                are the states before and after truncation (both normalised).
-                If not provided, it will default to its maximum value 1.
-            float_precision: The floating point precision used in tensor calculations;
-                choose from ``numpy`` types: ``np.float64`` or ``np.float32``.
-                Complex numbers are represented using two of such
-                ``float`` numbers. Default is ``np.float64``.
-            loglevel: Internal logger output level.
+            config: The object describing the configuration for simulation.
 
         Raises:
             ValueError: If less than two qubits are provided.
-            ValueError: If both ``chi`` and ``truncation_fidelity`` are fixed.
-            ValueError: If the value of ``chi`` is set below 2.
-            ValueError: If the value of ``truncation_fidelity`` is not in [0,1].
         """
-        if chi is not None and truncation_fidelity is not None:
-            raise ValueError("Cannot fix both chi and truncation_fidelity.")
-        if chi is None:
-            chi = max(2 ** (len(qubits) // 2), 2)
-        if truncation_fidelity is None:
-            truncation_fidelity = 1
-
-        if chi < 2:
-            raise ValueError("The max virtual bond dim (chi) must be >= 2.")
-        if truncation_fidelity < 0 or truncation_fidelity > 1:
-            raise ValueError("Provide a value of truncation_fidelity in [0,1].")
-
-        if float_precision is None or float_precision == np.float64:  # Double precision
-            self._real_t = np.float64  # type: ignore
-            self._complex_t = np.complex128  # type: ignore
-            self._atol = 1e-12
-        elif float_precision == np.float32:  # Single precision
-            self._real_t = np.float32  # type: ignore
-            self._complex_t = np.complex64  # type: ignore
-            self._atol = 1e-4
-        else:
-            allowed_precisions = [np.float64, np.float32]
-            raise TypeError(
-                f"Value of float_precision must be in {allowed_precisions}."
-            )
-
         self._lib = libhandle
-        self._logger = set_logger("MPS", level=loglevel)
-
-        #######################################
-        # Initialise the MPS with a |0> state #
-        #######################################
-
-        self.chi = chi
-        self.truncation_fidelity = truncation_fidelity
+        self._cfg = config
+        self._logger = set_logger("MPS", level=config.loglevel)
         self.fidelity = 1.0
 
         n_tensors = len(qubits)
@@ -203,7 +259,7 @@ class MPS:
         # Append each of the tensors initialised in state |0>
         m_shape = (1, 1, 2)  # Two virtual bonds (dim=1) and one physical
         for i in range(n_tensors):
-            m_tensor = cp.empty(m_shape, dtype=self._complex_t)
+            m_tensor = cp.empty(m_shape, dtype=self._cfg._complex_t)
             # Initialise the tensor to ket 0
             m_tensor[0][0][0] = 1
             m_tensor[0][0][1] = 0
@@ -222,7 +278,7 @@ class MPS:
         self._flush()
 
         chi_ok = all(
-            all(dim <= self.chi for dim in self.get_virtual_dimensions(pos))
+            all(dim <= self._cfg.chi for dim in self.get_virtual_dimensions(pos))
             for pos in range(len(self))
         )
         phys_ok = all(self.get_physical_dimension(pos) == 2 for pos in range(len(self)))
@@ -526,7 +582,7 @@ class MPS:
         self._logger.debug(f"Measuring qubits={position_qubit_map}")
 
         # Tensor for postselection to |0>
-        zero_tensor = cp.zeros(2, dtype=self._complex_t)
+        zero_tensor = cp.zeros(2, dtype=self._cfg._complex_t)
         zero_tensor[0] = 1
 
         # Measure and postselect each of the positions, one by one
@@ -559,7 +615,7 @@ class MPS:
             self._logger.debug(f"Outcome of qubit at {pos} is {outcome}.")
 
             # Postselect the MPS for this outcome, renormalising at the same time
-            postselection_tensor = cp.zeros(2, dtype=self._complex_t)
+            postselection_tensor = cp.zeros(2, dtype=self._cfg._complex_t)
             postselection_tensor[outcome] = 1 / np.sqrt(
                 abs(outcome - prob)
             )  # Normalise
@@ -605,18 +661,18 @@ class MPS:
         # Apply a postselection for each of the qubits
         for qubit, outcome in qubit_outcomes.items():
             # Create the rank-1 postselection tensor
-            postselection_tensor = cp.zeros(2, dtype=self._complex_t)
+            postselection_tensor = cp.zeros(2, dtype=self._cfg._complex_t)
             postselection_tensor[outcome] = 1
             # Apply postselection
             self._postselect_qubit(qubit, postselection_tensor)
 
         # Calculate the squared norm of the postselected state; this is its probability
         prob = self.vdot(self)
-        assert np.isclose(prob.imag, 0.0, atol=self._atol)
+        assert np.isclose(prob.imag, 0.0, atol=self._cfg._atol)
         prob = prob.real
 
         # Renormalise; it suffices to update the first tensor
-        if len(self) > 0 and not np.isclose(prob, 0.0, atol=self._atol):
+        if len(self) > 0 and not np.isclose(prob, 0.0, atol=self._cfg._atol):
             self.tensors[0] = self.tensors[0] / np.sqrt(prob)
             self.canonical_form[0] = None
 
@@ -696,8 +752,8 @@ class MPS:
                 pos = mps_copy.qubit_position[qubit]
                 pauli_unitary = Op.create(pauli_optype[pauli]).get_unitary()
                 pauli_tensor = cp.asarray(
-                    pauli_unitary.astype(dtype=self._complex_t, copy=False),
-                    dtype=self._complex_t,
+                    pauli_unitary.astype(dtype=self._cfg._complex_t, copy=False),
+                    dtype=self._cfg._complex_t,
                 )
 
                 # Contract the Pauli to the MPS tensor of the corresponding qubit
@@ -707,7 +763,7 @@ class MPS:
 
         # Obtain the inner product
         value = self.vdot(mps_copy)
-        assert np.isclose(value.imag, 0.0, atol=self._atol)
+        assert np.isclose(value.imag, 0.0, atol=self._cfg._atol)
 
         self._logger.debug(f"Expectation value is {value.real}.")
         return value.real
@@ -772,10 +828,10 @@ class MPS:
             mps_pos_bitvalue[pos] = bitvalue
 
         # Carry out the contraction, starting from a dummy tensor
-        result_tensor = cp.ones(1, dtype=self._complex_t)  # rank-1, dimension 1
+        result_tensor = cp.ones(1, dtype=self._cfg._complex_t)  # rank-1, dimension 1
 
         for pos in range(len(self)):
-            postselection_tensor = cp.zeros(2, dtype=self._complex_t)
+            postselection_tensor = cp.zeros(2, dtype=self._cfg._complex_t)
             postselection_tensor[mps_pos_bitvalue[pos]] = 1
             # Contract postselection with qubit into the result_tensor
             result_tensor = cq.contract(
@@ -868,16 +924,12 @@ class MPS:
         self._flush()
 
         # Create a dummy object
-        new_mps = MPS(self._lib, qubits=[])
+        new_mps = MPS(self._lib, qubits=[], config=self._cfg.copy())
         # Copy all data
-        new_mps.chi = self.chi
-        new_mps.truncation_fidelity = self.truncation_fidelity
         new_mps.fidelity = self.fidelity
         new_mps.tensors = [t.copy() for t in self.tensors]
         new_mps.canonical_form = self.canonical_form.copy()
         new_mps.qubit_position = self.qubit_position.copy()
-        new_mps._complex_t = self._complex_t
-        new_mps._real_t = self._real_t
 
         self._logger.debug(
             "Successfully copied an MPS "

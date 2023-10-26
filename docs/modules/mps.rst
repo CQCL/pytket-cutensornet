@@ -7,10 +7,16 @@ Matrix Product State (MPS)
 Simulation
 ~~~~~~~~~~
 
+.. autofunction:: pytket.extensions.cutensornet.mps.simulate
+
 .. autoenum:: pytket.extensions.cutensornet.mps.ContractionAlg()
     :members:
 
-.. autofunction:: pytket.extensions.cutensornet.mps.simulate
+.. autoclass:: pytket.extensions.cutensornet.mps.ConfigMPS()
+
+    .. automethod:: __init__
+
+.. autoclass:: pytket.extensions.cutensornet.mps.CuTensorNetHandle
 
 
 Classes
@@ -46,8 +52,6 @@ Classes
     :show-inheritance:
 
     .. automethod:: __init__
-
-.. autoclass:: pytket.extensions.cutensornet.mps.CuTensorNetHandle
 
 
 Miscellaneous
