@@ -11,9 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Any
 from enum import Enum
-import logging
 
 from random import choice  # type: ignore
 from collections import defaultdict  # type: ignore
@@ -26,7 +24,7 @@ from pytket.passes import DefaultMappingPass
 from pytket.predicates import CompilationUnit
 
 from pytket.extensions.cutensornet.general import set_logger
-from .mps import CuTensorNetHandle, MPS
+from .mps import CuTensorNetHandle, ConfigMPS, MPS
 from .mps_gate import MPSxGate
 from .mps_mpo import MPSxMPO
 
@@ -46,7 +44,7 @@ def simulate(
     libhandle: CuTensorNetHandle,
     circuit: Circuit,
     algorithm: ContractionAlg,
-    **kwargs: Any,
+    config: ConfigMPS,
 ) -> MPS:
     """Simulate the given circuit and return the ``MPS`` representing the final state.
 
@@ -67,41 +65,26 @@ def simulate(
             tensor operations on the MPS.
         circuit: The pytket circuit to be simulated.
         algorithm: Choose between the values of the ``ContractionAlg`` enum.
-        **kwargs: Any argument accepted by the initialisers of the chosen
-            ``algorithm`` class can be passed as a keyword argument. See the
-            documentation of the corresponding class for details.
+        config: The configuration object for simulation.
 
     Returns:
         An instance of ``MPS`` containing (an approximation of) the final state
         of the circuit.
     """
-    chi = kwargs.get("chi", None)
-    truncation_fidelity = kwargs.get("truncation_fidelity", None)
-    float_precision = kwargs.get("float_precision", None)
-    loglevel = kwargs.get("loglevel", logging.WARNING)
-    logger = set_logger("Simulation", level=loglevel)
+    logger = set_logger("Simulation", level=config.loglevel)
 
     if algorithm == ContractionAlg.MPSxGate:
         mps = MPSxGate(  # type: ignore
-            libhandle=libhandle,
-            qubits=circuit.qubits,
-            chi=chi,
-            truncation_fidelity=truncation_fidelity,
-            float_precision=float_precision,
-            loglevel=loglevel,
+            libhandle,
+            circuit.qubits,
+            config,
         )
+
     elif algorithm == ContractionAlg.MPSxMPO:
-        k = kwargs.get("k", None)
-        optim_delta = kwargs.get("optim_delta", None)
         mps = MPSxMPO(  # type: ignore
-            libhandle=libhandle,
-            qubits=circuit.qubits,
-            chi=chi,
-            truncation_fidelity=truncation_fidelity,
-            k=k,
-            optim_delta=optim_delta,
-            float_precision=float_precision,
-            loglevel=loglevel,
+            libhandle,
+            circuit.qubits,
+            config,
         )
 
     # Sort the gates so there isn't much overhead from canonicalising back and forth.

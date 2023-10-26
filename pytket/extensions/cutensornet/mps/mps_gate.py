@@ -52,8 +52,8 @@ class MPSxGate(MPS):
         """
 
         # Load the gate's unitary to the GPU memory
-        gate_unitary = gate.get_unitary().astype(dtype=self._complex_t, copy=False)
-        gate_tensor = cp.asarray(gate_unitary, dtype=self._complex_t)
+        gate_unitary = gate.get_unitary().astype(dtype=self._cfg._complex_t, copy=False)
+        gate_tensor = cp.asarray(gate_unitary, dtype=self._cfg._complex_t)
 
         # Glossary of bond IDs
         # p -> physical bond of the MPS tensor
@@ -104,7 +104,7 @@ class MPSxGate(MPS):
 
         # Canonicalisation may be required if `new_dim` is larger than `chi`
         # or if set by `truncation_fidelity`
-        if new_dim > self.chi or self.truncation_fidelity < 1:
+        if new_dim > self._cfg.chi or self._cfg.truncation_fidelity < 1:
             # If truncation required, convert to canonical form before
             # contracting. Avoids the need to apply gauge transformations
             # to the larger tensor resulting from the contraction.
@@ -118,8 +118,8 @@ class MPSxGate(MPS):
             )
 
         # Load the gate's unitary to the GPU memory
-        gate_unitary = gate.get_unitary().astype(dtype=self._complex_t, copy=False)
-        gate_tensor = cp.asarray(gate_unitary, dtype=self._complex_t)
+        gate_unitary = gate.get_unitary().astype(dtype=self._cfg._complex_t, copy=False)
+        gate_tensor = cp.asarray(gate_unitary, dtype=self._cfg._complex_t)
 
         # Reshape into a rank-4 tensor
         gate_tensor = cp.reshape(gate_tensor, (2, 2, 2, 2))
@@ -158,7 +158,7 @@ class MPSxGate(MPS):
         R = self.tensors[r_pos]
         r_shape = list(R.shape)
 
-        if self.truncation_fidelity < 1:
+        if self._cfg.truncation_fidelity < 1:
             # Carry out SVD decomposition first with NO truncation
             # to figure out where to apply the dimension cutoff.
             # Then, apply S normalisation and contraction of S and L manually.
@@ -169,11 +169,11 @@ class MPSxGate(MPS):
             # be run; i.e. use standard cuTensorNet API to do the SVD
             # including normalisation and contraction of S with L.
             self._logger.debug(
-                f"Truncating to target fidelity={self.truncation_fidelity}"
+                f"Truncating to target fidelity={self._cfg.truncation_fidelity}"
             )
 
             options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
-            svd_method = tensor.SVDMethod(abs_cutoff=self._atol / 1000)
+            svd_method = tensor.SVDMethod(abs_cutoff=self._cfg.zero)
             L, S, R = tensor.decompose(
                 "acLR->asL,scR", T, method=svd_method, options=options
             )
@@ -193,7 +193,7 @@ class MPSxGate(MPS):
             new_dim = 0
 
             # Take singular values until we surpass the target fidelity
-            while self.truncation_fidelity > numer / denom:
+            while self._cfg.truncation_fidelity > numer / denom:
                 numer += float(S[new_dim] ** 2)
                 new_dim += 1
             this_fidelity = numer / denom
@@ -204,7 +204,7 @@ class MPSxGate(MPS):
             # pylint: disable = unexpected-keyword-arg   # Disable pylint for next line
             L = cp.ndarray(
                 l_shape,
-                dtype=self._complex_t,
+                dtype=self._cfg._complex_t,
                 memptr=L.data,
                 strides=L.strides,
             )
@@ -212,18 +212,18 @@ class MPSxGate(MPS):
             # pylint: disable = unexpected-keyword-arg   # Disable pylint for next line
             R = cp.ndarray(
                 r_shape,
-                dtype=self._complex_t,
+                dtype=self._cfg._complex_t,
                 memptr=R.data,
                 strides=R.strides,
             )
             # pylint: disable = unexpected-keyword-arg   # Disable pylint for next line
-            S = cp.ndarray(new_dim, dtype=self._real_t, memptr=S.data)
+            S = cp.ndarray(new_dim, dtype=self._cfg._real_t, memptr=S.data)
 
             # Normalise
             S *= np.sqrt(1 / this_fidelity)
 
             # Contract S into L
-            S = S.astype(dtype=self._complex_t, copy=False)
+            S = S.astype(dtype=self._cfg._complex_t, copy=False)
             # Use some einsum index magic: since the virtual bond "s" appears in the
             # list of bonds of the output, it is not summed over.
             # This causes S to act as the intended diagonal matrix.
@@ -245,17 +245,17 @@ class MPSxGate(MPS):
                 f"Reduced virtual bond dimension from {old_dim} to {new_dim}."
             )
 
-        elif new_dim > self.chi:
+        elif new_dim > self._cfg.chi:
             # Apply SVD decomposition and truncate up to a `max_extent` (for the shared
-            # bond) of `self.chi`. Ask cuTensorNet to contract S directly into the L
-            # tensor and normalise the singular values so that the sum of its squares
+            # bond) of `self._cfg.chi`. Ask cuTensorNet to contract S directly into the
+            # L tensor and normalise the singular values so that the sum of its squares
             # is equal to one (i.e. the MPS is a normalised state after truncation).
-            self._logger.debug(f"Truncating to (or below) chosen chi={self.chi}")
+            self._logger.debug(f"Truncating to (or below) chosen chi={self._cfg.chi}")
 
             options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
             svd_method = tensor.SVDMethod(
-                abs_cutoff=self._atol / 1000,
-                max_extent=self.chi,
+                abs_cutoff=self._cfg.zero,
+                max_extent=self._cfg.chi,
                 partition="U",  # Contract S directly into U (named L in our case)
                 normalization="L2",  # Sum of squares equal 1
             )
@@ -286,15 +286,35 @@ class MPSxGate(MPS):
             )
 
         else:
-            # No truncation is necessary. In this case, simply apply a QR decomposition
-            # to get back to MPS form. QR is cheaper than SVD.
-            self._logger.debug("No truncation is necessary, applying QR decomposition.")
+            # The user did not explicitly ask for truncation, but it is advantageous to
+            # remove any singular values below ``self._cfg.zero``.
+            self._logger.debug(f"Truncating singular values below={self._cfg.zero}.")
+            if self._cfg.zero > self._cfg._atol / 1000:
+                self._logger.info(  # This was raised as a warning in ConfigMPS already
+                    "Your chosen value_of_zero is relatively large. "
+                    "Faithfulness of final fidelity estimate is not guaranteed."
+                )
 
+            # NOTE: There is no guarantee of canonical form in this case. This is fine
+            # since canonicalisation is just meant to detect the optimal singular values
+            # to truncate, but if we find values that are essentially zero, we are safe
+            # to remove them.
             options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
-            L, R = tensor.decompose(
-                "acLR->asL,scR", T, method=tensor.QRMethod(), options=options
+            svd_method = tensor.SVDMethod(
+                abs_cutoff=self._cfg.zero,
+                partition="U",  # Contract S directly into U (named L in our case)
+                normalization=None,  # Without canonicalisation we must not normalise
             )
-            self._logger.debug("QR decomposition applied.")
+            L, S, R = tensor.decompose(
+                "acLR->asL,scR", T, method=svd_method, options=options
+            )
+            assert S is None  # Due to "partition" option in SVDMethod
+
+            # Report to logger
+            self._logger.debug(f"Truncation done. Fidelity estimate unchanged.")
+            self._logger.debug(
+                f"Reduced virtual bond dimension from {new_dim} to {R.shape[0]}."
+            )
 
         self.tensors[l_pos] = L
         self.tensors[r_pos] = R
