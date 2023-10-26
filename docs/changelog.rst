@@ -9,7 +9,7 @@ Changelog
 * Added a logger to MPS methods. Use it by setting ``loglevel`` in ``ConfigMPS``.
 * Improved performance of contraction across ``MPS`` methods by hardcoding the contraction paths.
 * Fixed a bug that caused more MPS canonicalisation than strictly required.
-* Fixed a bug where simulate would not apply the last batch of gates when using ``MPSxMPO``.
+* Fixed a bug where ``simulate`` would not apply the last batch of gates when using ``MPSxMPO``.
 
 0.3.0 (September 2023)
 ----------------------
