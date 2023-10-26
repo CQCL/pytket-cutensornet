@@ -181,7 +181,7 @@ class ConfigMPS:
             )
 
         self.k = k
-        self.optim_delta = 1e-5
+        self.optim_delta = optim_delta
         self.loglevel = loglevel
 
     def copy(self) -> ConfigMPS:
@@ -192,6 +192,8 @@ class ConfigMPS:
             k=self.k,
             optim_delta=self.optim_delta,
             float_precision=self._real_t,  # type: ignore
+            value_of_zero=self.zero,
+            loglevel=self.loglevel,
         )
 
 
