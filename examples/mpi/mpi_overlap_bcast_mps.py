@@ -44,6 +44,7 @@ from pytket.circuit import Circuit, fresh_symbol
 
 from pytket.extensions.cutensornet.mps import (
     simulate,
+    ConfigMPS,
     ContractionAlg,
     CuTensorNetHandle,
 )
@@ -108,7 +109,7 @@ if rank == root:
 this_proc_mps = []
 with CuTensorNetHandle(device_id) as libhandle:  # Different handle for each process
     for circ in this_proc_circs:
-        mps = simulate(libhandle, circ, ContractionAlg.MPSxGate)
+        mps = simulate(libhandle, circ, ContractionAlg.MPSxGate, ConfigMPS())
         this_proc_mps.append(mps)
 
 if rank == root:

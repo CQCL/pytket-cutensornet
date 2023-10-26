@@ -287,7 +287,7 @@ class CuTensorNetBackend(Backend):
             if isinstance(coeff, Expr):
                 numeric_coeff = complex(coeff.evalf())  # type: ignore
             else:
-                numeric_coeff = complex(coeff)
+                numeric_coeff = complex(coeff)  # type: ignore
             expectation_term = numeric_coeff * cq.contract(
                 *expectation_value_network.cuquantum_interleaved
             )

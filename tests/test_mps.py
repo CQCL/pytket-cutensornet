@@ -10,6 +10,7 @@ from pytket.circuit import Circuit, Qubit, OpType  # type: ignore
 from pytket.pauli import Pauli, QubitPauliString  # type: ignore
 from pytket.extensions.cutensornet.mps import (
     CuTensorNetHandle,
+    ConfigMPS,
     MPS,
     MPSxGate,
     MPSxMPO,
@@ -25,8 +26,8 @@ def test_libhandle_manager() -> None:
 
     # Proper use of library handle
     with CuTensorNetHandle() as libhandle:
-        mps = MPS(libhandle, qubits=circ.qubits)
-        assert np.isclose(mps.vdot(mps), 1, atol=mps._atol)
+        mps = MPS(libhandle, circ.qubits, ConfigMPS())
+        assert np.isclose(mps.vdot(mps), 1, atol=mps._cfg._atol)
 
     # Catch exception due to library handle out of scope
     with pytest.raises(RuntimeError):
@@ -37,9 +38,9 @@ def test_init() -> None:
     circ = Circuit(5)
 
     with CuTensorNetHandle() as libhandle:
-        mps_gate = MPSxGate(libhandle, qubits=circ.qubits)
+        mps_gate = MPSxGate(libhandle, circ.qubits, ConfigMPS())
         assert mps_gate.is_valid()
-        mps_mpo = MPSxMPO(libhandle, qubits=circ.qubits)
+        mps_mpo = MPSxMPO(libhandle, circ.qubits, ConfigMPS())
         assert mps_mpo.is_valid()
 
 
@@ -48,11 +49,11 @@ def test_canonicalise() -> None:
     circ = Circuit(5)
 
     with CuTensorNetHandle() as libhandle:
-        mps_gate = MPSxGate(libhandle, qubits=circ.qubits)
+        mps_gate = MPSxGate(libhandle, circ.qubits, ConfigMPS())
         # Fill up the tensors with random entries
 
         # Leftmost tensor
-        T_d = cp.empty(shape=(1, 4, 2), dtype=mps_gate._complex_t)
+        T_d = cp.empty(shape=(1, 4, 2), dtype=mps_gate._cfg._complex_t)
         for i1 in range(T_d.shape[1]):
             for i2 in range(T_d.shape[2]):
                 T_d[0][i1][i2] = cp.random.rand() + 1j * cp.random.rand()
@@ -60,7 +61,7 @@ def test_canonicalise() -> None:
 
         # Middle tensors
         for pos in range(1, len(mps_gate) - 1):
-            T_d = cp.empty(shape=(4, 4, 2), dtype=mps_gate._complex_t)
+            T_d = cp.empty(shape=(4, 4, 2), dtype=mps_gate._cfg._complex_t)
             for i0 in range(T_d.shape[0]):
                 for i1 in range(T_d.shape[1]):
                     for i2 in range(T_d.shape[2]):
@@ -68,7 +69,7 @@ def test_canonicalise() -> None:
             mps_gate.tensors[pos] = T_d
 
         # Rightmost tensor
-        T_d = cp.empty(shape=(4, 1, 2), dtype=mps_gate._complex_t)
+        T_d = cp.empty(shape=(4, 1, 2), dtype=mps_gate._cfg._complex_t)
         for i0 in range(T_d.shape[0]):
             for i2 in range(T_d.shape[2]):
                 T_d[i0][0][i2] = cp.random.rand() + 1j * cp.random.rand()
@@ -88,7 +89,7 @@ def test_canonicalise() -> None:
 
         # Check that canonicalisation did not change the vector
         overlap = mps_gate.vdot(mps_copy)
-        assert np.isclose(overlap, norm_sq, atol=mps_gate._atol)
+        assert np.isclose(overlap, norm_sq, atol=mps_gate._cfg._atol)
 
         # Check that the corresponding tensors are in orthogonal form
         for pos in range(len(mps_gate)):
@@ -142,23 +143,23 @@ def test_exact_circ_sim(circuit: Circuit, algorithm: ContractionAlg) -> None:
     state = prep_circ.get_statevector()
 
     with CuTensorNetHandle() as libhandle:
-        mps = simulate(libhandle, prep_circ, algorithm)
+        mps = simulate(libhandle, prep_circ, algorithm, ConfigMPS())
         assert mps.is_valid()
         # Check that there was no approximation
-        assert np.isclose(mps.fidelity, 1.0, atol=mps._atol)
+        assert np.isclose(mps.fidelity, 1.0, atol=mps._cfg._atol)
         # Check that overlap is 1
-        assert np.isclose(mps.vdot(mps), 1.0, atol=mps._atol)
+        assert np.isclose(mps.vdot(mps), 1.0, atol=mps._cfg._atol)
 
         # Check that all of the amplitudes are correct
         for b in range(2**n_qubits):
             assert np.isclose(
                 mps.get_amplitude(b),
                 state[b],
-                atol=mps._atol,
+                atol=mps._cfg._atol,
             )
 
         # Check that the statevector is correct
-        assert np.allclose(mps.get_statevector(), state, atol=mps._atol)
+        assert np.allclose(mps.get_statevector(), state, atol=mps._cfg._atol)
 
 
 @pytest.mark.parametrize(
@@ -194,10 +195,12 @@ def test_exact_circ_sim(circuit: Circuit, algorithm: ContractionAlg) -> None:
 def test_approx_circ_sim_gate_fid(circuit: Circuit, algorithm: ContractionAlg) -> None:
     prep_circ, _ = prepare_circuit(circuit)
     with CuTensorNetHandle() as libhandle:
-        mps = simulate(libhandle, prep_circ, algorithm, truncation_fidelity=0.99)
+        mps = simulate(
+            libhandle, prep_circ, algorithm, ConfigMPS(truncation_fidelity=0.99)
+        )
         assert mps.is_valid()
         # Check that overlap is 1
-        assert np.isclose(mps.vdot(mps), 1.0, atol=mps._atol)
+        assert np.isclose(mps.vdot(mps), 1.0, atol=mps._cfg._atol)
 
 
 @pytest.mark.parametrize(
@@ -233,10 +236,10 @@ def test_approx_circ_sim_gate_fid(circuit: Circuit, algorithm: ContractionAlg) -
 def test_approx_circ_sim_chi(circuit: Circuit, algorithm: ContractionAlg) -> None:
     prep_circ, _ = prepare_circuit(circuit)
     with CuTensorNetHandle() as libhandle:
-        mps = simulate(libhandle, prep_circ, algorithm, chi=4)
+        mps = simulate(libhandle, prep_circ, algorithm, ConfigMPS(chi=4))
         assert mps.is_valid()
         # Check that overlap is 1
-        assert np.isclose(mps.vdot(mps), 1.0, atol=mps._atol)
+        assert np.isclose(mps.vdot(mps), 1.0, atol=mps._cfg._atol)
 
 
 @pytest.mark.parametrize(
@@ -271,30 +274,34 @@ def test_float_point_options(
 
     with CuTensorNetHandle() as libhandle:
         # Exact
-        mps = simulate(libhandle, prep_circ, algorithm, float_precision=fp_precision)
+        mps = simulate(
+            libhandle, prep_circ, algorithm, ConfigMPS(float_precision=fp_precision)
+        )
         assert mps.is_valid()
         # Check that overlap is 1
-        assert np.isclose(mps.vdot(mps), 1.0, atol=mps._atol)
+        assert np.isclose(mps.vdot(mps), 1.0, atol=mps._cfg._atol)
 
         # Approximate, bound truncation fidelity
         mps = simulate(
             libhandle,
             prep_circ,
             algorithm,
-            truncation_fidelity=0.99,
-            float_precision=fp_precision,
+            ConfigMPS(truncation_fidelity=0.99, float_precision=fp_precision),
         )
         assert mps.is_valid()
         # Check that overlap is 1
-        assert np.isclose(mps.vdot(mps), 1.0, atol=mps._atol)
+        assert np.isclose(mps.vdot(mps), 1.0, atol=mps._cfg._atol)
 
         # Approximate, bound chi
         mps = simulate(
-            libhandle, prep_circ, algorithm, chi=4, float_precision=fp_precision
+            libhandle,
+            prep_circ,
+            algorithm,
+            ConfigMPS(chi=4, float_precision=fp_precision),
         )
         assert mps.is_valid()
         # Check that overlap is 1
-        assert np.isclose(mps.vdot(mps), 1.0, atol=mps._atol)
+        assert np.isclose(mps.vdot(mps), 1.0, atol=mps._cfg._atol)
 
 
 @pytest.mark.parametrize(
@@ -310,32 +317,40 @@ def test_circ_approx_explicit(circuit: Circuit) -> None:
         # Finite gate fidelity
         # Check for MPSxGate
         mps_gate = simulate(
-            libhandle, circuit, ContractionAlg.MPSxGate, truncation_fidelity=0.99
+            libhandle,
+            circuit,
+            ContractionAlg.MPSxGate,
+            ConfigMPS(truncation_fidelity=0.99),
         )
         assert np.isclose(mps_gate.fidelity, 0.4, atol=1e-1)
         assert mps_gate.is_valid()
-        assert np.isclose(mps_gate.vdot(mps_gate), 1.0, atol=mps_gate._atol)
+        assert np.isclose(mps_gate.vdot(mps_gate), 1.0, atol=mps_gate._cfg._atol)
 
         # Check for MPSxMPO
         mps_mpo = simulate(
-            libhandle, circuit, ContractionAlg.MPSxMPO, truncation_fidelity=0.99
+            libhandle,
+            circuit,
+            ContractionAlg.MPSxMPO,
+            ConfigMPS(truncation_fidelity=0.99),
         )
         assert np.isclose(mps_mpo.fidelity, 0.6, atol=1e-1)
         assert mps_mpo.is_valid()
-        assert np.isclose(mps_mpo.vdot(mps_mpo), 1.0, atol=mps_mpo._atol)
+        assert np.isclose(mps_mpo.vdot(mps_mpo), 1.0, atol=mps_mpo._cfg._atol)
 
         # Fixed virtual bond dimension
         # Check for MPSxGate
-        mps_gate = simulate(libhandle, circuit, ContractionAlg.MPSxGate, chi=8)
+        mps_gate = simulate(
+            libhandle, circuit, ContractionAlg.MPSxGate, ConfigMPS(chi=8)
+        )
         assert np.isclose(mps_gate.fidelity, 0.03, atol=1e-2)
         assert mps_gate.is_valid()
-        assert np.isclose(mps_gate.vdot(mps_gate), 1.0, atol=mps_gate._atol)
+        assert np.isclose(mps_gate.vdot(mps_gate), 1.0, atol=mps_gate._cfg._atol)
 
         # Check for MPSxMPO
-        mps_mpo = simulate(libhandle, circuit, ContractionAlg.MPSxMPO, chi=8)
-        assert np.isclose(mps_mpo.fidelity, 0.06, atol=1e-2)
+        mps_mpo = simulate(libhandle, circuit, ContractionAlg.MPSxMPO, ConfigMPS(chi=8))
+        assert np.isclose(mps_mpo.fidelity, 0.04, atol=1e-2)
         assert mps_mpo.is_valid()
-        assert np.isclose(mps_mpo.vdot(mps_mpo), 1.0, atol=mps_mpo._atol)
+        assert np.isclose(mps_mpo.vdot(mps_mpo), 1.0, atol=mps_mpo._cfg._atol)
 
 
 @pytest.mark.parametrize(
@@ -370,10 +385,10 @@ def test_postselect_2q_circ(circuit: Circuit, postselect_dict: dict) -> None:
         sv = sv / np.sqrt(sv_prob)  # Normalise
 
     with CuTensorNetHandle() as libhandle:
-        mps = simulate(libhandle, circuit, ContractionAlg.MPSxGate)
+        mps = simulate(libhandle, circuit, ContractionAlg.MPSxGate, ConfigMPS())
         prob = mps.postselect(postselect_dict)
-        assert np.isclose(prob, sv_prob, atol=mps._atol)
-        assert np.allclose(mps.get_statevector(), sv, atol=mps._atol)
+        assert np.isclose(prob, sv_prob, atol=mps._cfg._atol)
+        assert np.allclose(mps.get_statevector(), sv, atol=mps._cfg._atol)
 
 
 @pytest.mark.parametrize(
@@ -400,10 +415,10 @@ def test_postselect_circ(circuit: Circuit, postselect_dict: dict) -> None:
         sv = sv / np.sqrt(sv_prob)  # Normalise
 
     with CuTensorNetHandle() as libhandle:
-        mps = simulate(libhandle, circuit, ContractionAlg.MPSxGate)
+        mps = simulate(libhandle, circuit, ContractionAlg.MPSxGate, ConfigMPS())
         prob = mps.postselect(postselect_dict)
-        assert np.isclose(prob, sv_prob, atol=mps._atol)
-        assert np.allclose(mps.get_statevector(), sv, atol=mps._atol)
+        assert np.isclose(prob, sv_prob, atol=mps._cfg._atol)
+        assert np.allclose(mps.get_statevector(), sv, atol=mps._cfg._atol)
 
 
 @pytest.mark.parametrize(
@@ -445,9 +460,9 @@ def test_expectation_value(circuit: Circuit, observable: QubitPauliString) -> No
 
     # Simulate the circuit and obtain the expectation value
     with CuTensorNetHandle() as libhandle:
-        mps = simulate(libhandle, circuit, ContractionAlg.MPSxGate)
+        mps = simulate(libhandle, circuit, ContractionAlg.MPSxGate, ConfigMPS())
         assert np.isclose(
-            mps.expectation_value(observable), expectation_value, atol=mps._atol
+            mps.expectation_value(observable), expectation_value, atol=mps._cfg._atol
         )
 
 
@@ -475,7 +490,7 @@ def test_sample_circ_2q(circuit: Circuit) -> None:
     # Compute the samples
     sample_dict = {0: 0, 1: 0, 2: 0, 3: 0}
     with CuTensorNetHandle() as libhandle:
-        mps = simulate(libhandle, circuit, ContractionAlg.MPSxGate)
+        mps = simulate(libhandle, circuit, ContractionAlg.MPSxGate, ConfigMPS())
 
         # Take samples measuring both qubits at once
         for _ in range(n_samples):
@@ -502,7 +517,7 @@ def test_measure_circ(circuit: Circuit) -> None:
     qB = circuit.qubits[-3]  # Third list significant qubit
 
     with CuTensorNetHandle() as libhandle:
-        mps = simulate(libhandle, circuit, ContractionAlg.MPSxGate)
+        mps = simulate(libhandle, circuit, ContractionAlg.MPSxGate, ConfigMPS())
 
         # Compute the probabilities of each outcome
         p = {(0, 0): 0.0, (0, 1): 0.0, (1, 0): 0.0, (1, 1): 0.0}

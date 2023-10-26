@@ -1,11 +1,11 @@
-# Copyright 2019 Cambridge Quantum Computing
+# Copyright 2019-2023 Quantinuum
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-#
+##
 #     http://www.apache.org/licenses/LICENSE-2.0
-#
+##
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -32,6 +32,7 @@ from pytket.circuit import Op, Qubit
 from .mps import (
     CuTensorNetHandle,
     DirectionMPS,
+    ConfigMPS,
     Tensor,
     MPS,
 )
@@ -48,11 +49,7 @@ class MPSxMPO(MPS):
         self,
         libhandle: CuTensorNetHandle,
         qubits: list[Qubit],
-        chi: Optional[int] = None,
-        truncation_fidelity: Optional[float] = None,
-        k: Optional[int] = None,
-        optim_delta: Optional[float] = None,
-        float_precision: Optional[Union[np.float32, np.float64]] = None,
+        config: ConfigMPS,
     ):
         """Initialise an MPS on the computational state ``|0>``.
 
@@ -61,35 +58,13 @@ class MPSxMPO(MPS):
             statement. The device where the MPS is stored will match the one specified
             by the library handle.
 
-            Providing both a custom ``chi`` and ``truncation_fidelity`` will raise an
-            exception. Choose one or the other (or neither, for exact simulation).
-
         Args:
             libhandle: The cuTensorNet library handle that will be used to carry out
                 tensor operations on the MPS.
             qubits: The list of qubits in the circuit to be simulated.
-            chi: The maximum value allowed for the dimension of the virtual
-                bonds. Higher implies better approximation but more
-                computational resources. If not provided, ``chi`` will be set
-                to ``2**(len(qubits) // 2)``, which is enough for exact contraction.
-            truncation_fidelity: Every time a two-qubit gate is applied, the virtual
-                bond will be truncated to the minimum dimension that satisfies
-                ``|<psi|phi>|^2 >= trucantion_fidelity``, where ``|psi>`` and ``|phi>``
-                are the states before and after truncation (both normalised).
-                If not provided, it will default to its maximum value 1.
-            k: The maximum number of layers the MPO is allowed to have before
-                being contracted. Increasing this might increase fidelity, but
-                it will also increase resource requirements exponentially.
-                Default value is 4.
-            optim_delta: Stopping criteria for the optimisation when contracting the
-                ``k`` layers of MPO. Stops when the increase of fidelity between
-                iterations is smaller than ``optim_delta``. Default value is ``1e-5``.
-            float_precision: The floating point precision used in tensor calculations;
-                choose from ``numpy`` types: ``np.float64`` or ``np.float32``.
-                Complex numbers are represented using two of such
-                ``float`` numbers. Default is ``np.float64``.
+            config: The object describing the configuration for simulation.
         """
-        super().__init__(libhandle, qubits, chi, truncation_fidelity, float_precision)
+        super().__init__(libhandle, qubits, config)
 
         # Initialise the MPO data structure. This will keep a list of the gates
         # batched for application to the MPS; all of them will be applied at
@@ -108,18 +83,7 @@ class MPSxMPO(MPS):
 
         # Initialise the MPS that we will use as first approximation of the
         # variational algorithm.
-        self._aux_mps = MPSxGate(
-            libhandle, qubits, chi, truncation_fidelity, float_precision
-        )
-
-        if k is None:
-            self.k = 4
-        else:
-            self.k = k
-        if optim_delta is None:
-            self.optim_delta = 1e-5
-        else:
-            self.optim_delta = optim_delta
+        self._aux_mps = MPSxGate(libhandle, qubits, config)
 
         self._mpo_bond_counter = 0
 
@@ -155,8 +119,8 @@ class MPSxMPO(MPS):
         self._aux_mps._apply_1q_gate(position, gate)
 
         # Load the gate's unitary to the GPU memory
-        gate_unitary = gate.get_unitary().astype(dtype=self._complex_t, copy=False)
-        gate_tensor = cp.asarray(gate_unitary, dtype=self._complex_t)
+        gate_unitary = gate.get_unitary().astype(dtype=self._cfg._complex_t, copy=False)
+        gate_tensor = cp.asarray(gate_unitary, dtype=self._cfg._complex_t)
 
         # Glossary of bond IDs
         # i -> input to the MPO tensor
@@ -180,6 +144,8 @@ class MPSxMPO(MPS):
             "go," + last_bonds + "->" + new_bonds,
             gate_tensor,
             last_tensor,
+            options={"handle": self._lib.handle, "device_id": self._lib.device_id},
+            optimize={"path": [(0, 1)]},
         )
 
         # Update the tensor
@@ -209,15 +175,15 @@ class MPSxMPO(MPS):
         r_pos = max(positions)
 
         # Check whether the MPO is large enough to flush it
-        if any(len(self._mpo[pos]) >= self.k for pos in [l_pos, r_pos]):
+        if any(len(self._mpo[pos]) >= self._cfg.k for pos in [l_pos, r_pos]):
             self._flush()
 
         # Apply the gate to the MPS with eager approximation
         self._aux_mps._apply_2q_gate(positions, gate)
 
         # Load the gate's unitary to the GPU memory
-        gate_unitary = gate.get_unitary().astype(dtype=self._complex_t, copy=False)
-        gate_tensor = cp.asarray(gate_unitary, dtype=self._complex_t)
+        gate_unitary = gate.get_unitary().astype(dtype=self._cfg._complex_t, copy=False)
+        gate_tensor = cp.asarray(gate_unitary, dtype=self._cfg._complex_t)
 
         # Reshape into a rank-4 tensor
         gate_tensor = cp.reshape(gate_tensor, (2, 2, 2, 2))
@@ -344,6 +310,8 @@ class MPSxMPO(MPS):
         The method applies variational optimisation of the MPS until it
         converges. Based on https://arxiv.org/abs/2207.05612.
         """
+        self._logger.info("Applying variational optimisation.")
+        self._logger.info(f"Fidelity before optimisation={self._aux_mps.fidelity}")
 
         l_cached_tensors: list[Tensor] = []
         r_cached_tensors: list[Tensor] = []
@@ -355,6 +323,7 @@ class MPSxMPO(MPS):
             Update the cache accordingly. Applies canonicalisation on the vMPS
             tensor before contracting.
             """
+            self._logger.debug("Updating the sweep cache...")
 
             # Canonicalise the tensor at ``pos``
             if direction == DirectionMPS.LEFT:
@@ -418,11 +387,17 @@ class MPSxMPO(MPS):
                 interleaved_rep.append(["r", "R"] + result_bonds)
 
             # Contract and store
-            T = cq.contract(*interleaved_rep)
+            T = cq.contract(
+                *interleaved_rep,
+                options={"handle": self._lib.handle, "device_id": self._lib.device_id},
+                optimize={"samples": 1},
+            )
             if direction == DirectionMPS.LEFT:
                 r_cached_tensors.append(T)
             elif direction == DirectionMPS.RIGHT:
                 l_cached_tensors.append(T)
+
+            self._logger.debug("Completed update of the sweep cache.")
 
         def update_variational_tensor(
             pos: int, left_tensor: Optional[Tensor], right_tensor: Optional[Tensor]
@@ -433,6 +408,8 @@ class MPSxMPO(MPS):
             Contract these with the MPS-MPO column at ``pos``.
             Return the current fidelity of this sweep.
             """
+            self._logger.debug(f"Optimising tensor at position={pos}")
+
             interleaved_rep = [
                 # The tensor of the MPS
                 self.tensors[pos],
@@ -472,11 +449,26 @@ class MPSxMPO(MPS):
             interleaved_rep.append(result_bonds)
 
             # Contract and store tensor
-            F = cq.contract(*interleaved_rep)
+            F = cq.contract(
+                *interleaved_rep,
+                options={"handle": self._lib.handle, "device_id": self._lib.device_id},
+                optimize={"samples": 1},
+            )
 
             # Get the fidelity
-            optim_fidelity = complex(cq.contract("LRP,LRP->", F.conj(), F))
-            assert np.isclose(optim_fidelity.imag, 0.0, atol=self._atol)
+            optim_fidelity = complex(
+                cq.contract(
+                    "LRP,LRP->",
+                    F.conj(),
+                    F,
+                    options={
+                        "handle": self._lib.handle,
+                        "device_id": self._lib.device_id,
+                    },
+                    optimize={"path": [(0, 1)]},
+                )
+            )
+            assert np.isclose(optim_fidelity.imag, 0.0, atol=self._cfg._atol)
             optim_fidelity = float(optim_fidelity.real)
 
             # Normalise F and update the variational MPS
@@ -498,7 +490,8 @@ class MPSxMPO(MPS):
 
         # Repeat sweeps until the fidelity converges
         sweep_direction = DirectionMPS.RIGHT
-        while not np.isclose(prev_fidelity, sweep_fidelity, atol=self.optim_delta):
+        while not np.isclose(prev_fidelity, sweep_fidelity, atol=self._cfg.optim_delta):
+            self._logger.info(f"Doing another optimisation sweep...")
             prev_fidelity = sweep_fidelity
 
             if sweep_direction == DirectionMPS.RIGHT:
@@ -539,6 +532,11 @@ class MPSxMPO(MPS):
 
                 sweep_direction = DirectionMPS.RIGHT
 
+            self._logger.info(
+                "Optimisation sweep completed. "
+                f"Current fidelity={self.fidelity*sweep_fidelity}"
+            )
+
         # Clear out the MPO
         self._mpo = [list() for _ in range(len(self))]
         self._bond_ids = [list() for _ in range(len(self))]
@@ -550,6 +548,8 @@ class MPSxMPO(MPS):
         # Update the fidelity estimate
         self.fidelity *= sweep_fidelity
         self._aux_mps.fidelity = self.fidelity
+
+        self._logger.info(f"Final fidelity after optimisation={self.fidelity}")
 
     def _new_bond_id(self) -> int:
         self._mpo_bond_counter += 1
