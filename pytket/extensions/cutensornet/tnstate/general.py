@@ -83,7 +83,7 @@ class Config:
         optim_delta: float = 1e-5,
         float_precision: Union[np.float32, np.float64] = np.float64,  # type: ignore
         value_of_zero: float = 1e-16,
-        leaf_size: int = 10,
+        leaf_size: int = 8,
         loglevel: int = logging.WARNING,
     ):
         """Instantiate a configuration object for ``TNState`` simulation.
@@ -120,7 +120,7 @@ class Config:
                 ``float_precision`` can reasonably achieve. For instance, ``1e-16`` for
                 ``np.float64`` precision (default) and ``1e-7`` for ``np.float32``.
             leaf_size: Maximum number of qubits in a leaf node when using ``TTN``.
-                Default is 10.
+                Default is 8.
             loglevel: Internal logger output level. Use 30 for warnings only, 20 for
                 verbose and 10 for debug mode.
 
