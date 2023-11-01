@@ -481,7 +481,7 @@ def test_circ_approx_explicit_ttn(circuit: Circuit) -> None:
     with CuTensorNetHandle() as libhandle:
         # Fixed virtual bond dimension
         # Check for TTNxGate
-        cfg = Config(chi=120)
+        cfg = Config(chi=120, leaf_size=3)
         ttn_gate = simulate(libhandle, circuit, ContractionAlg.TTNxGate, cfg)
         for g in circuit.get_commands():
             ttn_gate.apply_gate(g)
