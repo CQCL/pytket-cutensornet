@@ -19,8 +19,8 @@ from typing import Any, Optional, Union
 
 import numpy as np  # type: ignore
 
-from pytket.circuit import Command, Op, OpType, Qubit
-from pytket.pauli import Pauli, QubitPauliString
+from pytket.circuit import Command, Qubit
+from pytket.pauli import QubitPauliString
 
 try:
     import cupy as cp  # type: ignore
@@ -310,8 +310,8 @@ class TNState(ABC):
         Raises:
             ValueError: If a key in ``qubit_outcomes`` is not a qubit in the state.
             ValueError: If a value in ``qubit_outcomes`` is other than ``0`` or ``1``.
-            ValueError: If all of the qubits in the state are being postselected. Instead,
-                you may wish to use ``get_amplitude()``.
+            ValueError: If all of the qubits in the state are being postselected.
+                Instead, you may wish to use ``get_amplitude()``.
         """
         raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
 

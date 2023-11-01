@@ -16,7 +16,6 @@ import warnings
 from typing import Optional, Union
 from enum import IntEnum
 
-from random import random  # type: ignore
 import math  # type: ignore
 import numpy as np  # type: ignore
 
@@ -26,12 +25,11 @@ except ImportError:
     warnings.warn("local settings failed to import cupy", ImportWarning)
 try:
     import cuquantum as cq  # type: ignore
-    from cuquantum.cutensornet import tensor  # type: ignore
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
-from pytket.circuit import Command, Op, OpType, Qubit
-from pytket.pauli import Pauli, QubitPauliString
+from pytket.circuit import Command, Op, Qubit
+from pytket.pauli import QubitPauliString
 
 from pytket.extensions.cutensornet.general import set_logger
 
@@ -619,8 +617,8 @@ class TTN(TNState):
         Raises:
             ValueError: If a key in ``qubit_outcomes`` is not a qubit in the state.
             ValueError: If a value in ``qubit_outcomes`` is other than ``0`` or ``1``.
-            ValueError: If all of the qubits in the state are being postselected. Instead,
-                you may wish to use ``get_amplitude()``.
+            ValueError: If all of the qubits in the state are being postselected.
+                Instead, you may wish to use ``get_amplitude()``.
         """
         raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
 

@@ -13,7 +13,6 @@
 # limitations under the License.
 from enum import Enum
 
-import math  # type: ignore
 from random import choice  # type: ignore
 from collections import defaultdict  # type: ignore
 import numpy as np  # type: ignore

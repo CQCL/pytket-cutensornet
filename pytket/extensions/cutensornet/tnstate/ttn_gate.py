@@ -13,9 +13,6 @@
 # limitations under the License.
 from __future__ import annotations  # type: ignore
 import warnings
-import logging
-
-import numpy as np  # type: ignore
 
 try:
     import cupy as cp  # type: ignore
