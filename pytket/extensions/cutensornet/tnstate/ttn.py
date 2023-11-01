@@ -397,7 +397,7 @@ class TTN(TNState):
                 R,
                 parent_node.tensor,
                 options=options,
-                optimize={"samples": 1},
+                optimize={"path": [(0, 1)]},
             )
             # The canonical form of the parent node is lost
             parent_node.canonical_form = None
@@ -447,7 +447,7 @@ class TTN(TNState):
                     child_node.tensor,
                     R,
                     options=options,
-                    optimize={"samples": 1},
+                    optimize={"path": [(0, 1)]},
                 )
 
                 # The canonical form of the child node is lost
@@ -479,7 +479,7 @@ class TTN(TNState):
                 leaf_node.tensor,
                 R,
                 options=options,
-                optimize={"samples": 1},
+                optimize={"path": [(0, 1)]},
             )
 
             # The canonical form of the leaf node is lost
@@ -561,7 +561,7 @@ class TTN(TNState):
         result = cq.contract(
             *interleaved_rep,
             options={"handle": self._lib.handle, "device_id": self._lib.device_id},
-            optimize={"samples": 1},
+            optimize={"samples": 1},  # There is little to no optimisation to be done
         )
 
         self._logger.debug(f"Result from vdot={result}")

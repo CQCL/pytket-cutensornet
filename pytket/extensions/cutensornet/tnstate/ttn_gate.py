@@ -78,6 +78,8 @@ class TTNxGate(TTN):
             gate_tensor,
             ["o", "i"],
             result_bonds,
+            options={"handle": self._lib.handle, "device_id": self._lib.device_id},
+            optimize={"path": [(0, 1)]},
         )
 
         # Update ``self.nodes``
@@ -100,6 +102,7 @@ class TTNxGate(TTN):
         Returns:
             ``self``, to allow for method chaining.
         """
+        options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
 
         # Load the gate's unitary to the GPU memory
         gate_unitary = gate.get_unitary().astype(dtype=self._cfg._complex_t, copy=False)
@@ -140,6 +143,8 @@ class TTNxGate(TTN):
                 gate_tensor,
                 gate_bond,
                 result_bonds,
+                options=options,
+                optimize={"path": [(0, 1)]},
             )
 
             self._logger.debug(
@@ -185,6 +190,8 @@ class TTNxGate(TTN):
             left_funnel,
             right_funnel,
             gate_tensor,
+            options=options,
+            optimize={"path": [(0, 1), (1, 2), (0, 1)]},
         )
         self.nodes[common_path].canonical_form = None
         self._logger.debug(
@@ -214,6 +221,8 @@ class TTNxGate(TTN):
                 child_funnel,
                 parent_funnel,
                 self.nodes[path].tensor,
+                options=options,
+                optimize={"path": [(1, 2), (0, 1)]},
             )
             self.nodes[path].canonical_form = None
             self._logger.debug(
@@ -242,6 +251,8 @@ class TTNxGate(TTN):
                 self._create_funnel_tensor(path, DirTTN.PARENT),
                 ["f", "p", "a", "b"],
                 result_bonds,
+                options=options,
+                optimize={"path": [(0, 1)]},
             )
             leaf_node.canonical_form = None
             self._logger.debug(
@@ -311,6 +322,8 @@ class TTNxGate(TTN):
                 indices,
                 self.nodes[path[:-1]].tensor,
                 V,
+                options=options,
+                optimize={"path": [(0, 1)]},
             )
 
             # Contract U to the child node of the bond
@@ -330,6 +343,8 @@ class TTNxGate(TTN):
                 U,
                 ["p", "s"],
                 result_bonds,
+                options=options,
+                optimize={"path": [(0, 1)]},
             )
             # With these two contractions, bond_tensor has been reintroduced, as
             # required when calling ``canonicalise(.., unsafe=True)``
