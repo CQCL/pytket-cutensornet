@@ -37,7 +37,7 @@ from pytket.extensions.cutensornet.general import set_logger
 from .general import CuTensorNetHandle, Config, TNState, Tensor
 
 
-class DirectionMPS(Enum):
+class DirMPS(Enum):
     """An enum to refer to relative directions within the MPS."""
 
     LEFT = 0
@@ -53,7 +53,7 @@ class MPS(TNState):
             and ``tensors[i+1]`` are connected in the MPS via a bond. All of the
             tensors are rank three, with the dimensions listed in ``.shape`` matching
             the left, right and physical bonds, in that order.
-        canonical_form (dict[int, Optional[DirectionMPS]]): A dictionary mapping
+        canonical_form (dict[int, Optional[DirMPS]]): A dictionary mapping
             positions to the canonical form direction of the corresponding tensor,
             or ``None`` if it the tensor is not canonicalised.
         qubit_position (dict[pytket.circuit.Qubit, int]): A dictionary mapping circuit
@@ -233,13 +233,13 @@ class MPS(TNState):
         self._logger.debug(f"Start canonicalisation... l_pos={l_pos}, r_pos={r_pos}")
 
         for pos in range(l_pos):
-            self.canonicalise_tensor(pos, form=DirectionMPS.LEFT)
+            self.canonicalise_tensor(pos, form=DirMPS.LEFT)
         for pos in reversed(range(r_pos + 1, len(self))):
-            self.canonicalise_tensor(pos, form=DirectionMPS.RIGHT)
+            self.canonicalise_tensor(pos, form=DirMPS.RIGHT)
 
         self._logger.debug(f"Finished canonicalisation.")
 
-    def canonicalise_tensor(self, pos: int, form: DirectionMPS) -> None:
+    def canonicalise_tensor(self, pos: int, form: DirMPS) -> None:
         """Canonicalises a tensor from an MPS object.
 
         Applies the necessary gauge transformations so that the tensor at
@@ -252,7 +252,7 @@ class MPS(TNState):
                 connected to its left bond and physical bond. Similarly for RIGHT.
 
         Raises:
-            ValueError: If ``form`` is not a value in ``DirectionMPS``.
+            ValueError: If ``form`` is not a value in ``DirMPS``.
             RuntimeError: If the ``CuTensorNetHandle`` is out of scope.
         """
         if form == self.canonical_form[pos]:
@@ -278,7 +278,7 @@ class MPS(TNState):
         T = self.tensors[pos]
 
         # Assign the bond IDs
-        if form == DirectionMPS.LEFT:
+        if form == DirMPS.LEFT:
             next_pos = pos + 1
             Tnext = self.tensors[next_pos]
             T_bonds = "vsp"
@@ -286,7 +286,7 @@ class MPS(TNState):
             R_bonds = "as"
             Tnext_bonds = "sVP"
             result_bonds = "aVP"
-        elif form == DirectionMPS.RIGHT:
+        elif form == DirMPS.RIGHT:
             next_pos = pos - 1
             Tnext = self.tensors[next_pos]
             T_bonds = "svp"
@@ -295,7 +295,7 @@ class MPS(TNState):
             Tnext_bonds = "VsP"
             result_bonds = "VaP"
         else:
-            raise ValueError("Argument form must be a value in DirectionMPS.")
+            raise ValueError("Argument form must be a value in DirMPS.")
 
         # Apply QR decomposition
         self._logger.debug(f"QR decompose a {T.nbytes / 2**20} MiB tensor.")

@@ -39,9 +39,9 @@ class ContractionAlg(Enum):
     information about the algorithm.
     """
 
-    MPSxGate = 0
-    MPSxMPO = 1
-    TTNxGate = 2
+    TTNxGate = 0
+    MPSxGate = 1
+    MPSxMPO = 2
 
 
 def simulate(
@@ -54,8 +54,8 @@ def simulate(
 
     Note:
         A ``libhandle`` should be created via a ``with CuTensorNet() as libhandle:``
-        statement. The device where the MPS is stored will match the one specified
-        by the library handle.
+        statement. The device where the ``TNState`` is stored will match the one
+        specified by the library handle.
 
         The input ``circuit`` must be composed of one-qubit and two-qubit gates only.
         Any gateset supported by ``pytket`` can be used.
@@ -119,7 +119,7 @@ def simulate(
 
 
 def prepare_circuit_mps(circuit: Circuit) -> tuple[Circuit, dict[Qubit, Qubit]]:
-    """Prepares a circuit in a specific, ``MPS``-friendly, manner.
+    """Transpiles the circuit for it to be ``MPS``-friendly.
 
     Returns an equivalent circuit with the appropriate structure to be simulated by
     an ``MPS`` algorithm.

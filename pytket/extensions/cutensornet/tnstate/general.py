@@ -190,10 +190,7 @@ class Config:
 
 
 class TNState(ABC):
-    """Abstract class to refer to a Tensor Network state.
-
-    This class does not implement any of the methods it offers. You will need
-    to use an instance of a child class to call them.
+    """Class representing a Tensor Network state.
     """
 
     @abstractmethod
