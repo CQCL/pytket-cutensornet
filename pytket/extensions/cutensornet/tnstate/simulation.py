@@ -18,6 +18,8 @@ from random import choice  # type: ignore
 from collections import defaultdict  # type: ignore
 import numpy as np  # type: ignore
 
+from networkx import Graph, community  # type: ignore
+
 from pytket.circuit import Circuit, Command, Qubit
 from pytket.transform import Transform
 from pytket.architecture import Architecture
@@ -94,7 +96,7 @@ def simulate(
     elif algorithm == ContractionAlg.TTNxGate:
         tnstate = TTNxGate(  # type: ignore
             libhandle,
-            _get_qubit_partition(circuit),
+            _get_qubit_partition(circuit, config.leaf_size),
             config,
         )
         sorted_gates = circuit.get_commands()  # TODO: change!
@@ -153,19 +155,71 @@ def prepare_circuit_mps(circuit: Circuit) -> tuple[Circuit, dict[Qubit, Qubit]]:
     return (prep_circ, qubit_map)
 
 
-def _get_qubit_partition(circuit: Circuit) -> dict[int, list[Qubit]]:
+def _get_qubit_partition(
+    circuit: Circuit, max_q_per_leaf: int
+) -> dict[int, list[Qubit]]:
     """Returns a qubit partition for a TTN.
 
     Proceeds by recursive bisection of the qubit connectivity graph, so that
     qubits that interact with each other less are connected by a common ancestor
     closer to the root.
+
+    Args:
+        circuit: The circuit to be simulated.
+        max_q_per_leaf: The maximum allowed number of qubits per node leaf
+
+    Returns:
+        A dictionary describing the partition in the format expected by TTN.
+
+    Raises:
+        RuntimeError: If gate acts on more than 2 qubits.
     """
-    # TODO: This current one is a naive approach, not using bisections. REPLACE!
-    n_qubits = len(circuit.qubits)
-    n_groups = 2 ** math.floor(math.log2(n_qubits))
-    qubit_partition: dict[int, list[Qubit]] = {i: [] for i in range(n_groups)}
-    for i, q in enumerate(circuit.qubits):
-        qubit_partition[i % n_groups].append(q)
+
+    # Scan the circuit and generate the edges of the connectivity graph
+    edge_weights: dict[tuple[Qubit, Qubit], int] = dict()
+    for cmd in circuit.get_commands():
+        if cmd.op.is_gate():
+            if cmd.op.n_qubits == 2:
+                edge = (min(cmd.qubits), max(cmd.qubits))
+
+                if edge in edge_weights:
+                    edge_weights[edge] += 1
+                else:
+                    edge_weights[edge] = 1
+
+            elif cmd.op.n_qubits > 2:
+                raise RuntimeError(
+                    "Gates must act on only 1 or 2 qubits! "
+                    + f"This is not satisfied by {cmd}."
+                )
+
+    # Create the connectivity graph in NetworkX
+    connectivity_graph = Graph()
+    connectivity_graph.add_nodes_from(circuit.qubits)
+    for (u, v), weight in edge_weights.items():
+        connectivity_graph.add_edge(u, v, weight=weight)
+
+    # Apply balanced bisections until each qubit group is small enough
+    partition = {0: set(circuit.qubits)}
+    stop_bisec = False  # Do at least one bisection (TTN reqs >1 leaf nodes)
+
+    while not stop_bisec:
+        old_partition = partition.copy()
+        for key, group in old_partition.items():
+            # Apply the balanced bisection on this group
+            (groupA, groupB) = community.kernighan_lin_bisection(
+                connectivity_graph.subgraph(group),
+                max_iter=2 * len(group),  # Iteractions scaling with number of nodes
+                weight="weight",
+            )
+            # Groups A and B are on the same subtree (key separated by +1)
+            partition[2 * key] = groupA
+            partition[2 * key + 1] = groupB
+
+        # Stop if all groups have less than ``max_q_per_leaf`` qubits in them
+        stop_bisec = all(len(group) <= max_q_per_leaf for group in partition.values())
+
+    qubit_partition = {key: list(leaf_qubits) for key, leaf_qubits in partition.items()}
     return qubit_partition
 
 

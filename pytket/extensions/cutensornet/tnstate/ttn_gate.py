@@ -314,7 +314,6 @@ class TTNxGate(TTN):
             )
 
             # Contract U to the child node of the bond
-
             if self.nodes[path].is_leaf:
                 n_qbonds = (
                     len(self.nodes[path].tensor.shape) - 1

@@ -485,7 +485,7 @@ def test_circ_approx_explicit_ttn(circuit: Circuit) -> None:
         ttn_gate = simulate(libhandle, circuit, ContractionAlg.TTNxGate, cfg)
         for g in circuit.get_commands():
             ttn_gate.apply_gate(g)
-        assert np.isclose(ttn_gate.get_fidelity(), 0.51, atol=1e-2)
+        assert np.isclose(ttn_gate.get_fidelity(), 0.62, atol=1e-2)
         assert ttn_gate.is_valid()
         assert np.isclose(ttn_gate.vdot(ttn_gate), 1.0, atol=cfg._atol)
 
