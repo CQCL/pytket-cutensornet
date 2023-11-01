@@ -79,11 +79,11 @@ class Config:
         self,
         chi: Optional[int] = None,
         truncation_fidelity: Optional[float] = None,
-        k: int = 4,
-        optim_delta: float = 1e-5,
         float_precision: Union[np.float32, np.float64] = np.float64,  # type: ignore
         value_of_zero: float = 1e-16,
         leaf_size: int = 8,
+        k: int = 4,
+        optim_delta: float = 1e-5,
         loglevel: int = logging.WARNING,
     ):
         """Instantiate a configuration object for ``TNState`` simulation.
@@ -101,14 +101,6 @@ class Config:
                 ``|<psi|phi>|^2 >= trucantion_fidelity``, where ``|psi>`` and ``|phi>``
                 are the states before and after truncation (both normalised).
                 If not provided, it will default to its maximum value 1.
-            k: If using MPSxMPO, the maximum number of layers the MPO is allowed to
-                have before being contracted. Increasing this might increase fidelity,
-                but it will also increase resource requirements exponentially.
-                Ignored if not using MPSxMPO. Default value is 4.
-            optim_delta: If using MPSxMPO, stopping criteria for the optimisation when
-                contracting the ``k`` layers of MPO. Stops when the increase of fidelity
-                between iterations is smaller than ``optim_delta``.
-                Ignored if not using MPSxMPO. Default value is ``1e-5``.
             float_precision: The floating point precision used in tensor calculations;
                 choose from ``numpy`` types: ``np.float64`` or ``np.float32``.
                 Complex numbers are represented using two of such
@@ -119,8 +111,16 @@ class Config:
                 We suggest to use a value slightly below what your chosen
                 ``float_precision`` can reasonably achieve. For instance, ``1e-16`` for
                 ``np.float64`` precision (default) and ``1e-7`` for ``np.float32``.
-            leaf_size: Maximum number of qubits in a leaf node when using ``TTN``.
-                Default is 8.
+            leaf_size: For ``TTN`` simulation only. Sets the maximum number of
+                qubits in a leaf node when using ``TTN``. Default is 8.
+            k: For ``MPSxMPO`` simulation only. Sets the maximum number of layers
+                the MPO is allowed to have before being contracted. Increasing this
+                might increase fidelity, but it will also increase resource requirements
+                exponentially. Default value is 4.
+            optim_delta: For ``MPSxMPO`` simulation only. Sets the stopping criteria for
+                the optimisation when contracting the ``k`` layers of MPO. Stops when
+                the increase of fidelity between iterations is smaller than this value.
+                Default value is ``1e-5``.
             loglevel: Internal logger output level. Use 30 for warnings only, 20 for
                 verbose and 10 for debug mode.
 
@@ -170,22 +170,22 @@ class Config:
                 UserWarning,
             )
 
+        self.leaf_size = leaf_size
         self.k = k
         self.optim_delta = 1e-5
         self.loglevel = loglevel
-        self.leaf_size = leaf_size
 
     def copy(self) -> Config:
         """Standard copy of the contents."""
         return Config(
             chi=self.chi,
             truncation_fidelity=self.truncation_fidelity,
-            k=self.k,
-            optim_delta=self.optim_delta,
             float_precision=self._real_t,  # type: ignore
             value_of_zero=self.zero,
-            loglevel=self.loglevel,
             leaf_size=self.leaf_size,
+            k=self.k,
+            optim_delta=self.optim_delta,
+            loglevel=self.loglevel,
         )
 
 
