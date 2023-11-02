@@ -103,14 +103,15 @@ class TTN(TNState):
             by the library handle.
 
             The current implementation requires the keys of ``qubit_partition`` to be
-            integers from ``0`` to ``2^l - 1`` for some ``l``. The cost of applying
-            gates between qubits on ``qubit_partition[i]`` and ``qubit_partition[j]``
-            scales exponentially on ``|i-j|``.
+            integers from ``0`` to ``2^l - 1`` for some ``l``.
 
         Args:
             libhandle: The cuTensorNet library handle that will be used to carry out
                 tensor operations on the TTN.
-            qubits: A partition of the qubits in the circuit into disjoint groups.
+            qubit_partition: A partition of the qubits in the circuit into disjoint
+                groups, describing the hierarchical structure of the TTN. As a rule of
+                thumb, the cost of a gate between qubits on ``qubit_partition[i]`` and
+                ``qubit_partition[j]`` scales exponentially on ``i XOR j``.
             config: The object describing the configuration for simulation.
 
         Raises:

@@ -190,8 +190,7 @@ class Config:
 
 
 class TNState(ABC):
-    """Class representing a Tensor Network state.
-    """
+    """Class representing a Tensor Network state."""
 
     @abstractmethod
     def is_valid(self) -> bool:

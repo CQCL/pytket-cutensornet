@@ -11,6 +11,7 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from typing import Optional
 from enum import Enum
 
 from random import choice  # type: ignore
@@ -82,7 +83,7 @@ def simulate(
             circuit.qubits,
             config,
         )
-        sorted_gates = _get_sorted_gates(circuit)
+        sorted_gates = _get_sorted_gates(circuit, algorithm)
 
     elif algorithm == ContractionAlg.MPSxMPO:
         tnstate = MPSxMPO(  # type: ignore
@@ -90,15 +91,16 @@ def simulate(
             circuit.qubits,
             config,
         )
-        sorted_gates = _get_sorted_gates(circuit)
+        sorted_gates = _get_sorted_gates(circuit, algorithm)
 
     elif algorithm == ContractionAlg.TTNxGate:
+        qubit_partition = _get_qubit_partition(circuit, config.leaf_size)
         tnstate = TTNxGate(  # type: ignore
             libhandle,
-            _get_qubit_partition(circuit, config.leaf_size),
+            qubit_partition,
             config,
         )
-        sorted_gates = circuit.get_commands()  # TODO: change!
+        sorted_gates = _get_sorted_gates(circuit, algorithm, qubit_partition)
 
     logger.info("Running simulation...")
     # Apply the gates
@@ -222,92 +224,111 @@ def _get_qubit_partition(
     return qubit_partition
 
 
-def _get_sorted_gates(circuit: Circuit) -> list[Command]:
-    """Sorts the list of gates, placing 2-qubit gates close to each other first.
+def _get_sorted_gates(
+    circuit: Circuit,
+    algorithm: ContractionAlg,
+    qubit_partition: Optional[dict[int, list[Qubit]]] = None,
+) -> list[Command]:
+    """Sorts the list of gates so that there's less canonicalisation during simulation.
 
     Returns an equivalent list of commands fixing the order of parallel gates so that
-    2-qubit gates that are close to each other first. This reduces the overhead of
-    canonicalisation of the MPS, since we try to apply as many gates as we can on one
-    end of the MPS before we go to the other end.
+    2-qubit gates that are close together are applied one after the other. This reduces
+    the overhead of canonicalisation during simulation.
 
     Args:
         circuit: The original circuit.
+        algorithm: The simulation algorithm that will be used on this circuit.
+        qubit_partition: For TTN simulation algorithms only. A partition of the
+            qubits in the circuit into disjoint groups, describing the hierarchical
+            structure of the TTN.
 
     Returns:
-        The same gates, ordered in a beneficial way.
+        The same gates, ordered in a beneficial way for the given algorithm.
     """
-
     all_gates = circuit.get_commands()
     sorted_gates = []
-    # Keep track of the qubit at the center of the canonical form; start arbitrarily
-    current_qubit = circuit.qubits[0]
     # Entries from `all_gates` that are not yet in `sorted_gates`
     remaining = set(range(len(all_gates)))
+
+    # Do some precomputation depending on the algorithm
+    if algorithm in [ContractionAlg.TTNxGate]:
+        if qubit_partition is None:
+            raise RuntimeError("You must provide a qubit partition!")
+
+        leaf_of_qubit: dict[Qubit, int] = dict()
+        for leaf, qubits in qubit_partition.items():
+            for q in qubits:
+                leaf_of_qubit[q] = leaf
+
+    elif algorithm in [ContractionAlg.MPSxGate, ContractionAlg.MPSxMPO]:
+        idx_of_qubit = {q: i for i, q in enumerate(circuit.qubits)}
+
+    else:
+        raise RuntimeError(f"Sorting gates for {algorithm} not supported.")
 
     # Create the list of indices of gates acting on each qubit
     gate_indices: dict[Qubit, list[int]] = defaultdict(list)
     for i, g in enumerate(all_gates):
         for q in g.qubits:
             gate_indices[q].append(i)
-    # Apply all 1-qubit gates at the beginning of the circuit
+    # Schedule all 1-qubit gates at the beginning of the circuit
     for q, indices in gate_indices.items():
         while indices and len(all_gates[indices[0]].qubits) == 1:
             i = indices.pop(0)
             sorted_gates.append(all_gates[i])
             remaining.remove(i)
+
     # Decide which 2-qubit gate to apply next
+    last_qubits = [circuit.qubits[0], circuit.qubits[0]]  # Arbitrary choice at start
     while remaining:
-        q_index = circuit.qubits.index(current_qubit)
-        # Find distance from q_index to first qubit with an applicable 2-qubit gate
-        left_distance = None
-        prev_q = current_qubit
-        for i, q in enumerate(reversed(circuit.qubits[:q_index])):
-            if (
-                gate_indices[prev_q]
-                and gate_indices[q]
-                and gate_indices[prev_q][0] == gate_indices[q][0]
-            ):
-                left_distance = i
-                break
-            prev_q = q
-        right_distance = None
-        prev_q = current_qubit
-        for i, q in enumerate(circuit.qubits[q_index + 1 :]):
-            if (
-                gate_indices[prev_q]
-                and gate_indices[q]
-                and gate_indices[prev_q][0] == gate_indices[q][0]
-            ):
-                right_distance = i
-                break
-            prev_q = q
-        # Choose the shortest distance
-        if left_distance is None and right_distance is None:
-            raise RuntimeError(
-                "Some two-qubit gate in the circuit is not acting between",
-                "nearest neighbour qubits. Consider using prepare_circuit_mps().",
-            )
-        elif left_distance is None:
-            assert right_distance is not None
-            current_qubit = circuit.qubits[q_index + right_distance]
-        elif right_distance is None:
-            current_qubit = circuit.qubits[q_index - left_distance]
-        elif left_distance < right_distance:
-            current_qubit = circuit.qubits[q_index - left_distance]
-        elif left_distance > right_distance:
-            current_qubit = circuit.qubits[q_index + right_distance]
-        else:
-            current_qubit = circuit.qubits[
-                q_index + choice([-left_distance, right_distance])
-            ]
-        # Apply the gate
-        i = gate_indices[current_qubit][0]
-        next_gate = all_gates[i]
-        sorted_gates.append(next_gate)
-        remaining.remove(i)
-        # Apply all 1-qubit gates after this gate
-        for q in next_gate.qubits:
-            gate_indices[q].pop(0)  # Remove the 2-qubit gate `next_gate`
+        # Gather all gates that have nothing in front of them at one of its qubits
+        reachable_gates = [gates[0] for gates in gate_indices.values() if gates]
+        # Among them, find those that are available in both qubits
+        available_gates: list[int] = []
+        for gate_idx in reachable_gates:
+            gate_qubits = all_gates[gate_idx].qubits
+            assert len(gate_qubits) == 2  # Sanity check: all of them are 2-qubit gates
+            # If the first gate in both qubits coincides, then this gate is available
+            if gate_indices[gate_qubits[0]][0] == gate_indices[gate_qubits[1]][0]:
+                assert gate_indices[gate_qubits[0]][0] == gate_idx
+                available_gates.append(gate_idx)
+        # Sanity check: there is at least one available 2-qubit gate
+        assert available_gates
+
+        # Find distance from last_qubits to current applicable 2-qubit gates
+        gate_distance: dict[int, int] = dict()
+        for gate_idx in available_gates:
+            gate_qubits = all_gates[gate_idx].qubits
+
+            # Criterion for distance depends on the simulation algorithm
+            if algorithm in [ContractionAlg.TTNxGate]:
+                gate_distance[gate_idx] = max(  # Max common ancestor distance
+                    leaf_of_qubit[last_qubits[0]] ^ leaf_of_qubit[gate_qubits[0]],
+                    leaf_of_qubit[last_qubits[0]] ^ leaf_of_qubit[gate_qubits[1]],
+                    leaf_of_qubit[last_qubits[1]] ^ leaf_of_qubit[gate_qubits[0]],
+                    leaf_of_qubit[last_qubits[1]] ^ leaf_of_qubit[gate_qubits[1]],
+                )
+            elif algorithm in [ContractionAlg.MPSxGate, ContractionAlg.MPSxMPO]:
+                gate_distance[gate_idx] = max(  # Max linear distance between qubits
+                    abs(idx_of_qubit[last_qubits[0]] - idx_of_qubit[gate_qubits[0]]),
+                    abs(idx_of_qubit[last_qubits[0]] - idx_of_qubit[gate_qubits[1]]),
+                    abs(idx_of_qubit[last_qubits[1]] - idx_of_qubit[gate_qubits[0]]),
+                    abs(idx_of_qubit[last_qubits[1]] - idx_of_qubit[gate_qubits[1]]),
+                )
+            else:
+                raise RuntimeError(f"Sorting gates for {algorithm} not supported.")
+
+        # Choose the gate with shortest distance
+        chosen_gate_idx = min(gate_distance, key=gate_distance.get)  # type: ignore
+        chosen_gate = all_gates[chosen_gate_idx]
+
+        # Schedule the gate
+        last_qubits = chosen_gate.qubits
+        sorted_gates.append(chosen_gate)
+        remaining.remove(chosen_gate_idx)
+        # Schedule all 1-qubit gates after this gate
+        for q in last_qubits:
+            gate_indices[q].pop(0)  # Remove the 2-qubit `chosen_gate`
             indices = gate_indices[q]
             while indices and len(all_gates[indices[0]].qubits) == 1:
                 i = indices.pop(0)
