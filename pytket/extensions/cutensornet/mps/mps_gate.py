@@ -15,8 +15,6 @@ from __future__ import annotations  # type: ignore
 import warnings
 import logging
 
-import numpy as np  # type: ignore
-
 try:
     import cupy as cp  # type: ignore
 except ImportError:
@@ -156,9 +154,7 @@ class MPSxGate(MPS):
 
         # Get the template of the MPS tensors involved
         L = self.tensors[l_pos]
-        l_shape = list(L.shape)
         R = self.tensors[r_pos]
-        r_shape = list(R.shape)
 
         if self._cfg.truncation_fidelity < 1:
             # Apply SVD decomposition to truncate as much as possible before exceeding
