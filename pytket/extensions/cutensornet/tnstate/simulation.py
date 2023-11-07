@@ -14,7 +14,6 @@
 from typing import Optional
 from enum import Enum
 
-from random import choice  # type: ignore
 from collections import defaultdict  # type: ignore
 import numpy as np  # type: ignore
 
