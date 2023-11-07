@@ -25,6 +25,7 @@ except ImportError:
     warnings.warn("local settings failed to import cupy", ImportWarning)
 try:
     import cuquantum as cq  # type: ignore
+    from cuquantum.cutensornet import tensor  # type: ignore
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
@@ -33,7 +34,7 @@ from pytket.pauli import QubitPauliString
 
 from pytket.extensions.cutensornet.general import set_logger
 
-from .general import CuTensorNetHandle, Config, TNState, Tensor, _safe_qr
+from .general import CuTensorNetHandle, Config, TNState, Tensor
 
 
 class DirTTN(IntEnum):
@@ -109,9 +110,12 @@ class TTN(TNState):
             libhandle: The cuTensorNet library handle that will be used to carry out
                 tensor operations on the TTN.
             qubit_partition: A partition of the qubits in the circuit into disjoint
-                groups, describing the hierarchical structure of the TTN. As a rule of
-                thumb, the cost of a gate between qubits on ``qubit_partition[i]`` and
-                ``qubit_partition[j]`` scales exponentially on ``i XOR j``.
+                groups, describing the hierarchical structure of the TTN. Each key
+                identifies a leaf of the TTN, with its corresponding value indicating
+                the list of qubits represented by the leaf. The leaves are numbered
+                from left to right on a planar representation of the tree. Hence, the
+                smaller half of the keys correspond to leaves in the left subtree and
+                the rest are in the right subtree; providing recursive bipartitions.
             config: The object describing the configuration for simulation.
 
         Raises:
@@ -136,70 +140,70 @@ class TTN(TNState):
 
         n_groups = len(qubit_partition)
         if n_groups == 0:  # There's no initialisation to be done
-            return None
-        if n_groups == 1:
+            pass
+        elif n_groups == 1:
             raise ValueError(
                 "Only one entry to qubit_partition provided."
                 "Introduce a finer partition of qubits."
             )
-
-        n_levels = math.floor(math.log2(n_groups))
-        if n_groups != 2**n_levels:
-            raise ValueError(
-                "The number of entries in qubit_partition must be a power of two."
-            )
-
-        # Create the TreeNodes of the different groups of qubits
-        for k, qubits in qubit_partition.items():
-            if k < 0 or k >= n_groups:
+        else:
+            n_levels = math.floor(math.log2(n_groups))
+            if n_groups != 2**n_levels:
                 raise ValueError(
-                    f"The keys of qubit_partition must range from 0 to {n_groups-1}."
+                    "The number of entries in qubit_partition must be a power of two."
                 )
 
-            # Calculate the root path of this group
-            path = []
-            for l in reversed(range(n_levels)):
-                if k < 2**l:
-                    path.append(DirTTN.LEFT)
-                else:
-                    path.append(DirTTN.RIGHT)
-                    k -= 2**l
-
-            # Add each qubit to the qubit_position dictionary
-            for i, q in enumerate(qubits):
-                if q in self.qubit_position:
+            # Create the TreeNodes of the different groups of qubits
+            for k, qubits in qubit_partition.items():
+                if k < 0 or k >= n_groups:
                     raise ValueError(
-                        f"Qubit {q} appears in multiple entries of qubit_partition."
+                        f"Keys of qubit_partition must range from 0 to {n_groups-1}."
                     )
-                self.qubit_position[q] = (tuple(path), i)
 
-            # This tensor has a physical bond per qubit and one virtual bond at the
-            # end for the parent (dim=1)
-            shape = tuple([2] * len(qubits) + [1])
-            # Initialise the tensor of this group of qubits to |0>
-            tensor = cp.zeros(shape=shape, dtype=self._cfg._complex_t)
-            ket_zero_entry = tuple(0 for _ in shape)  # Index 0 on all bonds
-            tensor[ket_zero_entry] = 1  # Amplitude of |0> set to 1
+                # Calculate the root path of this group
+                path = []
+                for l in reversed(range(n_levels)):
+                    if k < 2**l:
+                        path.append(DirTTN.LEFT)
+                    else:
+                        path.append(DirTTN.RIGHT)
+                        k -= 2**l
 
-            # Create the TreeNode
-            node = TreeNode(tensor, is_leaf=True)
-            self.nodes[tuple(path)] = node
+                # Add each qubit to the qubit_position dictionary
+                for i, q in enumerate(qubits):
+                    if q in self.qubit_position:
+                        raise ValueError(
+                            f"Qubit {q} appears more than once in qubit_partition."
+                        )
+                    self.qubit_position[q] = (tuple(path), i)
 
-        # Create the internal TreeNodes
-        paths: list[list[DirTTN]] = [[]]
-        for _ in range(n_levels):
-            # Create the TreeNode at this path
-            for p in paths:
-                tensor = cp.ones(shape=(1, 1, 1), dtype=self._cfg._complex_t)
-                self.nodes[tuple(p)] = TreeNode(tensor)
-            # Generate the paths for the next level
-            paths = [
-                p + [direction]
-                for p in paths
-                for direction in [DirTTN.LEFT, DirTTN.RIGHT]
-            ]
-        self._logger.debug(f"qubit_position={self.qubit_position}")
-        self._logger.debug(f"All root paths: {list(self.nodes.keys())}")
+                # This tensor has a physical bond per qubit and one virtual bond at the
+                # end for the parent (dim=1)
+                shape = tuple([2] * len(qubits) + [1])
+                # Initialise the tensor of this group of qubits to |0>
+                tensor = cp.zeros(shape=shape, dtype=self._cfg._complex_t)
+                ket_zero_entry = tuple(0 for _ in shape)  # Index 0 on all bonds
+                tensor[ket_zero_entry] = 1  # Amplitude of |0> set to 1
+
+                # Create the TreeNode
+                node = TreeNode(tensor, is_leaf=True)
+                self.nodes[tuple(path)] = node
+
+            # Create the internal TreeNodes
+            paths: list[list[DirTTN]] = [[]]
+            for _ in range(n_levels):
+                # Create the TreeNode at this path
+                for p in paths:
+                    tensor = cp.ones(shape=(1, 1, 1), dtype=self._cfg._complex_t)
+                    self.nodes[tuple(p)] = TreeNode(tensor)
+                # Generate the paths for the next level
+                paths = [
+                    p + [direction]
+                    for p in paths
+                    for direction in [DirTTN.LEFT, DirTTN.RIGHT]
+                ]
+            self._logger.debug(f"qubit_position={self.qubit_position}")
+            self._logger.debug(f"All root paths: {list(self.nodes.keys())}")
 
     def is_valid(self) -> bool:
         """Verify that the TTN object is valid.
@@ -371,10 +375,11 @@ class TTN(TNState):
                 Q_bonds = "lrs"
             R_bonds = "sp"
 
-            Q, R = _safe_qr(
-                self._lib,
+            Q, R = tensor.decompose(
                 node_bonds + "->" + Q_bonds + "," + R_bonds,
                 self.nodes[path].tensor,
+                method=tensor.QRMethod(),
+                options=options,
             )
 
             # Update the tensor
@@ -429,10 +434,11 @@ class TTN(TNState):
                 R_bonds = "rs"
             node_bonds = "lrp"
 
-            Q, R = _safe_qr(
-                self._lib,
+            Q, R = tensor.decompose(
                 node_bonds + "->" + Q_bonds + "," + R_bonds,
                 self.nodes[path].tensor,
+                method=tensor.QRMethod(),
+                options=options,
             )
 
             # If the child bond is not the center yet, contract R with child node
@@ -495,8 +501,11 @@ class TTN(TNState):
             Q_bonds = node_bonds[:target_bond] + "s" + node_bonds[target_bond + 1 :]
             R_bonds = chr(target_bond) + "s"
 
-            Q, R = _safe_qr(
-                self._lib, node_bonds + "->" + Q_bonds + "," + R_bonds, leaf_node.tensor
+            Q, R = tensor.decompose(
+                node_bonds + "->" + Q_bonds + "," + R_bonds,
+                leaf_node.tensor,
+                method=tensor.QRMethod(),
+                options=options,
             )
             # Note: Since R is not contracted with any other tensor, we cannot update
             #   the leaf node to Q. That'd change the state represented by the TTN.

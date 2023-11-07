@@ -170,6 +170,10 @@ class Config:
                 UserWarning,
             )
 
+        if leaf_size >= 65:  # Imposed to avoid bond ID collisions
+            # More than 20 qubits is already unreasonable for a leaf anyway
+            raise ValueError("Maximum allowed leaf_size is 65.")
+
         self.leaf_size = leaf_size
         self.k = k
         self.optim_delta = 1e-5
@@ -394,29 +398,3 @@ class TNState(ABC):
     @abstractmethod
     def _flush(self) -> None:
         raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
-
-
-def _safe_qr(
-    libhandle: CuTensorNetHandle, indices: str, T: cp.ndarray
-) -> tuple[cp.ndarray, cp.ndarray]:
-    """Wrapper of cuTensorNet QR decomposition to work around a bug in 23.6.0.
-
-    The bug has been reported https://github.com/NVIDIA/cuQuantum/discussions/96.
-    """
-    try:
-        Q, R = tensor.decompose(
-            indices,
-            T,
-            method=tensor.QRMethod(),
-            options={"handle": libhandle.handle, "device_id": libhandle.device_id},
-        )
-    except cutn.cuTensorNetError:
-        Q, S, R = tensor.decompose(
-            indices,
-            T,
-            method=tensor.SVDMethod(partition="U"),  # Contracts S to Q
-            options={"handle": libhandle.handle, "device_id": libhandle.device_id},
-        )
-        assert S is None
-
-    return (Q, R)

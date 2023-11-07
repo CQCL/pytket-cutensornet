@@ -33,7 +33,7 @@ from .mps_mpo import MPSxMPO
 from .ttn_gate import TTNxGate
 
 
-class ContractionAlg(Enum):
+class SimulationAlgorithm(Enum):
     """An enum to refer to the TNState contraction algorithm.
 
     Each enum value corresponds to the class with the same name; see its docs for
@@ -48,7 +48,7 @@ class ContractionAlg(Enum):
 def simulate(
     libhandle: CuTensorNetHandle,
     circuit: Circuit,
-    algorithm: ContractionAlg,
+    algorithm: SimulationAlgorithm,
     config: Config,
 ) -> TNState:
     """Simulates the circuit and returns the ``TNState`` representing the final state.
@@ -65,7 +65,7 @@ def simulate(
         libhandle: The cuTensorNet library handle that will be used to carry out
             tensor operations.
         circuit: The pytket circuit to be simulated.
-        algorithm: Choose between the values of the ``ContractionAlg`` enum.
+        algorithm: Choose between the values of the ``SimulationAlgorithm`` enum.
         config: The configuration object for simulation.
 
     Returns:
@@ -77,7 +77,7 @@ def simulate(
     logger.info(
         "Ordering the gates in the circuit to reduce canonicalisation overhead."
     )
-    if algorithm == ContractionAlg.MPSxGate:
+    if algorithm == SimulationAlgorithm.MPSxGate:
         tnstate = MPSxGate(  # type: ignore
             libhandle,
             circuit.qubits,
@@ -85,7 +85,7 @@ def simulate(
         )
         sorted_gates = _get_sorted_gates(circuit, algorithm)
 
-    elif algorithm == ContractionAlg.MPSxMPO:
+    elif algorithm == SimulationAlgorithm.MPSxMPO:
         tnstate = MPSxMPO(  # type: ignore
             libhandle,
             circuit.qubits,
@@ -93,7 +93,7 @@ def simulate(
         )
         sorted_gates = _get_sorted_gates(circuit, algorithm)
 
-    elif algorithm == ContractionAlg.TTNxGate:
+    elif algorithm == SimulationAlgorithm.TTNxGate:
         qubit_partition = _get_qubit_partition(circuit, config.leaf_size)
         tnstate = TTNxGate(  # type: ignore
             libhandle,
@@ -226,7 +226,7 @@ def _get_qubit_partition(
 
 def _get_sorted_gates(
     circuit: Circuit,
-    algorithm: ContractionAlg,
+    algorithm: SimulationAlgorithm,
     qubit_partition: Optional[dict[int, list[Qubit]]] = None,
 ) -> list[Command]:
     """Sorts the list of gates so that there's less canonicalisation during simulation.
@@ -251,7 +251,7 @@ def _get_sorted_gates(
     remaining = set(range(len(all_gates)))
 
     # Do some precomputation depending on the algorithm
-    if algorithm in [ContractionAlg.TTNxGate]:
+    if algorithm in [SimulationAlgorithm.TTNxGate]:
         if qubit_partition is None:
             raise RuntimeError("You must provide a qubit partition!")
 
@@ -260,7 +260,7 @@ def _get_sorted_gates(
             for q in qubits:
                 leaf_of_qubit[q] = leaf
 
-    elif algorithm in [ContractionAlg.MPSxGate, ContractionAlg.MPSxMPO]:
+    elif algorithm in [SimulationAlgorithm.MPSxGate, SimulationAlgorithm.MPSxMPO]:
         idx_of_qubit = {q: i for i, q in enumerate(circuit.qubits)}
 
     else:
@@ -301,14 +301,17 @@ def _get_sorted_gates(
             gate_qubits = all_gates[gate_idx].qubits
 
             # Criterion for distance depends on the simulation algorithm
-            if algorithm in [ContractionAlg.TTNxGate]:
+            if algorithm in [SimulationAlgorithm.TTNxGate]:
                 gate_distance[gate_idx] = max(  # Max common ancestor distance
                     leaf_of_qubit[last_qubits[0]] ^ leaf_of_qubit[gate_qubits[0]],
                     leaf_of_qubit[last_qubits[0]] ^ leaf_of_qubit[gate_qubits[1]],
                     leaf_of_qubit[last_qubits[1]] ^ leaf_of_qubit[gate_qubits[0]],
                     leaf_of_qubit[last_qubits[1]] ^ leaf_of_qubit[gate_qubits[1]],
                 )
-            elif algorithm in [ContractionAlg.MPSxGate, ContractionAlg.MPSxMPO]:
+            elif algorithm in [
+                SimulationAlgorithm.MPSxGate,
+                SimulationAlgorithm.MPSxMPO,
+            ]:
                 gate_distance[gate_idx] = max(  # Max linear distance between qubits
                     abs(idx_of_qubit[last_qubits[0]] - idx_of_qubit[gate_qubits[0]]),
                     abs(idx_of_qubit[last_qubits[0]] - idx_of_qubit[gate_qubits[1]]),

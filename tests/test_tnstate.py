@@ -18,7 +18,7 @@ from pytket.extensions.cutensornet.tnstate import (
     DirTTN,
     simulate,
     prepare_circuit_mps,
-    ContractionAlg,
+    SimulationAlgorithm,
 )
 from pytket.extensions.cutensornet.tnstate.ttn import RootPath
 from pytket.extensions.cutensornet.utils import circuit_statevector_postselect
@@ -234,13 +234,13 @@ def test_canonicalise_ttn(center: Union[RootPath, Qubit]) -> None:
 @pytest.mark.parametrize(
     "algorithm",
     [
-        ContractionAlg.MPSxGate,
-        ContractionAlg.MPSxMPO,
-        ContractionAlg.TTNxGate,
+        SimulationAlgorithm.MPSxGate,
+        SimulationAlgorithm.MPSxMPO,
+        SimulationAlgorithm.TTNxGate,
     ],
 )
-def test_exact_circ_sim(circuit: Circuit, algorithm: ContractionAlg) -> None:
-    if algorithm in [ContractionAlg.MPSxGate, ContractionAlg.MPSxMPO]:
+def test_exact_circ_sim(circuit: Circuit, algorithm: SimulationAlgorithm) -> None:
+    if algorithm in [SimulationAlgorithm.MPSxGate, SimulationAlgorithm.MPSxMPO]:
         circuit, _ = prepare_circuit_mps(circuit)
 
     n_qubits = len(circuit.qubits)
@@ -295,12 +295,14 @@ def test_exact_circ_sim(circuit: Circuit, algorithm: ContractionAlg) -> None:
 @pytest.mark.parametrize(
     "algorithm",
     [
-        ContractionAlg.MPSxGate,
-        ContractionAlg.MPSxMPO,
+        SimulationAlgorithm.MPSxGate,
+        SimulationAlgorithm.MPSxMPO,
     ],
 )
-def test_approx_circ_sim_gate_fid(circuit: Circuit, algorithm: ContractionAlg) -> None:
-    if algorithm in [ContractionAlg.MPSxGate, ContractionAlg.MPSxMPO]:
+def test_approx_circ_sim_gate_fid(
+    circuit: Circuit, algorithm: SimulationAlgorithm
+) -> None:
+    if algorithm in [SimulationAlgorithm.MPSxGate, SimulationAlgorithm.MPSxMPO]:
         circuit, _ = prepare_circuit_mps(circuit)
 
     with CuTensorNetHandle() as libhandle:
@@ -339,13 +341,13 @@ def test_approx_circ_sim_gate_fid(circuit: Circuit, algorithm: ContractionAlg) -
 @pytest.mark.parametrize(
     "algorithm",
     [
-        ContractionAlg.MPSxGate,
-        ContractionAlg.MPSxMPO,
-        ContractionAlg.TTNxGate,
+        SimulationAlgorithm.MPSxGate,
+        SimulationAlgorithm.MPSxMPO,
+        SimulationAlgorithm.TTNxGate,
     ],
 )
-def test_approx_circ_sim_chi(circuit: Circuit, algorithm: ContractionAlg) -> None:
-    if algorithm in [ContractionAlg.MPSxGate, ContractionAlg.MPSxMPO]:
+def test_approx_circ_sim_chi(circuit: Circuit, algorithm: SimulationAlgorithm) -> None:
+    if algorithm in [SimulationAlgorithm.MPSxGate, SimulationAlgorithm.MPSxMPO]:
         circuit, _ = prepare_circuit_mps(circuit)
 
     with CuTensorNetHandle() as libhandle:
@@ -370,8 +372,8 @@ def test_approx_circ_sim_chi(circuit: Circuit, algorithm: ContractionAlg) -> Non
 @pytest.mark.parametrize(
     "algorithm",
     [
-        ContractionAlg.MPSxGate,
-        ContractionAlg.MPSxMPO,
+        SimulationAlgorithm.MPSxGate,
+        SimulationAlgorithm.MPSxMPO,
     ],
 )
 @pytest.mark.parametrize(
@@ -382,9 +384,9 @@ def test_approx_circ_sim_chi(circuit: Circuit, algorithm: ContractionAlg) -> Non
     ],
 )
 def test_float_point_options(
-    circuit: Circuit, algorithm: ContractionAlg, fp_precision: Any
+    circuit: Circuit, algorithm: SimulationAlgorithm, fp_precision: Any
 ) -> None:
-    if algorithm in [ContractionAlg.MPSxGate, ContractionAlg.MPSxMPO]:
+    if algorithm in [SimulationAlgorithm.MPSxGate, SimulationAlgorithm.MPSxMPO]:
         circuit, _ = prepare_circuit_mps(circuit)
 
     with CuTensorNetHandle() as libhandle:
@@ -436,7 +438,7 @@ def test_circ_approx_explicit_mps(circuit: Circuit) -> None:
         mps_gate = simulate(
             libhandle,
             circuit,
-            ContractionAlg.MPSxGate,
+            SimulationAlgorithm.MPSxGate,
             cfg,
         )
         assert np.isclose(mps_gate.get_fidelity(), 0.4, atol=1e-1)
@@ -447,7 +449,7 @@ def test_circ_approx_explicit_mps(circuit: Circuit) -> None:
         mps_mpo = simulate(
             libhandle,
             circuit,
-            ContractionAlg.MPSxMPO,
+            SimulationAlgorithm.MPSxMPO,
             cfg,
         )
         assert np.isclose(mps_mpo.get_fidelity(), 0.6, atol=1e-1)
@@ -457,13 +459,13 @@ def test_circ_approx_explicit_mps(circuit: Circuit) -> None:
         # Fixed virtual bond dimension
         # Check for MPSxGate
         cfg = Config(chi=8)
-        mps_gate = simulate(libhandle, circuit, ContractionAlg.MPSxGate, cfg)
+        mps_gate = simulate(libhandle, circuit, SimulationAlgorithm.MPSxGate, cfg)
         assert np.isclose(mps_gate.get_fidelity(), 0.03, atol=1e-2)
         assert mps_gate.is_valid()
         assert np.isclose(mps_gate.vdot(mps_gate), 1.0, atol=cfg._atol)
 
         # Check for MPSxMPO
-        mps_mpo = simulate(libhandle, circuit, ContractionAlg.MPSxMPO, cfg)
+        mps_mpo = simulate(libhandle, circuit, SimulationAlgorithm.MPSxMPO, cfg)
         assert np.isclose(mps_mpo.get_fidelity(), 0.05, atol=1e-2)
         assert mps_mpo.is_valid()
         assert np.isclose(mps_mpo.vdot(mps_mpo), 1.0, atol=cfg._atol)
@@ -482,7 +484,7 @@ def test_circ_approx_explicit_ttn(circuit: Circuit) -> None:
         # Fixed virtual bond dimension
         # Check for TTNxGate
         cfg = Config(chi=120, leaf_size=3)
-        ttn_gate = simulate(libhandle, circuit, ContractionAlg.TTNxGate, cfg)
+        ttn_gate = simulate(libhandle, circuit, SimulationAlgorithm.TTNxGate, cfg)
         for g in circuit.get_commands():
             ttn_gate.apply_gate(g)
         assert np.isclose(ttn_gate.get_fidelity(), 0.62, atol=1e-2)
@@ -523,7 +525,7 @@ def test_postselect_2q_circ(circuit: Circuit, postselect_dict: dict) -> None:
 
     with CuTensorNetHandle() as libhandle:
         cfg = Config()
-        mps = simulate(libhandle, circuit, ContractionAlg.MPSxGate, cfg)
+        mps = simulate(libhandle, circuit, SimulationAlgorithm.MPSxGate, cfg)
         prob = mps.postselect(postselect_dict)
         assert np.isclose(prob, sv_prob, atol=cfg._atol)
         assert np.allclose(mps.get_statevector(), sv, atol=cfg._atol)
@@ -554,7 +556,7 @@ def test_postselect_circ(circuit: Circuit, postselect_dict: dict) -> None:
 
     with CuTensorNetHandle() as libhandle:
         cfg = Config()
-        mps = simulate(libhandle, circuit, ContractionAlg.MPSxGate, cfg)
+        mps = simulate(libhandle, circuit, SimulationAlgorithm.MPSxGate, cfg)
         prob = mps.postselect(postselect_dict)
         assert np.isclose(prob, sv_prob, atol=cfg._atol)
         assert np.allclose(mps.get_statevector(), sv, atol=cfg._atol)
@@ -600,7 +602,7 @@ def test_expectation_value(circuit: Circuit, observable: QubitPauliString) -> No
     # Simulate the circuit and obtain the expectation value
     with CuTensorNetHandle() as libhandle:
         cfg = Config()
-        mps = simulate(libhandle, circuit, ContractionAlg.MPSxGate, cfg)
+        mps = simulate(libhandle, circuit, SimulationAlgorithm.MPSxGate, cfg)
         assert np.isclose(
             mps.expectation_value(observable), expectation_value, atol=cfg._atol
         )
@@ -630,7 +632,7 @@ def test_sample_circ_2q(circuit: Circuit) -> None:
     # Compute the samples
     sample_dict = {0: 0, 1: 0, 2: 0, 3: 0}
     with CuTensorNetHandle() as libhandle:
-        mps = simulate(libhandle, circuit, ContractionAlg.MPSxGate, Config())
+        mps = simulate(libhandle, circuit, SimulationAlgorithm.MPSxGate, Config())
 
         # Take samples measuring both qubits at once
         for _ in range(n_samples):
@@ -657,7 +659,7 @@ def test_measure_circ(circuit: Circuit) -> None:
     qB = circuit.qubits[-3]  # Third list significant qubit
 
     with CuTensorNetHandle() as libhandle:
-        mps = simulate(libhandle, circuit, ContractionAlg.MPSxGate, Config())
+        mps = simulate(libhandle, circuit, SimulationAlgorithm.MPSxGate, Config())
 
         # Compute the probabilities of each outcome
         p = {(0, 0): 0.0, (0, 1): 0.0, (1, 0): 0.0, (1, 1): 0.0}

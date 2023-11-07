@@ -19,7 +19,7 @@ https://github.com/CQCL/pytket-cutensornet.
 """
 
 from .general import CuTensorNetHandle, Config, TNState
-from .simulation import ContractionAlg, simulate, prepare_circuit_mps
+from .simulation import SimulationAlgorithm, simulate, prepare_circuit_mps
 
 from .mps import DirMPS, MPS
 from .mps_gate import MPSxGate

@@ -9,7 +9,7 @@ Simulation
 
 .. autofunction:: pytket.extensions.cutensornet.tnstate.simulate
 
-.. autoenum:: pytket.extensions.cutensornet.tnstate.ContractionAlg()
+.. autoenum:: pytket.extensions.cutensornet.tnstate.SimulationAlgorithm()
     :members:
 
 .. autoclass:: pytket.extensions.cutensornet.tnstate.Config()

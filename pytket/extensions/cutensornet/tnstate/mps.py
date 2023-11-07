@@ -93,24 +93,24 @@ class MPS(TNState):
 
         n_tensors = len(qubits)
         if n_tensors == 0:  # There's no initialisation to be done
-            return None
+            pass
         elif n_tensors == 1:
             raise ValueError("Please, provide at least two qubits.")
+        else:
+            self.qubit_position = {q: i for i, q in enumerate(qubits)}
 
-        self.qubit_position = {q: i for i, q in enumerate(qubits)}
+            # Create the list of tensors
+            self.tensors: list[Tensor] = []
+            self.canonical_form = {i: None for i in range(n_tensors)}
 
-        # Create the list of tensors
-        self.tensors: list[Tensor] = []
-        self.canonical_form = {i: None for i in range(n_tensors)}
-
-        # Append each of the tensors initialised in state |0>
-        m_shape = (1, 1, 2)  # Two virtual bonds (dim=1) and one physical
-        for i in range(n_tensors):
-            m_tensor = cp.empty(m_shape, dtype=self._cfg._complex_t)
-            # Initialise the tensor to ket 0
-            m_tensor[0][0][0] = 1
-            m_tensor[0][0][1] = 0
-            self.tensors.append(m_tensor)
+            # Append each of the tensors initialised in state |0>
+            m_shape = (1, 1, 2)  # Two virtual bonds (dim=1) and one physical
+            for i in range(n_tensors):
+                m_tensor = cp.empty(m_shape, dtype=self._cfg._complex_t)
+                # Initialise the tensor to ket 0
+                m_tensor[0][0][0] = 1
+                m_tensor[0][0][1] = 0
+                self.tensors.append(m_tensor)
 
     def is_valid(self) -> bool:
         """Verify that the MPS object is valid.
