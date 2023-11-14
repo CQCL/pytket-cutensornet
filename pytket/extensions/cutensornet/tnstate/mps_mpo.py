@@ -388,7 +388,7 @@ class MPSxMPO(MPS):
             T = cq.contract(
                 *interleaved_rep,
                 options={"handle": self._lib.handle, "device_id": self._lib.device_id},
-                optimize={"samples": 1},
+                optimize={"samples": 0},
             )
             if direction == DirMPS.LEFT:
                 r_cached_tensors.append(T)
@@ -450,7 +450,7 @@ class MPSxMPO(MPS):
             F = cq.contract(
                 *interleaved_rep,
                 options={"handle": self._lib.handle, "device_id": self._lib.device_id},
-                optimize={"samples": 1},
+                optimize={"samples": 0},
             )
 
             # Get the fidelity

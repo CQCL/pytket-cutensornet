@@ -569,7 +569,7 @@ class TTN(TNState):
         result = cq.contract(
             *interleaved_rep,
             options={"handle": self._lib.handle, "device_id": self._lib.device_id},
-            optimize={"samples": 1},  # There is little to no optimisation to be done
+            optimize={"samples": 0},  # There is little to no optimisation to be done
         )
 
         self._logger.debug(f"Result from vdot={result}")
@@ -672,7 +672,7 @@ class TTN(TNState):
         result_tensor = cq.contract(
             *interleaved_rep,
             options={"handle": self._lib.handle, "device_id": self._lib.device_id},
-            optimize={"samples": 1},  # There is little to no optimisation to be done
+            optimize={"samples": 0},  # There is little to no optimisation to be done
         )
 
         # Convert to numpy vector and flatten
@@ -712,7 +712,7 @@ class TTN(TNState):
         result = cq.contract(
             *interleaved_rep,
             options={"handle": self._lib.handle, "device_id": self._lib.device_id},
-            optimize={"samples": 1},  # There is little to no optimisation to be done
+            optimize={"samples": 0},  # There is little to no optimisation to be done
         )
 
         self._logger.debug(f"Amplitude of state {state} is {result}.")
@@ -773,7 +773,7 @@ class TTN(TNState):
             direction: The direction of the bond.
 
         Returns:
-            The dimension of the bond between the node and its parent.
+            The dimension of the specified bond.
 
         Raises:
             ValueError: If ``path`` is not in the TTN.

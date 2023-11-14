@@ -87,7 +87,7 @@ class TTNxGate(TTN):
     def _apply_2q_gate(self, q0: Qubit, q1: Qubit, gate: Op) -> TTNxGate:
         """Applies the 2-qubit gate to the TTN.
 
-        Truncation is automatically applied according to the paremeters
+        Truncation is automatically applied according to the parameters
         in the ``Config`` object passed to this ``TTN``.
         The TTN is converted to canonical form before truncating.
 
@@ -130,7 +130,7 @@ class TTNxGate(TTN):
             node_bonds = aux_bonds.copy()
             node_bonds[bond_q0] = "i0"
             node_bonds[bond_q1] = "i1"
-            result_bonds = aux_bonds.copy()
+            result_bonds = aux_bonds
             result_bonds[bond_q0] = "o0"
             result_bonds[bond_q1] = "o1"
 
@@ -237,7 +237,7 @@ class TTNxGate(TTN):
             aux_bonds = [f"q{x}" for x in range(n_qbonds)] + ["p"]
             node_bonds = aux_bonds.copy()
             node_bonds[bond] = "a"
-            result_bonds = aux_bonds.copy()
+            result_bonds = aux_bonds
             result_bonds[bond] = "b"
             result_bonds[-1] = "f"
 
