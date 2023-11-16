@@ -42,10 +42,10 @@ from mpi4py import MPI
 
 from pytket.circuit import Circuit, fresh_symbol
 
-from pytket.extensions.cutensornet.mps import (
+from pytket.extensions.cutensornet.tnstate import (
     simulate,
-    ConfigMPS,
-    ContractionAlg,
+    Config,
+    SimulationAlgorithm,
     CuTensorNetHandle,
 )
 
@@ -109,7 +109,7 @@ if rank == root:
 this_proc_mps = []
 with CuTensorNetHandle(device_id) as libhandle:  # Different handle for each process
     for circ in this_proc_circs:
-        mps = simulate(libhandle, circ, ContractionAlg.MPSxGate, ConfigMPS())
+        mps = simulate(libhandle, circ, SimulationAlgorithm.MPSxGate, Config())
         this_proc_mps.append(mps)
 
 if rank == root:
