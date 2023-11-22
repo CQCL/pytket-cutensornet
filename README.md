@@ -1,12 +1,7 @@
-# Pytket Extensions
-
-This repository contains the pytket-cutensornet extension, using Quantinuum's
-[pytket](https://cqcl.github.io/tket/pytket/api/index.html) quantum SDK.
-
 # pytket-cutensornet
 
-[Pytket](https://cqcl.github.io/tket/pytket/api/index.html) is a python module for interfacing
-with tket, a quantum computing toolkit and optimisation compiler developed by Quantinuum.
+[Pytket](https://tket.quantinuum.com/api-docs/index.html) is a python module for interfacing
+with tket, a quantum computing toolkit and optimising compiler developed by Quantinuum.
 
 
 [cuTensorNet](https://docs.nvidia.com/cuda/cuquantum/cutensornet/index.html) is a
