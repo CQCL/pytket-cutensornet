@@ -35,7 +35,9 @@ or `Hopper` GPU and first install `cuQuantum Python` following their installatio
 This will include the necessary dependencies such as CUDA toolkit. Then, to install
 `pytket-cutensornet`, run:
 
-```pip install pytket-cutensornet```
+```shell
+pip install pytket-cutensornet
+```
 
 ## Bugs, support and feature requests
 
