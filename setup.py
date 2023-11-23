@@ -32,7 +32,7 @@ setup(
     author_email="tket-support@cambridgequantum.com",
     python_requires=">=3.9",
     project_urls={
-        "Documentation": "https://cqcl.github.io/pytket-cutensornet/api/index.html",
+        "Documentation": "https://tket.quantinuum.com/extensions/pytket-cutensornet/api/index.html",
         "Source": "https://github.com/CQCL/pytket-cutensornet",
         "Tracker": "https://github.com/CQCL/pytket-cutensornet/issues",
     },
