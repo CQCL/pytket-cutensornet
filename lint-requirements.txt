@@ -1,2 +1,2 @@
-black~=23.11
+black~=23.12
 pylint~=3.0
