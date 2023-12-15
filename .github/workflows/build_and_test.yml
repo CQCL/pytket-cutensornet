@@ -51,7 +51,7 @@ jobs:
       run: |
         chmod +x ./.github/workflows/build-test
         ./.github/workflows/build-test nomypy
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       if: github.event_name == 'release' || contains(github.ref, 'refs/heads/wheel')
       with:
         name: artefacts
@@ -74,7 +74,7 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
     - name: Download all wheels
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         path: wheelhouse
     - name: Put them all in the dist folder
@@ -102,7 +102,7 @@ jobs:
       with:
         python-version: '3.10'
     - name: Download all wheels
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         path: wheelhouse
     - name: Install pip, wheel
