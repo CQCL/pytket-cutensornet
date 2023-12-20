@@ -5,7 +5,7 @@ Changelog
 ---------------------
 
 * ``MPS`` simulation with fixed ``truncation_fidelity`` now uses the corresponding truncation primitive from cuQuantum (v23.10).
-
+* Updated pytket version requirement to 1.22.
 
 0.4.0 (October 2023)
 --------------------
