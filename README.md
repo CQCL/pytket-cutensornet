@@ -4,9 +4,9 @@
 with tket, a quantum computing toolkit and optimising compiler developed by Quantinuum.
 
 
-[cuTensorNet](https://docs.nvidia.com/cuda/cuquantum/cutensornet/index.html) is a
+[cuTensorNet](https://docs.nvidia.com/cuda/cuquantum/latest/cutensornet/index.html) is a
 high-performance library for tensor network computations, developed by NVIDIA.
-It is part of the [cuQuantum](https://docs.nvidia.com/cuda/cuquantum/index.html) SDK -
+It is part of the [cuQuantum](https://docs.nvidia.com/cuda/cuquantum/latest/index.html) SDK -
 a high-performance library aimed at quantum circuit simulations on the NVIDIA GPU chips,
 consisting of two major components:
  - `cuStateVec`: a high-performance library for state vector computations.
@@ -16,7 +16,7 @@ Both components have both C and Python API.
 
 `pytket-cutensornet` is an extension to `pytket` that allows `pytket` circuits and
 expectation values to be simulated using `cuTensorNet` via an interface to
-[cuQuantum Python](https://docs.nvidia.com/cuda/cuquantum/python/index.html).
+[cuQuantum Python](https://docs.nvidia.com/cuda/cuquantum/latest/cutensornet/index.html).
 
 Currently, only single-GPU calculations are supported, but a multi-GPU execution will be
 implemented in the due course using `mpi4py` library.
@@ -24,9 +24,10 @@ implemented in the due course using `mpi4py` library.
 ## Getting started
 
 `pytket-cutensornet` is available for Python 3.9, 3.10 and 3.11 on Linux.
-In order to use it, you need access to a Linux machine with either `Volta`, `Ampere`
-or `Hopper` GPU and first install `cuQuantum Python` following their installation
-[instructions](https://docs.nvidia.com/cuda/cuquantum/python/README.html#installation).
+In order to use it, you need access to a Linux machine with an NVIDIA GPU of
+Compute Capability +7.0 (check it [here](https://developer.nvidia.com/cuda-gpus)) and first
+install `cuQuantum Python` following their installation
+[instructions](https://docs.nvidia.com/cuda/cuquantum/latest/python/README.html#installation).
 This will include the necessary dependencies such as CUDA toolkit. Then, to install
 `pytket-cutensornet`, run:
 
