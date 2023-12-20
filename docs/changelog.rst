@@ -1,7 +1,7 @@
 Changelog
 ~~~~~~~~~
 
-0.5.1 (December 2023)
+0.5.2 (December 2023)
 ---------------------
 
 * ``MPS`` simulation with fixed ``truncation_fidelity`` now uses the corresponding truncation primitive from cuQuantum (v23.10).
