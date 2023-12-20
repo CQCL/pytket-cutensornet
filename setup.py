@@ -32,7 +32,7 @@ setup(
     author_email="tket-support@cambridgequantum.com",
     python_requires=">=3.9",
     project_urls={
-        "Documentation": "https://cqcl.github.io/pytket-cutensornet/api/index.html",
+        "Documentation": "https://tket.quantinuum.com/extensions/pytket-cutensornet/api/index.html",
         "Source": "https://github.com/CQCL/pytket-cutensornet",
         "Tracker": "https://github.com/CQCL/pytket-cutensornet/issues",
     },
@@ -42,7 +42,7 @@ setup(
     license="Apache 2",
     packages=find_namespace_packages(include=["pytket.*"]),
     include_package_data=True,
-    install_requires=["pytket ~= 1.11"],
+    install_requires=["pytket ~= 1.22"],
     classifiers=[
         "Environment :: Console",
         "Programming Language :: Python :: 3.9",
