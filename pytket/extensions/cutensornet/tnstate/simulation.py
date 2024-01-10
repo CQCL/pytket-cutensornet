@@ -225,7 +225,7 @@ def _get_qubit_partition(
 
 def _apply_kahypar_bisection(
     graph: nx.Graph,
-) -> tuple(list[Qubit], list[Qubit]):
+) -> tuple[list[Qubit], list[Qubit]]:
     """Use KaHyPar to obtain a bisection of the graph.
 
     Returns:
@@ -241,13 +241,18 @@ def _apply_kahypar_bisection(
     k = 2  # Number of groups in the partition
     epsilon = 0.03  # Imbalance tolerance
 
+    # Special case where the graph has no edges; KaHyPar cannot deal with it
+    if num_edges == 0:
+        # Just split the list of vertices in half
+        return (vertices[: num_vertices // 2], vertices[num_vertices // 2 :])
+
     # KaHyPar expects the list of edges to be provided as a continuous set of vertices
     # ``edge_stream`` where ``edge_indices`` indicates where each new edge begins
     # (the latter is necessary because KaHyPar can accept hyperedges)
     edge_stream = [qubit_dict[vertex] for edge in edges for vertex in edge]
-    edge_indices = [0] + [2*(i+1) for i in range(num_edges)]
+    edge_indices = [0] + [2 * (i + 1) for i in range(num_edges)]
     edge_weights = [weight_dict[edge] for edge in edges]
-    vertex_weights = [1 for _ in range(num_vertex)]
+    vertex_weights = [1 for _ in range(num_vertices)]
 
     hypergraph = kahypar.Hypergraph(
         num_vertices,
@@ -263,11 +268,10 @@ def _apply_kahypar_bisection(
     context = kahypar.Context()
     context.setK(k)
     context.setEpsilon(epsilon)
-    context.supressOutput(True)
+    context.suppressOutput(True)
 
     # Load the default configuration file provided by the KaHyPar devs
-    relative_path = "pytket/extensions/cutensornet/tnstate/cut_rKaHyPar_sea20.ini"
-    ini_file = str(Path(__file__).parent / relativ_path)
+    ini_file = str(Path(__file__).parent / "cut_rKaHyPar_sea20.ini")
     context.loadINIconfiguration(ini_file)
 
     # Run the partitioner
@@ -275,8 +279,8 @@ def _apply_kahypar_bisection(
     partition_dict = {i: hypergraph.blockID(i) for i in range(hypergraph.numNodes())}
 
     # Obtain the two groups of qubits from ``partition_dict``
-    groupA = [vertices[i] for i, block in partition_dict if block == 0]
-    groupB = [vertices[i] for i, block in partition_dict if block == 1]
+    groupA = [vertices[i] for i, block in partition_dict.items() if block == 0]
+    groupB = [vertices[i] for i, block in partition_dict.items() if block == 1]
 
     return (groupA, groupB)
 
