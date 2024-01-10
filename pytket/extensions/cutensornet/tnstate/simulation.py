@@ -14,10 +14,12 @@
 from typing import Optional
 from enum import Enum
 
+from pathlib import Path
 from collections import defaultdict  # type: ignore
 import numpy as np  # type: ignore
 
-from networkx import Graph, community  # type: ignore
+import networkx as nx  # type: ignore
+import kahypar  # type: ignore
 
 from pytket.circuit import Circuit, Command, Qubit
 from pytket.transform import Transform
@@ -194,23 +196,21 @@ def _get_qubit_partition(
                 )
 
     # Create the connectivity graph in NetworkX
-    connectivity_graph = Graph()
+    connectivity_graph = nx.Graph()
     connectivity_graph.add_nodes_from(circuit.qubits)
     for (u, v), weight in edge_weights.items():
         connectivity_graph.add_edge(u, v, weight=weight)
 
     # Apply balanced bisections until each qubit group is small enough
-    partition = {0: set(circuit.qubits)}
+    partition = {0: circuit.qubits}
     stop_bisec = False  # Do at least one bisection (TTN reqs >1 leaf nodes)
 
     while not stop_bisec:
         old_partition = partition.copy()
         for key, group in old_partition.items():
             # Apply the balanced bisection on this group
-            (groupA, groupB) = community.kernighan_lin_bisection(
+            (groupA, groupB) = _apply_kahypar_bisection(
                 connectivity_graph.subgraph(group),
-                max_iter=2 * len(group),  # Iteractions scaling with number of nodes
-                weight="weight",
             )
             # Groups A and B are on the same subtree (key separated by +1)
             partition[2 * key] = groupA
@@ -221,6 +221,64 @@ def _get_qubit_partition(
 
     qubit_partition = {key: list(leaf_qubits) for key, leaf_qubits in partition.items()}
     return qubit_partition
+
+
+def _apply_kahypar_bisection(
+    graph: nx.Graph,
+) -> tuple(list[Qubit], list[Qubit]):
+    """Use KaHyPar to obtain a bisection of the graph.
+
+    Returns:
+        Two lists, each containing the vertices in either group of the bisection.
+    """
+    vertices = list(graph.nodes)
+    edges = list(graph.edges)
+    weight_dict = nx.get_edge_attributes(graph, "weight")
+    qubit_dict = {q: i for i, q in enumerate(vertices)}
+
+    num_vertices = len(vertices)
+    num_edges = len(edges)
+    k = 2  # Number of groups in the partition
+    epsilon = 0.03  # Imbalance tolerance
+
+    # KaHyPar expects the list of edges to be provided as a continuous set of vertices
+    # ``edge_stream`` where ``edge_indices`` indicates where each new edge begins
+    # (the latter is necessary because KaHyPar can accept hyperedges)
+    edge_stream = [qubit_dict[vertex] for edge in edges for vertex in edge]
+    edge_indices = [0] + [2*(i+1) for i in range(num_edges)]
+    edge_weights = [weight_dict[edge] for edge in edges]
+    vertex_weights = [1 for _ in range(num_vertex)]
+
+    hypergraph = kahypar.Hypergraph(
+        num_vertices,
+        num_edges,
+        edge_indices,
+        edge_stream,
+        k,
+        edge_weights,
+        vertex_weights,
+    )
+
+    # Set up the configuration for KaHyPar
+    context = kahypar.Context()
+    context.setK(k)
+    context.setEpsilon(epsilon)
+    context.supressOutput(True)
+
+    # Load the default configuration file provided by the KaHyPar devs
+    relative_path = "pytket/extensions/cutensornet/tnstate/cut_rKaHyPar_sea20.ini"
+    ini_file = str(Path(__file__).parent / relativ_path)
+    context.loadINIconfiguration(ini_file)
+
+    # Run the partitioner
+    kahypar.partition(hypergraph, context)
+    partition_dict = {i: hypergraph.blockID(i) for i in range(hypergraph.numNodes())}
+
+    # Obtain the two groups of qubits from ``partition_dict``
+    groupA = [vertices[i] for i, block in partition_dict if block == 0]
+    groupB = [vertices[i] for i, block in partition_dict if block == 1]
+
+    return (groupA, groupB)
 
 
 def _get_sorted_gates(
