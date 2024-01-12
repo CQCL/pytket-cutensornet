@@ -23,7 +23,7 @@ implemented in the due course using `mpi4py` library.
 
 ## Getting started
 
-`pytket-cutensornet` is available for Python 3.9, 3.10 and 3.11 on Linux.
+`pytket-cutensornet` is available for Python 3.10, 3.11 and 3.12 on Linux.
 In order to use it, you need access to a Linux machine with an NVIDIA GPU of
 Compute Capability +7.0 (check it [here](https://developer.nvidia.com/cuda-gpus)) and first
 install `cuQuantum Python` following their installation
