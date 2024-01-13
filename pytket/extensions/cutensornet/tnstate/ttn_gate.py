@@ -273,7 +273,7 @@ class TTNxGate(TTN):
             # Flip ``towards_root`` if we have reached the common ancestor
             # i.e. if the ``bond_tensor`` needs to go towards a child tensor rather
             # than towards the parent
-            if path == common_path:
+            if len(path) == len(common_path) + 1:
                 towards_root = False
 
             # Apply SVD decomposition on bond_tensor and truncate up to
