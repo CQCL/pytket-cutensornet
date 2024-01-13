@@ -270,6 +270,12 @@ class TTNxGate(TTN):
             # Canonicalise to this bond (unsafely, so we must reintroduce bond_tensor)
             bond_tensor = self.canonicalise(path, unsafe=True)
 
+            # Flip ``towards_root`` if we have reached the common ancestor
+            # i.e. if the ``bond_tensor`` needs to go towards a child tensor rather
+            # than towards the parent
+            if path == common_path:
+                towards_root = False
+
             # Apply SVD decomposition on bond_tensor and truncate up to
             # `self._cfg.chi`. Ask cuTensorNet to contract S directly into U/V and
             # normalise the singular values so that the sum of its squares is equal
@@ -358,6 +364,8 @@ class TTNxGate(TTN):
             self._logger.debug(
                 f"Reduced bond dimension from {bond_tensor.shape[0]} to {V.shape[0]}."
             )
+        # Sanity check: reached the common ancestor and changed direction
+        assert not towards_root
 
         return self
 
