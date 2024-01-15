@@ -258,22 +258,41 @@ class TTNxGate(TTN):
             )
 
         # Truncate (if needed) bonds along the path from q0 to q1
-        trunc_paths = [  # From q0 to the common ancestor
+        truncation_bonds = [  # From q0 to the common ancestor
             path_q0[:i] for i in reversed(range(len(common_path) + 1, len(path_q0) + 1))
         ]
-        trunc_paths += [  # From the common ancestor to q1
+        truncation_bonds += [  # From the common ancestor to q1
             path_q1[:i] for i in range(len(common_path) + 1, len(path_q1) + 1)
         ]
 
+        self._chi_sequential_bond_truncation(truncation_bonds)
+
+        return self
+
+    def _chi_sequential_bond_truncation(
+        self,
+        truncation_bonds: list[RootPath],
+    ) -> None:
+        """Truncate all bonds in the input list to have a dimension of chi or lower.
+
+        Args:
+            truncation_bonds: A list of bonds (provided by their RootPath address).
+                The list must be ordered in such a way that consecutive bonds have
+                a common tensor and such that the first and last bonds correspond to
+                physical (qubit) bonds. Hence, this provides the bonds in the path
+                in the TTN from one physical bond to another.
+        """
         towards_root = True
-        for path in trunc_paths:
+        ancestor_level = min(len(bond_address) for bond_address in truncation_bonds)
+
+        for bond_address in truncation_bonds:
             # Canonicalise to this bond (unsafely, so we must reintroduce bond_tensor)
-            bond_tensor = self.canonicalise(path, unsafe=True)
+            bond_tensor = self.canonicalise(bond_address, unsafe=True)
 
             # Flip ``towards_root`` if we have reached the common ancestor
             # i.e. if the ``bond_tensor`` needs to go towards a child tensor rather
             # than towards the parent
-            if len(path) == len(common_path) + 1:
+            if len(bond_address) == ancestor_level:
                 towards_root = False
 
             # Apply SVD decomposition on bond_tensor and truncate up to
@@ -281,7 +300,7 @@ class TTNxGate(TTN):
             # normalise the singular values so that the sum of its squares is equal
             # to one (i.e. the TTN is a normalised state after truncation).
             self._logger.debug(
-                f"Truncating at {path} to (or below) chosen chi={self._cfg.chi}"
+                f"Truncating at {bond_address} to (or below) chosen chi={self._cfg.chi}"
             )
 
             options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
@@ -316,23 +335,23 @@ class TTNxGate(TTN):
             self.fidelity *= this_fidelity
 
             # Contract V to the parent node of the bond
-            direction = path[-1]
+            direction = bond_address[-1]
             if direction == DirTTN.LEFT:
                 indices = "lrp,sl->srp"
             else:
                 indices = "lrp,sr->lsp"
-            self.nodes[path[:-1]].tensor = cq.contract(
+            self.nodes[bond_address[:-1]].tensor = cq.contract(
                 indices,
-                self.nodes[path[:-1]].tensor,
+                self.nodes[bond_address[:-1]].tensor,
                 V,
                 options=options,
                 optimize={"path": [(0, 1)]},
             )
 
             # Contract U to the child node of the bond
-            if self.nodes[path].is_leaf:
+            if self.nodes[bond_address].is_leaf:
                 n_qbonds = (
-                    len(self.nodes[path].tensor.shape) - 1
+                    len(self.nodes[bond_address].tensor.shape) - 1
                 )  # Total number of physical bonds in this node
                 node_bonds = [f"q{x}" for x in range(n_qbonds)] + ["p"]
             else:
@@ -340,8 +359,8 @@ class TTNxGate(TTN):
             result_bonds = node_bonds.copy()
             result_bonds[-1] = "s"
 
-            self.nodes[path].tensor = cq.contract(
-                self.nodes[path].tensor,
+            self.nodes[bond_address].tensor = cq.contract(
+                self.nodes[bond_address].tensor,
                 node_bonds,
                 U,
                 ["p", "s"],
@@ -355,9 +374,9 @@ class TTNxGate(TTN):
             # The next node in the path towards qR loses its canonical form, since
             # S was contracted to it (either via U or V)
             if towards_root:
-                self.nodes[path[:-1]].canonical_form = None
+                self.nodes[bond_address[:-1]].canonical_form = None
             else:
-                self.nodes[path].canonical_form = None
+                self.nodes[bond_address].canonical_form = None
 
             # Report to logger
             self._logger.debug(f"Truncation done. Truncation fidelity={this_fidelity}")
@@ -366,8 +385,6 @@ class TTNxGate(TTN):
             )
         # Sanity check: reached the common ancestor and changed direction
         assert not towards_root
-
-        return self
 
     def _create_funnel_tensor(self, path: RootPath, direction: DirTTN) -> Tensor:
         """Creates a funnel tensor for the given bond.
