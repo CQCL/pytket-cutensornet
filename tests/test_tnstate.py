@@ -487,15 +487,15 @@ def test_circ_approx_explicit_ttn(circuit: Circuit) -> None:
         # Check for TTNxGate
         cfg = Config(truncation_fidelity=0.99)
         ttn_gate = simulate(libhandle, circuit, SimulationAlgorithm.TTNxGate, cfg)
-        assert np.isclose(mps_gate.get_fidelity(), 0.4, atol=1e-1)
-        assert mps_gate.is_valid()
-        assert np.isclose(mps_gate.vdot(mps_gate), 1.0, atol=cfg._atol)
+        assert np.isclose(ttn_gate.get_fidelity(), 0.69, atol=1e-2)
+        assert ttn_gate.is_valid()
+        assert np.isclose(ttn_gate.vdot(ttn_gate), 1.0, atol=cfg._atol)
 
         # Fixed virtual bond dimension
         # Check for TTNxGate
         cfg = Config(chi=120, leaf_size=3)
         ttn_gate = simulate(libhandle, circuit, SimulationAlgorithm.TTNxGate, cfg)
-        assert np.isclose(ttn_gate.get_fidelity(), 0.62, atol=1e-2)
+        assert np.isclose(ttn_gate.get_fidelity(), 0.84, atol=1e-2)
         assert ttn_gate.is_valid()
         assert np.isclose(ttn_gate.vdot(ttn_gate), 1.0, atol=cfg._atol)
 
