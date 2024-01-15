@@ -297,6 +297,7 @@ def test_exact_circ_sim(circuit: Circuit, algorithm: SimulationAlgorithm) -> Non
     [
         SimulationAlgorithm.MPSxGate,
         SimulationAlgorithm.MPSxMPO,
+        SimulationAlgorithm.TTNxGate,
     ],
 )
 def test_approx_circ_sim_gate_fid(
@@ -374,6 +375,7 @@ def test_approx_circ_sim_chi(circuit: Circuit, algorithm: SimulationAlgorithm) -
     [
         SimulationAlgorithm.MPSxGate,
         SimulationAlgorithm.MPSxMPO,
+        SimulationAlgorithm.TTNxGate,
     ],
 )
 @pytest.mark.parametrize(
@@ -481,12 +483,18 @@ def test_circ_approx_explicit_ttn(circuit: Circuit) -> None:
     random.seed(1)
 
     with CuTensorNetHandle() as libhandle:
+        # Finite gate fidelity
+        # Check for TTNxGate
+        cfg = Config(truncation_fidelity=0.99)
+        ttn_gate = simulate(libhandle, circuit, SimulationAlgorithm.TTNxGate, cfg)
+        assert np.isclose(mps_gate.get_fidelity(), 0.4, atol=1e-1)
+        assert mps_gate.is_valid()
+        assert np.isclose(mps_gate.vdot(mps_gate), 1.0, atol=cfg._atol)
+
         # Fixed virtual bond dimension
         # Check for TTNxGate
         cfg = Config(chi=120, leaf_size=3)
         ttn_gate = simulate(libhandle, circuit, SimulationAlgorithm.TTNxGate, cfg)
-        for g in circuit.get_commands():
-            ttn_gate.apply_gate(g)
         assert np.isclose(ttn_gate.get_fidelity(), 0.62, atol=1e-2)
         assert ttn_gate.is_valid()
         assert np.isclose(ttn_gate.vdot(ttn_gate), 1.0, atol=cfg._atol)
