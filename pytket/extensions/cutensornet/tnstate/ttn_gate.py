@@ -308,8 +308,7 @@ class TTNxGate(TTN):
             dimension_before = self.get_dimension(bond_address, DirTTN.PARENT)
 
             self._logger.debug(
-                "Truncating bond of dimension "
-                f"{dimension_before} at {bond_address}."
+                "Truncating bond of dimension " f"{dimension_before} at {bond_address}."
             )
 
             # Canonicalise to this bond (unsafely, so we must reintroduce bond_tensor)
@@ -317,9 +316,7 @@ class TTNxGate(TTN):
 
             # Apply SVD decomposition to truncate as much as possible before exceeding
             # a `discarded_weight_cutoff` of `1 - fidelity_threshold`.
-            self._logger.debug(
-                f"Truncating to target fidelity={fidelity_threshold}"
-            )
+            self._logger.debug(f"Truncating to target fidelity={fidelity_threshold}")
 
             svd_method = tensor.SVDMethod(
                 abs_cutoff=self._cfg.zero,
@@ -470,10 +467,7 @@ class TTNxGate(TTN):
         assert not towards_root
 
     def _contract_decomp_bond_tensor_into_ttn(
-        self,
-        U: cp.ndarray,
-        V: cp.ndarray,
-        bond_address: RootPath
+        self, U: cp.ndarray, V: cp.ndarray, bond_address: RootPath
     ) -> None:
         """Contracts a decomposed bond_tensor back into the TTN.
 
