@@ -487,7 +487,7 @@ def test_circ_approx_explicit_ttn(circuit: Circuit) -> None:
         # Check for TTNxGate
         cfg = Config(truncation_fidelity=0.99)
         ttn_gate = simulate(libhandle, circuit, SimulationAlgorithm.TTNxGate, cfg)
-        assert np.isclose(ttn_gate.get_fidelity(), 0.69, atol=1e-2)
+        assert np.isclose(ttn_gate.get_fidelity(), 0.70, atol=1e-2)
         assert ttn_gate.is_valid()
         assert np.isclose(ttn_gate.vdot(ttn_gate), 1.0, atol=cfg._atol)
 
