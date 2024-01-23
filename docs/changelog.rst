@@ -1,6 +1,12 @@
 Changelog
 ~~~~~~~~~
 
+0.5.4 (January 2024)
+--------------------
+
+* Updated pytket version requirement to 1.24.
+* Python 3.12 support added, 3.9 dropped.
+
 0.5.3 (January 2024)
 --------------------
 

@@ -30,22 +30,33 @@ jobs:
       with:
         fetch-depth: '0'
     - run: git fetch --depth=1 origin +refs/tags/*:refs/tags/* +refs/heads/*:refs/remotes/origin/*
-    - name: Set up Python 3.9
+    - name: Set up Python 3.10
       uses: actions/setup-python@v5
       with:
-        python-version: '3.9'
-    - name: Build and mypy (3.9)
+        python-version: '3.10'
+    - name: Build and mypy (3.10)
       shell: bash
       if:  (matrix.os == 'macos-12') && (github.event_name == 'push' || (github.event_name == 'pull_request' &&  github.event.pull_request.head.repo.full_name == github.repository) || github.event_name == 'release' || github.event_name == 'schedule' )
       run: |
         chmod +x ./.github/workflows/build-test
         ./.github/workflows/build-test mypy
-    - name: Set up Python 3.10
+    - name: Set up Python 3.11
       if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'release' || github.event_name == 'schedule'
       uses: actions/setup-python@v5
       with:
-        python-version: '3.10'
-    - name: Build (3.10)
+        python-version: '3.11'
+    - name: Build (3.11)
+      if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'release' || github.event_name == 'schedule'
+      shell: bash
+      run: |
+        chmod +x ./.github/workflows/build-test
+        ./.github/workflows/build-test nomypy
+    - name: Set up Python 3.12
+      if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'release' || github.event_name == 'schedule'
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    - name: Build (3.12)
       if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'release' || github.event_name == 'schedule'
       shell: bash
       run: |
@@ -141,4 +152,4 @@ jobs:
     steps:
     - name: Deploy to GitHub Pages
       id: deployment
-      uses: actions/deploy-pages@v4.0.1
+      uses: actions/deploy-pages@v4.0.3
