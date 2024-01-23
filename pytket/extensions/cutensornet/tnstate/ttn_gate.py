@@ -325,6 +325,9 @@ class TTNxGate(TTN):
                 is assigned to. Together, these two lists provide a path in the TTN
                 from the leaf node of `q0` to the leaf node of `q1`.
         """
+        self._logger.debug("Starting sequential weighted truncation (fidelity bound).")
+        initial_fidelity = self.fidelity
+
         options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
         admissible_error = 1 - self._cfg.truncation_fidelity
 
@@ -414,6 +417,12 @@ class TTNxGate(TTN):
             self._logger.debug(
                 f"Reduced bond dimension from {dimension_before} to {dimension_after}."
             )
+
+        self._logger.debug(
+            "Finished sequential weighted truncation (fidelity bound). "
+            f"Fidelity factor = {self.fidelity / initial_fidelity}"
+        )
+
         # Sanity check: reached the common ancestor and changed direction
         assert not towards_root
 
@@ -439,6 +448,9 @@ class TTNxGate(TTN):
                 is assigned to. Together, these two lists provide a path in the TTN
                 from the leaf node of `q0` to the leaf node of `q1`.
         """
+        self._logger.debug("Starting sequential truncation (chi bound).")
+        initial_fidelity = self.fidelity
+
         options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
 
         # Combine the two lists of bonds, but remember at which entry the direction
@@ -514,6 +526,12 @@ class TTNxGate(TTN):
             self._logger.debug(
                 f"Reduced bond dimension from {dimension_before} to {dimension_after}."
             )
+
+        self._logger.debug(
+            "Finished sequential truncation (chi bound). "
+            f"Fidelity factor = {self.fidelity / initial_fidelity}"
+        )
+
         # Sanity check: reached the common ancestor and changed direction
         assert not towards_root
 
