@@ -75,6 +75,7 @@ class CuTensorNetHandle:
         cp.cuda.Device(device_id).use()
 
         dev = cp.cuda.Device()
+        self.dev = dev
         self.device_id = int(dev)
 
     def __enter__(self) -> CuTensorNetHandle:
