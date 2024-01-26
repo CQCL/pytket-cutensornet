@@ -9,7 +9,7 @@ from pytket.extensions.cutensornet.tensor_network_convert import (  # type: igno
     TensorNetwork,
     measure_qubits_state,
 )
-from pytket.extensions.cutensornet.utils import circuit_statevector_postselect
+from pytket.extensions.cutensornet.exact.utils import circuit_statevector_postselect
 
 
 @pytest.mark.parametrize(

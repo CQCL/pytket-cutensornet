@@ -1,5 +1,5 @@
 import numpy
-from pytket.extensions.cutensornet.utils import circuit_statevector_postselect
+from pytket.extensions.cutensornet.exact.utils import circuit_statevector_postselect
 from pytket import Circuit, Qubit  # type: ignore
 
 

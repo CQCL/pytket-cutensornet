@@ -18,7 +18,7 @@ from pytket.extensions.cutensornet.mps import (
     prepare_circuit,
     ContractionAlg,
 )
-from pytket.extensions.cutensornet.utils import circuit_statevector_postselect
+from pytket.extensions.cutensornet.exact.utils import circuit_statevector_postselect
 
 
 def test_libhandle_manager() -> None:
