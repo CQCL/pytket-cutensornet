@@ -237,6 +237,11 @@ class TTNxGate(TTN):
             Q_bonds = "Lrs" if child_dir == DirTTN.LEFT else "lRs"
             R_bonds = "Bbsp"  # The new `msg_tensor`
 
+            self._logger.debug(
+                f"Pushing msg_tensor ({msg_tensor.nbytes // 2**20} MiB) through node "
+                f"({node.tensor.nbytes // 2**20} MiB) at {parent_bond}."
+            )
+
             # Apply the contraction followed by a QR decomposition
             node.tensor, msg_tensor = contract_decompose(
                 f"{node_bonds},{msg_bonds}->{Q_bonds},{R_bonds}",
@@ -260,6 +265,12 @@ class TTNxGate(TTN):
         msg_bonds = "BbLl" if child_dir == DirTTN.LEFT else "BbRr"
         Q_bonds = "Lsp" if child_dir == DirTTN.LEFT else "sRp"
         R_bonds = "Bbrs" if child_dir == DirTTN.LEFT else "Bbls"  # The new `msg_tensor`
+
+        self._logger.debug(
+            f"Pushing msg_tensor ({msg_tensor.nbytes // 2**20} MiB) through node "
+            f"({common_ancestor_node.tensor.nbytes // 2**20} MiB) at {parent_bond}."
+        )
+
 
         # Apply the contraction followed by a QR decomposition
         common_ancestor_node.tensor, msg_tensor = contract_decompose(
@@ -295,6 +306,11 @@ class TTNxGate(TTN):
             msg_bonds = "BbpP"
             Q_bonds = "srP" if child_dir == DirTTN.LEFT else "lsP"
             R_bonds = "Bbls" if child_dir == DirTTN.LEFT else "Bbrs"  # New `msg_tensor`
+
+            self._logger.debug(
+                f"Pushing msg_tensor ({msg_tensor.nbytes // 2**20} MiB) through node "
+                f"({node.tensor.nbytes // 2**20} MiB) at {parent_bond}."
+            )
 
             # Apply the contraction followed by a QR decomposition
             node.tensor, msg_tensor = contract_decompose(
