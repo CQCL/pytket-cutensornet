@@ -133,11 +133,6 @@ class TTN(TNState):
         self.nodes: dict[RootPath, TreeNode] = dict()
         self.qubit_position: dict[Qubit, tuple[RootPath, int]] = dict()
 
-        if self._cfg.truncation_fidelity < 1:
-            raise NotImplementedError(
-                "Truncation fidelity mode not currently implemented on TTN."
-            )
-
         n_groups = len(qubit_partition)
         if n_groups == 0:  # There's no initialisation to be done
             pass
