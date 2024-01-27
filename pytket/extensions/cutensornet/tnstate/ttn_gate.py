@@ -111,36 +111,35 @@ class TTNxGate(TTN):
         (path_q0, bond_q0) = self.qubit_position[q0]
         (path_q1, bond_q1) = self.qubit_position[q1]
 
+        # Glossary of bond IDs
+        # a -> the input bond of the gate on q0
+        # b -> the input bond of the gate on q1
+        # A -> the output bond of the gate on q0
+        # B -> the output bond of the gate on q1
+        # l -> left child bond of the TTN node
+        # r -> right child bond of the TTN node
+        # p -> the parent bond of the TTN node
+        # s -> the shared bond resulting from a decomposition
+        # chr(x) -> bond of the x-th qubit in a leaf node
+        gate_bonds = "ABab"
+
         # If the two qubits are in the same leaf node, contract the gate with it.
-        # There is no truncation needed.
+        # No truncation is required.
         if path_q0 == path_q1:
-            n_qbonds = (
-                len(self.nodes[path_q0].tensor.shape) - 1
-            )  # Total number of physical bonds in this node
-
-            # Glossary of bond IDs
-            # qX -> where X is the X-th physical bond (qubit) in the TTN node
-            # p  -> the parent bond of the TTN node
-            # i0 -> the input bond of the gate on q0
-            # o0 -> the output bond of the gate on q0
-            # i1 -> the input bond of the gate on q1
-            # o1 -> the output bond of the gate on q1
-            gate_bond = ["o0", "o1", "i0", "i1"]
-
-            aux_bonds = [f"q{x}" for x in range(n_qbonds)] + ["p"]
-            node_bonds = aux_bonds.copy()
-            node_bonds[bond_q0] = "i0"
-            node_bonds[bond_q1] = "i1"
-            result_bonds = aux_bonds
-            result_bonds[bond_q0] = "o0"
-            result_bonds[bond_q1] = "o1"
+            leaf_node = self.nodes[path_q0]
+            n_qbonds = len(leaf_node.tensor.shape) - 1  # Num of qubit bonds
+            aux_bonds = [chr(x) for x in range(n_qbonds)]
+            aux_bonds[bond_q0] = "a"
+            aux_bonds[bond_q1] = "b"
+            leaf_bonds = "".join(aux_bonds) + "p"
+            aux_bonds[bond_q0] = "A"
+            aux_bonds[bond_q1] = "B"
+            result_bonds = "".join(aux_bonds) + "p"
 
             self.nodes[path_q0].tensor = cq.contract(
-                self.nodes[path_q0].tensor,
-                node_bonds,
+                f"{leaf_bonds},{gate_bonds}->{result_bonds}",
+                leaf_node.tensor,
                 gate_tensor,
-                gate_bond,
-                result_bonds,
                 options=options,
                 optimize={"path": [(0, 1)]},
             )
@@ -172,23 +171,7 @@ class TTNxGate(TTN):
         #   be canonicalised ahead of time, but I don't expect the saving would be
         #   particularly noticeable, and it'd require some non-trivial refactoring
         #   of `canonicalise()`.
-        self.canonicalise(
-            center=(*common_path, DirTTN.LEFT)
-        )
-
-        self._logger.debug(f"Applying gate to the TTN.")
-
-        # Glossary of bond IDs
-        # a -> the input bond of the gate on q0
-        # b -> the input bond of the gate on q1
-        # A -> the output bond of the gate on q0
-        # B -> the output bond of the gate on q1
-        # l -> left child bond of the TTN node
-        # r -> right child bond of the TTN node
-        # p -> the parent bond of the TTN node
-        # s -> the shared bond resulting from a decomposition
-        # chr(x) -> bond of the x-th qubit in a leaf node
-        gate_bonds = "ABab"
+        self.canonicalise(center=(*common_path, DirTTN.LEFT))
 
         # The overall strategy is to connect the `a` bond of the gate tensor to
         # the corresponding bond for `q0` in the TTN (so that its bond `A`) becomes
@@ -215,14 +198,11 @@ class TTNxGate(TTN):
         # We immediately QR-decompose the resulting tensor,
         leaf_node = self.nodes[path_q0]
         n_qbonds = len(leaf_node.tensor.shape) - 1  # Num of qubit bonds
-        leaf_bonds = "".join(
-            "a" if x == bond_q0 else chr(x)
-            for x in range(n_qbonds)
-        ) + "p"
-        Q_bonds = "".join(
-            "A" if x == bond_q0 else chr(x)
-            for x in range(n_qbonds)
-        ) + "s"
+        aux_bonds = [chr(x) for x in range(n_qbonds)]
+        aux_bonds[bond_q0] = "a"
+        leaf_bonds = "".join(aux_bonds) + "p"
+        aux_bonds[bond_q0] = "A"
+        Q_bonds = "".join(aux_bonds) + "s"
         R_bonds = "Bbsp"  # The `msg_tensor`
 
         # Apply the contraction followed by a QR decomposition
@@ -230,7 +210,7 @@ class TTNxGate(TTN):
             f"{leaf_bonds},{gate_bonds}->{Q_bonds},{R_bonds}",
             leaf_node.tensor,
             gate_tensor,
-            algorithm={"qr_method": True},
+            algorithm={"qr_method": tensor.QRMethod()},
             options=options,
             optimize={"path": [(0, 1)]},
         )
@@ -239,13 +219,12 @@ class TTNxGate(TTN):
 
         # We must push the `msg_tensor` all the way to the common ancestor
         # of `q0` and `q1`.
-        bonds_from_q0_to_ancestor = [
+        bond_addresses = [
             path_q0[:i] for i in reversed(range(len(common_path) + 1, len(path_q0) + 1))
         ]
         # Sanity checks:
-        assert all(len(bond_addresses) != len(common_path))
+        assert all(len(root_path) != len(common_path) for root_path in bond_addresses)
         assert len(bond_addresses[0]) == len(path_q0)
-        assert len(bond_addresses[1]) < len(bond_addresses[0])
 
         # For all of these nodes; push `msg_tensor` through to their parent bond
         for child_bond in bond_addresses[:-1]:  # Doesn't do it on common ancestor!
@@ -263,7 +242,7 @@ class TTNxGate(TTN):
                 f"{node_bonds},{msg_bonds}->{Q_bonds},{R_bonds}",
                 node.tensor,
                 msg_tensor,
-                algorithm={"qr_method": True},
+                algorithm={"qr_method": tensor.QRMethod()},
                 options=options,
                 optimize={"path": [(0, 1)]},
             )
@@ -287,7 +266,7 @@ class TTNxGate(TTN):
             f"{node_bonds},{msg_bonds}->{Q_bonds},{R_bonds}",
             common_ancestor_node.tensor,
             msg_tensor,
-            algorithm={"qr_method": True},
+            algorithm={"qr_method": tensor.QRMethod()},
             options=options,
             optimize={"path": [(0, 1)]},
         )
@@ -299,13 +278,12 @@ class TTNxGate(TTN):
 
         # We must push the `msg_tensor` from the common ancestor to the leaf node
         # containing `q1`.
-        bonds_addresses = [
+        bond_addresses = [
             path_q1[:i] for i in range(len(common_path) + 1, len(path_q1) + 1)
         ]
         # Sanity checks:
-        assert all(len(bond_addresses) != len(common_path))
+        assert all(len(root_path) != len(common_path) for root_path in bond_addresses)
         assert len(bond_addresses[-1]) == len(path_q1)
-        assert len(bond_addresses[0]) < len(bond_addresses[1])
 
         # For all of these nodes; push `msg_tensor` through to their child bond
         for child_bond in bond_addresses[1:]:  # Skip common ancestor: already pushed
@@ -323,7 +301,7 @@ class TTNxGate(TTN):
                 f"{node_bonds},{msg_bonds}->{Q_bonds},{R_bonds}",
                 node.tensor,
                 msg_tensor,
-                algorithm={"qr_method": True},
+                algorithm={"qr_method": tensor.QRMethod()},
                 options=options,
                 optimize={"path": [(0, 1)]},
             )
@@ -334,23 +312,20 @@ class TTNxGate(TTN):
         # All we need to do is contract the `msg_tensor` into the leaf.
         leaf_node = self.nodes[path_q1]
         n_qbonds = len(leaf_node.tensor.shape) - 1  # Num of qubit bonds
-        leaf_bonds = "".join(
-            "b" if x == bond_q1 else chr(x)  # Connect `b` to `q1`
-            for x in range(n_qbonds)
-        ) + "p"
+        aux_bonds = [chr(x) for x in range(n_qbonds)]
+        aux_bonds[bond_q1] = "b"  # Connect `b` to `q1`
+        leaf_bonds = "".join(aux_bonds) + "p"
         msg_bonds = "BbpP"
-        result_bonds = "".join(
-            "B" if x == bond_q1 else chr(x)  # `B` becomes the new physical bond `q1`
-            for x in range(n_qbonds)
-        ) + "P"
+        aux_bonds[bond_q1] = "B"  # `B` becomes the new physical bond `q1`
+        result_bonds = "".join(aux_bonds) + "P"
 
         # Apply the contraction
         leaf_node.tensor = cq.contract(
             f"{leaf_bonds},{msg_bonds}->{result_bonds}",
             leaf_node.tensor,
-            msg_tensor
+            msg_tensor,
             options=options,
-            optimize={"path": [(1, 2), (0, 1)]},
+            optimize={"path": [(0, 1)]},
         )
         # The leaf node lost its canonical form
         leaf_node.canonical_form = None
