@@ -27,5 +27,3 @@ from .backends import CuTensorNetBackend
 
 # _metadata.py is copied to the folder after installation.
 from ._metadata import __extension_version__, __extension_name__  # type: ignore
-
-
