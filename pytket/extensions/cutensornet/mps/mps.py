@@ -14,6 +14,7 @@
 from __future__ import annotations  # type: ignore
 import warnings
 import logging
+from logging import Logger
 from typing import Any, Optional, Union
 from enum import Enum
 
@@ -72,11 +73,11 @@ class CuTensorNetHandle:
         self._is_destroyed = False
 
         # Make sure CuPy uses the specified device
-        cp.cuda.Device(device_id).use()
+        dev = cp.cuda.Device(device_id)
+        dev.use()
 
-        dev = cp.cuda.Device()
         self.dev = dev
-        self.device_id = int(dev)
+        self.device_id = dev.id
 
     def __enter__(self) -> CuTensorNetHandle:
         return self
@@ -84,6 +85,18 @@ class CuTensorNetHandle:
     def __exit__(self, exc_type: Any, exc_value: Any, exc_tb: Any) -> None:
         cutn.destroy(self.handle)
         self._is_destroyed = True
+
+    def print_device_properties(self, logger: Logger):
+        """Prints local GPU properties."""
+        device_props = cp.cuda.runtime.getDeviceProperties(self.dev.id)
+        logger.debug("===== device info ======")
+        logger.debug("GPU-name:", device_props["name"].decode())
+        logger.debug("GPU-clock:", device_props["clockRate"])
+        logger.debug("GPU-memoryClock:", device_props["memoryClockRate"])
+        logger.debug("GPU-nSM:", device_props["multiProcessorCount"])
+        logger.debug("GPU-major:", device_props["major"])
+        logger.debug("GPU-minor:", device_props["minor"])
+        logger.debug("========================")
 
 
 class ConfigMPS:
