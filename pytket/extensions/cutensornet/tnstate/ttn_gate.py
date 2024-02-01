@@ -308,7 +308,8 @@ class TTNxGate(TTN):
 
         then the total fidelity factor on the LHS of equation (A) should approximate
         `truncation_fidelity`. There is risk of overshooting with truncation and
-        endinf up with a new `self.fidelity` slightly lower than the target, but this
+        end up with a new `self.fidelity` slightly lower than the target, but this
+
         should be fine in practice, since `self.fidelity` is a lower bound anyway.
         Each of the `w_i` weight factors is assigned depending on the bond dimension,
         with larger bonds given higher weight, so they are truncated more aggressively.
