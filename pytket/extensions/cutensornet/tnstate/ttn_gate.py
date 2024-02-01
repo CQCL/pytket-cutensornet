@@ -195,7 +195,9 @@ class TTNxGate(TTN):
 
         # We begin applying the gate to the TTN by contracting `gate_tensor` into the
         # leaf node containing `q0`, with the `b` and `B` bonds of the latter left open.
-        # We immediately QR-decompose the resulting tensor,
+        # We immediately QR-decompose the resulting tensor, so that Q becomes the new
+        # (canonicalised) leaf node and R becomes the `msg_tensor` that we will be
+        # "pushing" through the rest of the arc towards `q1`.
         leaf_node = self.nodes[path_q0]
         n_qbonds = len(leaf_node.tensor.shape) - 1  # Num of qubit bonds
         aux_bonds = [chr(x) for x in range(n_qbonds)]
