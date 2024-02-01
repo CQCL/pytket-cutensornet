@@ -1,4 +1,4 @@
-# Copyright 2019-2023 Quantinuum
+# Copyright 2019-2024 Quantinuum
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -123,8 +123,6 @@ class TTN(TNState):
                 ``2^l - 1`` for some ``l``.
             ValueError: If a ``Qubit`` is repeated in ``qubit_partition``.
             ValueError: If there is only one entry in ``qubit_partition``.
-            NotImplementedError: If the value of ``truncation_fidelity`` in ``config``
-                is smaller than one.
         """
         self._lib = libhandle
         self._cfg = config
@@ -132,11 +130,6 @@ class TTN(TNState):
         self.fidelity = 1.0
         self.nodes: dict[RootPath, TreeNode] = dict()
         self.qubit_position: dict[Qubit, tuple[RootPath, int]] = dict()
-
-        if self._cfg.truncation_fidelity < 1:
-            raise NotImplementedError(
-                "Truncation fidelity mode not currently implemented on TTN."
-            )
 
         n_groups = len(qubit_partition)
         if n_groups == 0:  # There's no initialisation to be done

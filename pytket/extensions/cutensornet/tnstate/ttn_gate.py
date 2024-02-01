@@ -1,4 +1,4 @@
-# Copyright 2019-2023 Quantinuum
+# Copyright 2019-2024 Quantinuum
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -351,31 +351,232 @@ class TTNxGate(TTN):
         # Truncate (if needed) bonds along the arc from `q1` to `q0`.
         # We truncate in this direction to take advantage of the canonicalisation
         # of the TTN we achieved while pushing the `msg_tensor` from `q0` to `q1`.
-        trunc_paths = [  # From q1 to the common ancestor
+        bonds_from_q1_to_ancestor = [
             path_q1[:i] for i in reversed(range(len(common_path) + 1, len(path_q1) + 1))
         ]
-        trunc_paths += [  # From the common ancestor to q0
+        bonds_from_ancestor_to_q0 = [
             path_q0[:i] for i in range(len(common_path) + 1, len(path_q0) + 1)
         ]
 
-        towards_root = True
-        for path in trunc_paths:
+        if self._cfg.truncation_fidelity < 1:
+            # Truncate as much as possible before violating the truncation fidelity
+            self._fidelity_bound_sequential_weighted_truncation(
+                bonds_from_q1_to_ancestor, bonds_from_ancestor_to_q0
+            )
+
+        else:
+            # Truncate so that all bonds have dimension less or equal to chi
+            self._chi_sequential_truncation(
+                bonds_from_q1_to_ancestor, bonds_from_ancestor_to_q0
+            )
+
+        return self
+
+    def _fidelity_bound_sequential_weighted_truncation(
+        self,
+        bonds_from_q1_to_ancestor: list[RootPath],
+        bonds_from_ancestor_to_q0: list[RootPath],
+    ) -> None:
+        """Truncate as much as possible up to the truncation fidelity.
+
+        Our target is to assign a local truncation fidelity `f_i` to each bond `i` in
+        the input lists so that the lower bound of the fidelity satisfies:
+
+            self.fidelity * prod(f_i) < self.fidelity * truncation_fidelity         (A)
+
+        Let e_i = 1 - f_i, where we refer to `e_i` as the "truncation error at bond i".
+        We can use that when e_i is close to zero, the bound:
+
+            prod(1 - e_i)   >   1 - sum(e_i)                                        (B)
+
+        is fairly tight, with an inaccuracy of an additive O(e_i^2) term. Hence, for
+        simplicity we take prod(f_i) ~ 1 - sum(e_i). Let
+
+            `admissible_error`   =   1 - `truncation_fidelity`                 (C)
+
+        and assign each e_i = w_i * `admissible_error` where 0 < w_i < 1 is a weight
+        factor such that sum(w_i) = 1. Thus, if each bond `i` is truncated to a fidelity
+
+            f_i = 1 - w_i * `admissible_error`                                      (D)
+
+        then the total fidelity factor on the LHS of equation (A) should approximate
+        `truncation_fidelity`. There is risk of overshooting with truncation and
+        end up with a new `self.fidelity` slightly lower than the target, but this
+
+        should be fine in practice, since `self.fidelity` is a lower bound anyway.
+        Each of the `w_i` weight factors is assigned depending on the bond dimension,
+        with larger bonds given higher weight, so they are truncated more aggressively.
+
+        Args:
+            bonds_from_q1_to_ancestor: A list of bonds (each as their RootPath address).
+                These bonds will be truncated. The list must be ordered in such a way
+                that consecutive bonds share a common tensor and such that the first
+                bond in the list corresponds to the leaf node that `q0` is assigned to
+                and the last bond in the list corresponds to child bond of the common
+                ancestor between the leaves of `q0` and `q1`.
+            bonds_from_ancestor_q1: Same as above, but the list starts from the other
+                child bond of the common ancestor and ends at the leaf node that `q1`
+                is assigned to. Together, these two lists provide a path in the TTN
+                from the leaf node of `q0` to the leaf node of `q1`.
+        """
+        self._logger.debug("Starting sequential weighted truncation (fidelity bound).")
+        initial_fidelity = self.fidelity
+
+        options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
+        admissible_error = 1 - self._cfg.truncation_fidelity
+
+        # Combine the two lists of bonds, but remember at which entry the direction
+        # of the path is switched from going towards root to going towards leaves.
+        truncation_bonds = bonds_from_q1_to_ancestor + bonds_from_ancestor_to_q0
+        switch_direction_at = len(bonds_from_q1_to_ancestor)
+        towards_root = True  # First half of truncation_bonds is path towards ancestor
+
+        # Obtain the dimension of each bond
+        dimensions = [
+            self.get_dimension(bond, DirTTN.PARENT) for bond in truncation_bonds
+        ]
+        # Assign the weight `w_i` of each bond.
+        # NOTE: currently uses w_i = dim_i / sum(dim_i), for no other reason that it is
+        #   simple. Better weight functions may exist and research on this is desirable.
+        weights = [dim / sum(dimensions) for dim in dimensions]
+        # Assign a fidelity `f_i` to each bond.
+        bond_fidelities = [1 - w * admissible_error for w in weights]
+
+        # Truncate each bond as much as possible up to its assigned bond fidelity
+        for i, bond_address in enumerate(truncation_bonds):
+            dimension_before = self.get_dimension(bond_address, DirTTN.PARENT)
+
             # Canonicalise to this bond (unsafely, so we must reintroduce bond_tensor)
-            bond_tensor = self.canonicalise(path, unsafe=True)
+            bond_tensor = self.canonicalise(bond_address, unsafe=True)
+
+            # Flip ``towards_root`` if we have reached the common ancestor
+            # i.e. if the ``bond_tensor`` needs to go towards a child tensor rather
+            # than towards the parent
+            if switch_direction_at == i:
+                towards_root = False
+
+            # Apply SVD decomposition to truncate as much as possible before exceeding
+            # a `discarded_weight_cutoff` of `1 - f_i`. Contract S directly into U/V and
+            # normalise the singular values so that the sum of its squares is equal
+            # to one (i.e. the TTN is a normalised state after truncation).
+            self._logger.debug(
+                f"Truncating at {bond_address} to target fidelity={bond_fidelities[i]}"
+            )
+
+            svd_method = tensor.SVDMethod(
+                abs_cutoff=self._cfg.zero,
+                discarded_weight_cutoff=1 - bond_fidelities[i],
+                partition="V" if towards_root else "U",  # Contract S to parent or child
+                normalization="L2",  # Sum of squares singular values must equal 1
+            )
+
+            # Apply the SVD decomposition using the configuration defined above
+            U, S, V, svd_info = tensor.decompose(
+                "cp->cs,sp",
+                bond_tensor,
+                method=svd_method,
+                options=options,
+                return_info=True,
+            )
+            assert S is None  # Due to "partition" option in SVDMethod
+
+            # discarded_weight is calculated within cuTensorNet as:
+            #                             sum([s**2 for s in S'])
+            #     discarded_weight = 1 - -------------------------
+            #                             sum([s**2 for s in S])
+            # where S is the list of original singular values and S' is the set of
+            # singular values that remain after truncation (before normalisation).
+            # It can be shown that the fidelity |<psi|phi>|^2 (for |phi> and |psi>
+            # unit vectors before and after truncation) is equal to 1 - disc_weight.
+            #
+            # We multiply the fidelity of the current step to the overall fidelity
+            # to keep track of a lower bound for the fidelity.
+            this_fidelity = 1.0 - svd_info.discarded_weight
+            self.fidelity *= this_fidelity
+            dimension_after = V.shape[0]
+
+            # Contract U and V into the TTN. This reintroduces the data of bond_tensor
+            # back into the TTN, as required by ``canonicalise(.., unsafe=True)``.
+            self._contract_decomp_bond_tensor_into_ttn(U, V, bond_address)
+
+            # The next node in the path towards qR loses its canonical form, since
+            # S was contracted to it (either via U or V)
+            if towards_root:
+                self.nodes[bond_address[:-1]].canonical_form = None
+            else:
+                self.nodes[bond_address].canonical_form = None
+
+            # Report to logger
+            self._logger.debug(f"Truncation done. Truncation fidelity={this_fidelity}")
+            self._logger.debug(
+                f"Reduced bond dimension from {dimension_before} to {dimension_after}."
+            )
+
+        self._logger.debug(
+            "Finished sequential weighted truncation (fidelity bound). "
+            f"Fidelity factor = {self.fidelity / initial_fidelity}"
+        )
+
+        # Sanity check: reached the common ancestor and changed direction
+        assert not towards_root
+
+    def _chi_sequential_truncation(
+        self,
+        bonds_from_q1_to_ancestor: list[RootPath],
+        bonds_from_ancestor_to_q0: list[RootPath],
+    ) -> None:
+        """Truncate all bonds in the input lists to have a dimension of chi or lower.
+
+        The lists of bonds are explored sequentially, truncating the bonds
+        one by one.
+
+        Args:
+            bonds_from_q1_to_ancestor: A list of bonds (each as their RootPath address).
+                These bonds will be truncated. The list must be ordered in such a way
+                that consecutive bonds share a common tensor and such that the first
+                bond in the list corresponds to the leaf node that `q0` is assigned to
+                and the last bond in the list corresponds to child bond of the common
+                ancestor between the leaves of `q0` and `q1`.
+            bonds_from_ancestor_q1: Same as above, but the list starts from the other
+                child bond of the common ancestor and ends at the leaf node that `q1`
+                is assigned to. Together, these two lists provide a path in the TTN
+                from the leaf node of `q0` to the leaf node of `q1`.
+        """
+        self._logger.debug("Starting sequential truncation (chi bound).")
+        initial_fidelity = self.fidelity
+
+        options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
+
+        # Combine the two lists of bonds, but remember at which entry the direction
+        # of the path is switched from going towards root to going towards leaves.
+        truncation_bonds = bonds_from_q1_to_ancestor + bonds_from_ancestor_to_q0
+        switch_direction_at = len(bonds_from_q1_to_ancestor)
+        towards_root = True  # First half of truncation_bonds is path towards ancestor
+
+        for i, bond_address in enumerate(truncation_bonds):
+            dimension_before = self.get_dimension(bond_address, DirTTN.PARENT)
+
+            # Canonicalise to this bond (unsafely, so we must reintroduce bond_tensor)
+            bond_tensor = self.canonicalise(bond_address, unsafe=True)
+
+            # Flip ``towards_root`` if we have reached the common ancestor
+            # i.e. if the ``bond_tensor`` needs to go towards a child tensor rather
+            # than towards the parent
+            if switch_direction_at == i:
+                towards_root = False
 
             # Apply SVD decomposition on bond_tensor and truncate up to
             # `self._cfg.chi`. Ask cuTensorNet to contract S directly into U/V and
             # normalise the singular values so that the sum of its squares is equal
             # to one (i.e. the TTN is a normalised state after truncation).
             self._logger.debug(
-                f"Truncating at {path} to (or below) chosen chi={self._cfg.chi}"
+                f"Truncating at {bond_address} to (or below) chosen chi={self._cfg.chi}"
             )
 
-            options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
             svd_method = tensor.SVDMethod(
                 abs_cutoff=self._cfg.zero,
                 max_extent=self._cfg.chi,
-                partition="V" if towards_root else "U",
+                partition="V" if towards_root else "U",  # Contract S to parent or child
                 normalization="L2",  # Sum of squares equal 1
             )
 
@@ -401,55 +602,77 @@ class TTNxGate(TTN):
             # to keep track of a lower bound for the fidelity.
             this_fidelity = 1.0 - svd_info.discarded_weight
             self.fidelity *= this_fidelity
+            dimension_after = V.shape[0]
 
-            # Contract V to the parent node of the bond
-            direction = path[-1]
-            if direction == DirTTN.LEFT:
-                indices = "lrp,sl->srp"
-            else:
-                indices = "lrp,sr->lsp"
-            self.nodes[path[:-1]].tensor = cq.contract(
-                indices,
-                self.nodes[path[:-1]].tensor,
-                V,
-                options=options,
-                optimize={"path": [(0, 1)]},
-            )
-
-            # Contract U to the child node of the bond
-            if self.nodes[path].is_leaf:
-                n_qbonds = (
-                    len(self.nodes[path].tensor.shape) - 1
-                )  # Total number of physical bonds in this node
-                node_bonds = [f"q{x}" for x in range(n_qbonds)] + ["p"]
-            else:
-                node_bonds = ["l", "r", "p"]
-            result_bonds = node_bonds.copy()
-            result_bonds[-1] = "s"
-
-            self.nodes[path].tensor = cq.contract(
-                self.nodes[path].tensor,
-                node_bonds,
-                U,
-                ["p", "s"],
-                result_bonds,
-                options=options,
-                optimize={"path": [(0, 1)]},
-            )
-            # With these two contractions, bond_tensor has been reintroduced, as
-            # required when calling ``canonicalise(.., unsafe=True)``
+            # Contract U and V into the TTN. This reintroduces the data of bond_tensor
+            # back into the TTN, as required by ``canonicalise(.., unsafe=True)``.
+            self._contract_decomp_bond_tensor_into_ttn(U, V, bond_address)
 
             # The next node in the path towards qR loses its canonical form, since
             # S was contracted to it (either via U or V)
             if towards_root:
-                self.nodes[path[:-1]].canonical_form = None
+                self.nodes[bond_address[:-1]].canonical_form = None
             else:
-                self.nodes[path].canonical_form = None
+                self.nodes[bond_address].canonical_form = None
 
             # Report to logger
             self._logger.debug(f"Truncation done. Truncation fidelity={this_fidelity}")
             self._logger.debug(
-                f"Reduced bond dimension from {bond_tensor.shape[0]} to {V.shape[0]}."
+                f"Reduced bond dimension from {dimension_before} to {dimension_after}."
             )
 
-        return self
+        self._logger.debug(
+            "Finished sequential truncation (chi bound). "
+            f"Fidelity factor = {self.fidelity / initial_fidelity}"
+        )
+
+        # Sanity check: reached the common ancestor and changed direction
+        assert not towards_root
+
+    def _contract_decomp_bond_tensor_into_ttn(
+        self, U: cp.ndarray, V: cp.ndarray, bond_address: RootPath
+    ) -> None:
+        """Contracts a decomposed bond_tensor back into the TTN.
+
+        Args:
+            U: The tensor of the decomposition adjacent to the child node of the bond.
+            V: The tensor of the decomposition adjacent to the parent node of the bond.
+            bond_address: The address to the bond that was decomposed; explicitly, the
+                DirTTN.PARENT bond of the corresponding child node.
+        """
+        options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
+
+        # Contract V to the parent node of the bond
+        direction = bond_address[-1]
+        if direction == DirTTN.LEFT:
+            indices = "lrp,sl->srp"
+        else:
+            indices = "lrp,sr->lsp"
+        self.nodes[bond_address[:-1]].tensor = cq.contract(
+            indices,
+            self.nodes[bond_address[:-1]].tensor,
+            V,
+            options=options,
+            optimize={"path": [(0, 1)]},
+        )
+
+        # Contract U to the child node of the bond
+        if self.nodes[bond_address].is_leaf:
+            n_qbonds = (
+                len(self.nodes[bond_address].tensor.shape) - 1
+            )  # Total number of physical bonds in this node
+            node_bonds = [f"q{x}" for x in range(n_qbonds)] + ["p"]
+        else:
+            node_bonds = ["l", "r", "p"]
+        result_bonds = node_bonds.copy()
+        result_bonds[-1] = "s"
+
+        self.nodes[bond_address].tensor = cq.contract(
+            self.nodes[bond_address].tensor,
+            node_bonds,
+            U,
+            ["p", "s"],
+            result_bonds,
+            options=options,
+            optimize={"path": [(0, 1)]},
+        )
