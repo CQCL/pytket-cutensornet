@@ -123,8 +123,6 @@ class TTN(TNState):
                 ``2^l - 1`` for some ``l``.
             ValueError: If a ``Qubit`` is repeated in ``qubit_partition``.
             ValueError: If there is only one entry in ``qubit_partition``.
-            NotImplementedError: If the value of ``truncation_fidelity`` in ``config``
-                is smaller than one.
         """
         self._lib = libhandle
         self._cfg = config
