@@ -401,9 +401,7 @@ def test_float_point_options(
 
         # Approximate, bound truncation fidelity
         cfg = Config(
-            truncation_fidelity=0.99,
-            float_precision=fp_precision,
-            leaf_size=2
+            truncation_fidelity=0.99, float_precision=fp_precision, leaf_size=2
         )
         tnstate = simulate(
             libhandle,
@@ -491,7 +489,7 @@ def test_circ_approx_explicit_ttn(circuit: Circuit) -> None:
         # Check for TTNxGate
         cfg = Config(truncation_fidelity=0.99)
         ttn_gate = simulate(libhandle, circuit, SimulationAlgorithm.TTNxGate, cfg)
-        assert np.isclose(ttn_gate.get_fidelity(), 0.70, atol=1e-2)
+        assert np.isclose(ttn_gate.get_fidelity(), 0.729, atol=1e-3)
         assert ttn_gate.is_valid()
         assert np.isclose(ttn_gate.vdot(ttn_gate), 1.0, atol=cfg._atol)
 
@@ -499,7 +497,7 @@ def test_circ_approx_explicit_ttn(circuit: Circuit) -> None:
         # Check for TTNxGate
         cfg = Config(chi=120, leaf_size=3)
         ttn_gate = simulate(libhandle, circuit, SimulationAlgorithm.TTNxGate, cfg)
-        assert np.isclose(ttn_gate.get_fidelity(), 0.84, atol=1e-2)
+        assert np.isclose(ttn_gate.get_fidelity(), 0.857, atol=1e-3)
         assert ttn_gate.is_valid()
         assert np.isclose(ttn_gate.vdot(ttn_gate), 1.0, atol=cfg._atol)
 

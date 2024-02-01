@@ -26,7 +26,6 @@ except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
 from pytket.circuit import Op, Qubit
-from .general import Tensor
 from .ttn import TTN, DirTTN, RootPath
 
 
@@ -240,7 +239,7 @@ class TTNxGate(TTN):
 
         # We must push the `msg_tensor` all the way to the common ancestor
         # of `q0` and `q1`.
-        bond_addresses = reversed(bonds_to_q0)  # From `q0` to the ancestor
+        bond_addresses = list(reversed(bonds_to_q0))  # From `q0` to the ancestor
 
         # For all of these nodes; push `msg_tensor` through to their parent bond
         for child_bond in bond_addresses[:-1]:  # Doesn't do it on common ancestor!
@@ -362,14 +361,12 @@ class TTNxGate(TTN):
         if self._cfg.truncation_fidelity < 1:
             # Truncate as much as possible before violating the truncation fidelity
             self._fidelity_bound_sequential_weighted_truncation(
-                reversed(bonds_to_q1), bonds_to_q0
+                list(reversed(bonds_to_q1)), bonds_to_q0
             )
 
         else:
             # Truncate so that all bonds have dimension less or equal to chi
-            self._chi_sequential_truncation(
-                reversed(bonds_to_q1), bonds_to_q0
-            )
+            self._chi_sequential_truncation(list(reversed(bonds_to_q1)), bonds_to_q0)
 
         return self
 
