@@ -1,6 +1,23 @@
 Changelog
 ~~~~~~~~~
 
+0.5.4 (January 2024)
+--------------------
+
+* Updated pytket version requirement to 1.24.
+* Python 3.12 support added, 3.9 dropped.
+
+0.5.3 (January 2024)
+--------------------
+
+* Updated pytket version requirement to 1.23.
+
+0.5.2 (December 2023)
+---------------------
+
+* ``MPS`` simulation with fixed ``truncation_fidelity`` now uses the corresponding truncation primitive from cuQuantum (v23.10).
+* Updated pytket version requirement to 1.22.
+
 0.4.0 (October 2023)
 --------------------
 

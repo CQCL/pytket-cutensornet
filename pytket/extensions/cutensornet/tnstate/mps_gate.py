@@ -15,8 +15,6 @@ from __future__ import annotations  # type: ignore
 import warnings
 import logging
 
-import numpy as np  # type: ignore
-
 try:
     import cupy as cp  # type: ignore
 except ImportError:
@@ -93,6 +91,8 @@ class MPSxGate(MPS):
         Returns:
             ``self``, to allow for method chaining.
         """
+        options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
+
         l_pos = min(positions)
         r_pos = max(positions)
 
@@ -147,142 +147,39 @@ class MPSxGate(MPS):
             gate_tensor,
             self.tensors[l_pos],
             self.tensors[r_pos],
-            options={"handle": self._lib.handle, "device_id": self._lib.device_id},
+            options=options,
             optimize={"path": [(0, 1), (0, 1)]},
         )
         self._logger.debug(f"Intermediate tensor of size (MiB)={T.nbytes / 2**20}")
 
         # Get the template of the MPS tensors involved
         L = self.tensors[l_pos]
-        l_shape = list(L.shape)
         R = self.tensors[r_pos]
-        r_shape = list(R.shape)
 
         if self._cfg.truncation_fidelity < 1:
-            # Carry out SVD decomposition first with NO truncation
-            # to figure out where to apply the dimension cutoff.
-            # Then, apply S normalisation and contraction of S and L manually.
-            #
-            # TODO: As soon as cuQuantum 23.09 is released, replace this
-            # unintuitive code with a simple update to SVDConfig so that it
-            # uses REL_SUM2_CUTOFF. Then the code in the `else` block should
-            # be run; i.e. use standard cuTensorNet API to do the SVD
-            # including normalisation and contraction of S with L.
+            # Apply SVD decomposition to truncate as much as possible before exceeding
+            # a `discarded_weight_cutoff` of `1 - self._cfg.truncation_fidelity`.
             self._logger.debug(
                 f"Truncating to target fidelity={self._cfg.truncation_fidelity}"
             )
 
-            options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
-            svd_method = tensor.SVDMethod(abs_cutoff=self._cfg.zero)
-            L, S, R = tensor.decompose(
-                "acLR->asL,scR", T, method=svd_method, options=options
-            )
-
-            # Use the fact that the entries of S are sorted in decreasing
-            # order and calculate the number of singular values `new_dim` to
-            # keep so that
-            #                             sum([s**2 for s in S'])
-            #   truncation_fidelity  <=  -------------------------
-            #                             sum([s**2 for s in S])
-            #
-            # where S is the list of original singular values and S' is the set of
-            # singular values that remain after truncation (before normalisation).
-            denom = float(sum(cp.square(S)))  # Element-wise squaring
-            numer = 0.0
-            old_dim = new_dim
-            new_dim = 0
-
-            # Take singular values until we surpass the target fidelity
-            while self._cfg.truncation_fidelity > numer / denom:
-                numer += float(S[new_dim] ** 2)
-                new_dim += 1
-            this_fidelity = numer / denom
-
-            # Reshape tensors down to `new_dim` for the virtual bond
-            # No data is copied or moved around, we're changing the ndarray bounds
-            l_shape[-2] = new_dim
-            # pylint: disable = unexpected-keyword-arg   # Disable pylint for next line
-            L = cp.ndarray(
-                l_shape,
-                dtype=self._cfg._complex_t,
-                memptr=L.data,
-                strides=L.strides,
-            )
-            r_shape[0] = new_dim
-            # pylint: disable = unexpected-keyword-arg   # Disable pylint for next line
-            R = cp.ndarray(
-                r_shape,
-                dtype=self._cfg._complex_t,
-                memptr=R.data,
-                strides=R.strides,
-            )
-            # pylint: disable = unexpected-keyword-arg   # Disable pylint for next line
-            S = cp.ndarray(new_dim, dtype=self._cfg._real_t, memptr=S.data)
-
-            # Normalise
-            S *= np.sqrt(1 / this_fidelity)
-
-            # Contract S into L
-            S = S.astype(dtype=self._cfg._complex_t, copy=False)
-            # Use some einsum index magic: since the virtual bond "s" appears in the
-            # list of bonds of the output, it is not summed over.
-            # This causes S to act as the intended diagonal matrix.
-            L = cq.contract(
-                "asL,s->asL",
-                L,
-                S,
-                options={"handle": self._lib.handle, "device_id": self._lib.device_id},
-                optimize={"path": [(0, 1)]},
-            )
-
-            # We multiply the fidelity of the current step to the overall fidelity
-            # to keep track of a lower bound for the fidelity.
-            self.fidelity *= this_fidelity
-
-            # Report to logger
-            self._logger.debug(f"Truncation done. Truncation fidelity={this_fidelity}")
-            self._logger.debug(
-                f"Reduced virtual bond dimension from {old_dim} to {new_dim}."
+            svd_method = tensor.SVDMethod(
+                abs_cutoff=self._cfg.zero,
+                discarded_weight_cutoff=1 - self._cfg.truncation_fidelity,
+                partition="U",  # Contract S directly into U (named L in our case)
+                normalization="L2",  # Sum of squares singular values must equal 1
             )
 
         elif new_dim > self._cfg.chi:
             # Apply SVD decomposition and truncate up to a `max_extent` (for the shared
-            # bond) of `self._cfg.chi`. Ask cuTensorNet to contract S directly into the
-            # L tensor and normalise the singular values so that the sum of its squares
-            # is equal to one (i.e. the MPS is a normalised state after truncation).
+            # bond) of `self._cfg.chi`.
             self._logger.debug(f"Truncating to (or below) chosen chi={self._cfg.chi}")
 
-            options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
             svd_method = tensor.SVDMethod(
                 abs_cutoff=self._cfg.zero,
                 max_extent=self._cfg.chi,
                 partition="U",  # Contract S directly into U (named L in our case)
-                normalization="L2",  # Sum of squares equal 1
-            )
-
-            L, S, R, svd_info = tensor.decompose(
-                "acLR->asL,scR", T, method=svd_method, options=options, return_info=True
-            )
-            assert S is None  # Due to "partition" option in SVDMethod
-
-            # discarded_weight is calculated within cuTensorNet as:
-            #                             sum([s**2 for s in S'])
-            #     discarded_weight = 1 - -------------------------
-            #                             sum([s**2 for s in S])
-            # where S is the list of original singular values and S' is the set of
-            # singular values that remain after truncation (before normalisation).
-            # It can be shown that the fidelity |<psi|phi>|^2 (for |phi> and |psi>
-            # unit vectors before and after truncation) is equal to 1 - disc_weight.
-            #
-            # We multiply the fidelity of the current step to the overall fidelity
-            # to keep track of a lower bound for the fidelity.
-            this_fidelity = 1.0 - svd_info.discarded_weight
-            self.fidelity *= this_fidelity
-
-            # Report to logger
-            self._logger.debug(f"Truncation done. Truncation fidelity={this_fidelity}")
-            self._logger.debug(
-                f"Reduced virtual bond dimension from {new_dim} to {R.shape[0]}."
+                normalization="L2",  # Sum of squares singular values must equal 1
             )
 
         else:
@@ -299,22 +196,41 @@ class MPSxGate(MPS):
             # since canonicalisation is just meant to detect the optimal singular values
             # to truncate, but if we find values that are essentially zero, we are safe
             # to remove them.
-            options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
             svd_method = tensor.SVDMethod(
                 abs_cutoff=self._cfg.zero,
                 partition="U",  # Contract S directly into U (named L in our case)
                 normalization=None,  # Without canonicalisation we must not normalise
             )
-            L, S, R = tensor.decompose(
-                "acLR->asL,scR", T, method=svd_method, options=options
-            )
-            assert S is None  # Due to "partition" option in SVDMethod
 
-            # Report to logger
+        # Apply the SVD decomposition using the configuration defined above
+        L, S, R, svd_info = tensor.decompose(
+            "acLR->asL,scR", T, method=svd_method, options=options, return_info=True
+        )
+        assert S is None  # Due to "partition" option in SVDMethod
+
+        # Update fidelity if there was some truncation (of non-zero singular values)
+        if new_dim > self._cfg.chi or self._cfg.truncation_fidelity < 1:
+            # discarded_weight is calculated within cuTensorNet as:
+            #                             sum([s**2 for s in S'])
+            #     discarded_weight = 1 - -------------------------
+            #                             sum([s**2 for s in S])
+            # where S is the list of original singular values and S' is the set of
+            # singular values that remain after truncation (before normalisation).
+            # It can be shown that the fidelity |<psi|phi>|^2 (for |phi> and |psi>
+            # unit vectors before and after truncation) is equal to 1 - disc_weight.
+            #
+            # We multiply the fidelity of the current step to the overall fidelity
+            # to keep track of a lower bound for the fidelity.
+            this_fidelity = 1.0 - svd_info.discarded_weight
+            self.fidelity *= this_fidelity
+            self._logger.debug(f"Truncation done. Truncation fidelity={this_fidelity}")
+
+        else:
             self._logger.debug(f"Truncation done. Fidelity estimate unchanged.")
-            self._logger.debug(
-                f"Reduced virtual bond dimension from {new_dim} to {R.shape[0]}."
-            )
+
+        self._logger.debug(
+            f"Reduced virtual bond dimension from {new_dim} to {R.shape[0]}."
+        )
 
         self.tensors[l_pos] = L
         self.tensors[r_pos] = R
