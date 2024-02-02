@@ -11,10 +11,11 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Module for circuit simulation by state evolution.
+"""Module for circuit simulation by state evolution, where the state is
+represented by a tensor network with a predefined structure.
 Approximate tensor network contraction is supported. Both ``MPS`` and ``TTN``
 methods are provided.
-For an example of its use, see ``examples/mps_tutorial.ipynb`` in
+For an example of its use, see the ``examples/`` folder at
 https://github.com/CQCL/pytket-cutensornet.
 """
 
