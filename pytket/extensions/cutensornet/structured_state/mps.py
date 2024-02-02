@@ -13,8 +13,7 @@
 # limitations under the License.
 from __future__ import annotations  # type: ignore
 import warnings
-import logging
-from typing import Any, Optional, Union
+from typing import Union
 from enum import Enum
 
 from random import random  # type: ignore
@@ -26,7 +25,6 @@ except ImportError:
     warnings.warn("local settings failed to import cupy", ImportWarning)
 try:
     import cuquantum as cq  # type: ignore
-    import cuquantum.cutensornet as cutn  # type: ignore
     from cuquantum.cutensornet import tensor  # type: ignore
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
@@ -36,168 +34,17 @@ from pytket.pauli import Pauli, QubitPauliString
 
 from pytket.extensions.cutensornet.general import set_logger
 
-# An alias so that `intptr_t` from CuQuantum's API (which is not available in
-# base python) has some meaningful type name.
-Handle = int
-# An alias for the CuPy type used for tensors
-try:
-    Tensor = cp.ndarray
-except NameError:
-    Tensor = Any
+from .general import CuTensorNetHandle, Config, StructuredState, Tensor
 
 
-class DirectionMPS(Enum):
+class DirMPS(Enum):
     """An enum to refer to relative directions within the MPS."""
 
     LEFT = 0
     RIGHT = 1
 
 
-class CuTensorNetHandle:
-    """Initialise the cuTensorNet library with automatic workspace memory
-    management.
-
-    Note:
-        Always use as ``with CuTensorNetHandle() as libhandle:`` so that cuTensorNet
-        handles are automatically destroyed at the end of execution.
-
-    Attributes:
-        handle (int): The cuTensorNet library handle created by this initialisation.
-        device_id (int): The ID of the device (GPU) where cuTensorNet is initialised.
-            If not provided, defaults to ``cp.cuda.Device()``.
-    """
-
-    def __init__(self, device_id: Optional[int] = None):
-        self.handle = cutn.create()
-        self._is_destroyed = False
-
-        # Make sure CuPy uses the specified device
-        cp.cuda.Device(device_id).use()
-
-        dev = cp.cuda.Device()
-        self.device_id = int(dev)
-
-    def __enter__(self) -> CuTensorNetHandle:
-        return self
-
-    def __exit__(self, exc_type: Any, exc_value: Any, exc_tb: Any) -> None:
-        cutn.destroy(self.handle)
-        self._is_destroyed = True
-
-
-class ConfigMPS:
-    """Configuration class for simulation using MPS."""
-
-    def __init__(
-        self,
-        chi: Optional[int] = None,
-        truncation_fidelity: Optional[float] = None,
-        k: int = 4,
-        optim_delta: float = 1e-5,
-        float_precision: Union[np.float32, np.float64] = np.float64,  # type: ignore
-        value_of_zero: float = 1e-16,
-        loglevel: int = logging.WARNING,
-    ):
-        """Instantiate a configuration object for MPS simulation.
-
-        Note:
-            Providing both a custom ``chi`` and ``truncation_fidelity`` will raise an
-            exception. Choose one or the other (or neither, for exact simulation).
-
-        Args:
-            chi: The maximum value allowed for the dimension of the virtual
-                bonds. Higher implies better approximation but more
-                computational resources. If not provided, ``chi`` will be unbounded.
-            truncation_fidelity: Every time a two-qubit gate is applied, the virtual
-                bond will be truncated to the minimum dimension that satisfies
-                ``|<psi|phi>|^2 >= trucantion_fidelity``, where ``|psi>`` and ``|phi>``
-                are the states before and after truncation (both normalised).
-                If not provided, it will default to its maximum value 1.
-            k: If using MPSxMPO, the maximum number of layers the MPO is allowed to
-                have before being contracted. Increasing this might increase fidelity,
-                but it will also increase resource requirements exponentially.
-                Ignored if not using MPSxMPO. Default value is 4.
-            optim_delta: If using MPSxMPO, stopping criteria for the optimisation when
-                contracting the ``k`` layers of MPO. Stops when the increase of fidelity
-                between iterations is smaller than ``optim_delta``.
-                Ignored if not using MPSxMPO. Default value is ``1e-5``.
-            float_precision: The floating point precision used in tensor calculations;
-                choose from ``numpy`` types: ``np.float64`` or ``np.float32``.
-                Complex numbers are represented using two of such
-                ``float`` numbers. Default is ``np.float64``.
-            value_of_zero: Any number below this value will be considered equal to zero.
-                Even when no ``chi`` or ``truncation_fidelity`` is provided, singular
-                values below this number will be truncated.
-                We suggest to use a value slightly below what your chosen
-                ``float_precision`` can reasonably achieve. For instance, ``1e-16`` for
-                ``np.float64`` precision (default) and ``1e-7`` for ``np.float32``.
-            loglevel: Internal logger output level. Use 30 for warnings only, 20 for
-                verbose and 10 for debug mode.
-
-        Raises:
-            ValueError: If both ``chi`` and ``truncation_fidelity`` are fixed.
-            ValueError: If the value of ``chi`` is set below 2.
-            ValueError: If the value of ``truncation_fidelity`` is not in [0,1].
-        """
-        if (
-            chi is not None
-            and truncation_fidelity is not None
-            and truncation_fidelity != 1.0
-        ):
-            raise ValueError("Cannot fix both chi and truncation_fidelity.")
-        if chi is None:
-            chi = 2**60  # In practice, this is like having it be unbounded
-        if truncation_fidelity is None:
-            truncation_fidelity = 1
-
-        if chi < 2:
-            raise ValueError("The max virtual bond dim (chi) must be >= 2.")
-        if truncation_fidelity < 0 or truncation_fidelity > 1:
-            raise ValueError("Provide a value of truncation_fidelity in [0,1].")
-
-        self.chi = chi
-        self.truncation_fidelity = truncation_fidelity
-
-        if float_precision is None or float_precision == np.float64:  # Double precision
-            self._real_t = np.float64  # type: ignore
-            self._complex_t = np.complex128  # type: ignore
-            self._atol = 1e-12
-        elif float_precision == np.float32:  # Single precision
-            self._real_t = np.float32  # type: ignore
-            self._complex_t = np.complex64  # type: ignore
-            self._atol = 1e-4
-        else:
-            allowed_precisions = [np.float64, np.float32]
-            raise TypeError(
-                f"Value of float_precision must be in {allowed_precisions}."
-            )
-        self.zero = value_of_zero
-
-        if value_of_zero > self._atol / 1000:
-            warnings.warn(
-                "Your chosen value_of_zero is relatively large. "
-                "Faithfulness of final fidelity estimate is not guaranteed.",
-                UserWarning,
-            )
-
-        self.k = k
-        self.optim_delta = optim_delta
-        self.loglevel = loglevel
-
-    def copy(self) -> ConfigMPS:
-        """Standard copy of the contents."""
-        return ConfigMPS(
-            chi=self.chi,
-            truncation_fidelity=self.truncation_fidelity,
-            k=self.k,
-            optim_delta=self.optim_delta,
-            float_precision=self._real_t,  # type: ignore
-            value_of_zero=self.zero,
-            loglevel=self.loglevel,
-        )
-
-
-class MPS:
+class MPS(StructuredState):
     """Represents a state as a Matrix Product State.
 
     Attributes:
@@ -206,7 +53,7 @@ class MPS:
             and ``tensors[i+1]`` are connected in the MPS via a bond. All of the
             tensors are rank three, with the dimensions listed in ``.shape`` matching
             the left, right and physical bonds, in that order.
-        canonical_form (dict[int, Optional[DirectionMPS]]): A dictionary mapping
+        canonical_form (dict[int, Optional[DirMPS]]): A dictionary mapping
             positions to the canonical form direction of the corresponding tensor,
             or ``None`` if it the tensor is not canonicalised.
         qubit_position (dict[pytket.circuit.Qubit, int]): A dictionary mapping circuit
@@ -221,9 +68,9 @@ class MPS:
         self,
         libhandle: CuTensorNetHandle,
         qubits: list[Qubit],
-        config: ConfigMPS,
+        config: Config,
     ):
-        """Initialise an MPS on the computational state ``|0>``.
+        """Initialise an MPS on the computational state ``|0>``
 
         Note:
             A ``libhandle`` should be created via a ``with CuTensorNet() as libhandle:``
@@ -246,24 +93,24 @@ class MPS:
 
         n_tensors = len(qubits)
         if n_tensors == 0:  # There's no initialisation to be done
-            return None
+            pass
         elif n_tensors == 1:
             raise ValueError("Please, provide at least two qubits.")
+        else:
+            self.qubit_position = {q: i for i, q in enumerate(qubits)}
 
-        self.qubit_position = {q: i for i, q in enumerate(qubits)}
+            # Create the list of tensors
+            self.tensors: list[Tensor] = []
+            self.canonical_form = {i: None for i in range(n_tensors)}
 
-        # Create the list of tensors
-        self.tensors = []
-        self.canonical_form = {i: None for i in range(n_tensors)}
-
-        # Append each of the tensors initialised in state |0>
-        m_shape = (1, 1, 2)  # Two virtual bonds (dim=1) and one physical
-        for i in range(n_tensors):
-            m_tensor = cp.empty(m_shape, dtype=self._cfg._complex_t)
-            # Initialise the tensor to ket 0
-            m_tensor[0][0][0] = 1
-            m_tensor[0][0][1] = 0
-            self.tensors.append(m_tensor)
+            # Append each of the tensors initialised in state |0>
+            m_shape = (1, 1, 2)  # Two virtual bonds (dim=1) and one physical
+            for i in range(n_tensors):
+                m_tensor = cp.empty(m_shape, dtype=self._cfg._complex_t)
+                # Initialise the tensor to ket 0
+                m_tensor[0][0][0] = 1
+                m_tensor[0][0][1] = 0
+                self.tensors.append(m_tensor)
 
     def is_valid(self) -> bool:
         """Verify that the MPS object is valid.
@@ -358,6 +205,18 @@ class MPS:
 
         return self
 
+    def apply_scalar(self, scalar: complex) -> MPS:
+        """Multiplies the state by a complex number.
+
+        Args:
+            scalar: The complex number to be multiplied.
+
+        Returns:
+            ``self``, to allow for method chaining.
+        """
+        self.tensors[0] *= scalar
+        return self
+
     def canonicalise(self, l_pos: int, r_pos: int) -> None:
         """Canonicalises the MPS object.
 
@@ -374,13 +233,13 @@ class MPS:
         self._logger.debug(f"Start canonicalisation... l_pos={l_pos}, r_pos={r_pos}")
 
         for pos in range(l_pos):
-            self.canonicalise_tensor(pos, form=DirectionMPS.LEFT)
+            self.canonicalise_tensor(pos, form=DirMPS.LEFT)
         for pos in reversed(range(r_pos + 1, len(self))):
-            self.canonicalise_tensor(pos, form=DirectionMPS.RIGHT)
+            self.canonicalise_tensor(pos, form=DirMPS.RIGHT)
 
         self._logger.debug(f"Finished canonicalisation.")
 
-    def canonicalise_tensor(self, pos: int, form: DirectionMPS) -> None:
+    def canonicalise_tensor(self, pos: int, form: DirMPS) -> None:
         """Canonicalises a tensor from an MPS object.
 
         Applies the necessary gauge transformations so that the tensor at
@@ -393,7 +252,7 @@ class MPS:
                 connected to its left bond and physical bond. Similarly for RIGHT.
 
         Raises:
-            ValueError: If ``form`` is not a value in ``DirectionMPS``.
+            ValueError: If ``form`` is not a value in ``DirMPS``.
             RuntimeError: If the ``CuTensorNetHandle`` is out of scope.
         """
         if form == self.canonical_form[pos]:
@@ -419,7 +278,7 @@ class MPS:
         T = self.tensors[pos]
 
         # Assign the bond IDs
-        if form == DirectionMPS.LEFT:
+        if form == DirMPS.LEFT:
             next_pos = pos + 1
             Tnext = self.tensors[next_pos]
             T_bonds = "vsp"
@@ -427,7 +286,7 @@ class MPS:
             R_bonds = "as"
             Tnext_bonds = "sVP"
             result_bonds = "aVP"
-        elif form == DirectionMPS.RIGHT:
+        elif form == DirMPS.RIGHT:
             next_pos = pos - 1
             Tnext = self.tensors[next_pos]
             T_bonds = "svp"
@@ -436,7 +295,7 @@ class MPS:
             Tnext_bonds = "VsP"
             result_bonds = "VaP"
         else:
-            raise ValueError("Argument form must be a value in DirectionMPS.")
+            raise ValueError("Argument form must be a value in DirMPS.")
 
         # Apply QR decomposition
         self._logger.debug(f"QR decompose a {T.nbytes / 2**20} MiB tensor.")
@@ -465,7 +324,7 @@ class MPS:
         self.tensors[next_pos] = result
         self.canonical_form[next_pos] = None
 
-    def vdot(self, other: MPS) -> complex:
+    def vdot(self, other: MPS) -> complex:  # type: ignore
         """Obtain the inner product of the two MPS: ``<self|other>``.
 
         It can be used to compute the squared norm of an MPS ``mps`` as
@@ -475,7 +334,7 @@ class MPS:
             The state that is conjugated is ``self``.
 
         Args:
-            other: The other MPS to compare against.
+            other: The other MPS.
 
         Returns:
             The resulting complex number.
@@ -819,6 +678,10 @@ class MPS:
 
         self._logger.debug(f"Expectation value is {value.real}.")
         return value.real
+
+    def get_fidelity(self) -> float:
+        """Returns the current fidelity of the state."""
+        return self.fidelity
 
     def get_statevector(self) -> np.ndarray:
         """Returns the statevector with qubits in Increasing Lexicographic Order (ILO).
