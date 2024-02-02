@@ -28,14 +28,14 @@ from pytket.passes import DefaultMappingPass
 from pytket.predicates import CompilationUnit
 
 from pytket.extensions.cutensornet.general import set_logger
-from .general import CuTensorNetHandle, Config, TNState
+from .general import CuTensorNetHandle, Config, StructuredState
 from .mps_gate import MPSxGate
 from .mps_mpo import MPSxMPO
 from .ttn_gate import TTNxGate
 
 
 class SimulationAlgorithm(Enum):
-    """An enum to refer to the TNState contraction algorithm.
+    """An enum to refer to the StructuredState contraction algorithm.
 
     Each enum value corresponds to the class with the same name; see its docs for
     information about the algorithm.
@@ -51,12 +51,12 @@ def simulate(
     circuit: Circuit,
     algorithm: SimulationAlgorithm,
     config: Config,
-) -> TNState:
-    """Simulates the circuit and returns the ``TNState`` representing the final state.
+) -> StructuredState:
+    """Simulates the circuit and returns the ``StructuredState`` representing the final state.
 
     Note:
         A ``libhandle`` should be created via a ``with CuTensorNet() as libhandle:``
-        statement. The device where the ``TNState`` is stored will match the one
+        statement. The device where the ``StructuredState`` is stored will match the one
         specified by the library handle.
 
         The input ``circuit`` must be composed of one-qubit and two-qubit gates only.
@@ -70,7 +70,7 @@ def simulate(
         config: The configuration object for simulation.
 
     Returns:
-        An instance of ``TNState`` containing (an approximation of) the final state
+        An instance of ``StructuredState`` containing (an approximation of) the final state
         of the circuit. The instance be of the class matching ``algorithm``.
     """
     logger = set_logger("Simulation", level=config.loglevel)
@@ -79,7 +79,7 @@ def simulate(
         "Ordering the gates in the circuit to reduce canonicalisation overhead."
     )
     if algorithm == SimulationAlgorithm.MPSxGate:
-        tnstate = MPSxGate(  # type: ignore
+        state = MPSxGate(  # type: ignore
             libhandle,
             circuit.qubits,
             config,
@@ -87,7 +87,7 @@ def simulate(
         sorted_gates = _get_sorted_gates(circuit, algorithm)
 
     elif algorithm == SimulationAlgorithm.MPSxMPO:
-        tnstate = MPSxMPO(  # type: ignore
+        state = MPSxMPO(  # type: ignore
             libhandle,
             circuit.qubits,
             config,
@@ -96,7 +96,7 @@ def simulate(
 
     elif algorithm == SimulationAlgorithm.TTNxGate:
         qubit_partition = _get_qubit_partition(circuit, config.leaf_size)
-        tnstate = TTNxGate(  # type: ignore
+        state = TTNxGate(  # type: ignore
             libhandle,
             qubit_partition,
             config,
@@ -106,19 +106,19 @@ def simulate(
     logger.info("Running simulation...")
     # Apply the gates
     for i, g in enumerate(sorted_gates):
-        tnstate.apply_gate(g)
+        state.apply_gate(g)
         logger.info(f"Progress... {(100*i) // len(sorted_gates)}%")
 
     # Apply the batched operations that are left (if any)
-    tnstate._flush()
+    state._flush()
 
     # Apply the circuit's phase to the state
-    tnstate.apply_scalar(np.exp(1j * np.pi * circuit.phase))
+    state.apply_scalar(np.exp(1j * np.pi * circuit.phase))
 
     logger.info("Simulation completed.")
-    logger.info(f"Final TNState size={tnstate.get_byte_size() / 2**20} MiB")
-    logger.info(f"Final TNState fidelity={tnstate.fidelity}")
-    return tnstate
+    logger.info(f"Final StructuredState size={state.get_byte_size() / 2**20} MiB")
+    logger.info(f"Final StructuredState fidelity={state.fidelity}")
+    return state
 
 
 def prepare_circuit_mps(circuit: Circuit) -> tuple[Circuit, dict[Qubit, Qubit]]:

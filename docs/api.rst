@@ -3,4 +3,4 @@ API documentation
 
 .. toctree::
     modules/fullTN.rst
-    modules/tnstate.rst
+    modules/structured_state.rst

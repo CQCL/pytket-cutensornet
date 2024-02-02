@@ -8,7 +8,7 @@ import numpy as np  # type: ignore
 
 from pytket.circuit import Circuit, Qubit, OpType  # type: ignore
 from pytket.pauli import Pauli, QubitPauliString  # type: ignore
-from pytket.extensions.cutensornet.tnstate import (
+from pytket.extensions.cutensornet.structured_state import (
     CuTensorNetHandle,
     Config,
     MPS,
@@ -20,7 +20,7 @@ from pytket.extensions.cutensornet.tnstate import (
     prepare_circuit_mps,
     SimulationAlgorithm,
 )
-from pytket.extensions.cutensornet.tnstate.ttn import RootPath
+from pytket.extensions.cutensornet.structured_state.ttn import RootPath
 from pytket.extensions.cutensornet.utils import circuit_statevector_postselect
 
 
@@ -244,27 +244,27 @@ def test_exact_circ_sim(circuit: Circuit, algorithm: SimulationAlgorithm) -> Non
         circuit, _ = prepare_circuit_mps(circuit)
 
     n_qubits = len(circuit.qubits)
-    state = circuit.get_statevector()
+    state_vec = circuit.get_statevector()
 
     with CuTensorNetHandle() as libhandle:
         cfg = Config(leaf_size=2)
-        tnstate = simulate(libhandle, circuit, algorithm, cfg)
-        assert tnstate.is_valid()
+        state = simulate(libhandle, circuit, algorithm, cfg)
+        assert state.is_valid()
         # Check that there was no approximation
-        assert np.isclose(tnstate.get_fidelity(), 1.0, atol=cfg._atol)
+        assert np.isclose(state.get_fidelity(), 1.0, atol=cfg._atol)
         # Check that overlap is 1
-        assert np.isclose(tnstate.vdot(tnstate), 1.0, atol=cfg._atol)
+        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
 
         # Check that all of the amplitudes are correct
         for b in range(2**n_qubits):
             assert np.isclose(
-                tnstate.get_amplitude(b),
-                state[b],
+                state.get_amplitude(b),
+                state_vec[b],
                 atol=cfg._atol,
             )
 
         # Check that the statevector is correct
-        assert np.allclose(tnstate.get_statevector(), state, atol=cfg._atol)
+        assert np.allclose(state.get_statevector(), state_vec, atol=cfg._atol)
 
 
 @pytest.mark.parametrize(
@@ -308,10 +308,10 @@ def test_approx_circ_sim_gate_fid(
 
     with CuTensorNetHandle() as libhandle:
         cfg = Config(truncation_fidelity=0.99, leaf_size=2)
-        tnstate = simulate(libhandle, circuit, algorithm, cfg)
-        assert tnstate.is_valid()
+        state = simulate(libhandle, circuit, algorithm, cfg)
+        assert state.is_valid()
         # Check that overlap is 1
-        assert np.isclose(tnstate.vdot(tnstate), 1.0, atol=cfg._atol)
+        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
 
 
 @pytest.mark.parametrize(
@@ -353,10 +353,10 @@ def test_approx_circ_sim_chi(circuit: Circuit, algorithm: SimulationAlgorithm) -
 
     with CuTensorNetHandle() as libhandle:
         cfg = Config(chi=4, leaf_size=2)
-        tnstate = simulate(libhandle, circuit, algorithm, cfg)
-        assert tnstate.is_valid()
+        state = simulate(libhandle, circuit, algorithm, cfg)
+        assert state.is_valid()
         # Check that overlap is 1
-        assert np.isclose(tnstate.vdot(tnstate), 1.0, atol=cfg._atol)
+        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
 
 
 @pytest.mark.parametrize(
@@ -394,36 +394,36 @@ def test_float_point_options(
     with CuTensorNetHandle() as libhandle:
         # Exact
         cfg = Config(float_precision=fp_precision, leaf_size=2)
-        tnstate = simulate(libhandle, circuit, algorithm, cfg)
-        assert tnstate.is_valid()
+        state = simulate(libhandle, circuit, algorithm, cfg)
+        assert state.is_valid()
         # Check that overlap is 1
-        assert np.isclose(tnstate.vdot(tnstate), 1.0, atol=cfg._atol)
+        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
 
         # Approximate, bound truncation fidelity
         cfg = Config(
             truncation_fidelity=0.99, float_precision=fp_precision, leaf_size=2
         )
-        tnstate = simulate(
+        state = simulate(
             libhandle,
             circuit,
             algorithm,
             cfg,
         )
-        assert tnstate.is_valid()
+        assert state.is_valid()
         # Check that overlap is 1
-        assert np.isclose(tnstate.vdot(tnstate), 1.0, atol=cfg._atol)
+        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
 
         # Approximate, bound chi
         cfg = Config(chi=4, float_precision=fp_precision, leaf_size=2)
-        tnstate = simulate(
+        state = simulate(
             libhandle,
             circuit,
             algorithm,
             cfg,
         )
-        assert tnstate.is_valid()
+        assert state.is_valid()
         # Check that overlap is 1
-        assert np.isclose(tnstate.vdot(tnstate), 1.0, atol=cfg._atol)
+        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
 
 
 @pytest.mark.parametrize(
@@ -438,7 +438,7 @@ def test_circ_approx_explicit_mps(circuit: Circuit) -> None:
     with CuTensorNetHandle() as libhandle:
         # Finite gate fidelity
         # Check for MPSxGate
-        cfg = Config(truncation_fidelity=0.99, leaf_size=4)
+        cfg = Config(truncation_fidelity=0.99, leaf_size=4, float_precision=np.float32)
         mps_gate = simulate(
             libhandle,
             circuit,
@@ -462,7 +462,7 @@ def test_circ_approx_explicit_mps(circuit: Circuit) -> None:
 
         # Fixed virtual bond dimension
         # Check for MPSxGate
-        cfg = Config(chi=8, leaf_size=4)
+        cfg = Config(chi=8, leaf_size=4, float_precision=np.float32)
         mps_gate = simulate(libhandle, circuit, SimulationAlgorithm.MPSxGate, cfg)
         assert np.isclose(mps_gate.get_fidelity(), 0.03, atol=1e-2)
         assert mps_gate.is_valid()
@@ -487,15 +487,15 @@ def test_circ_approx_explicit_ttn(circuit: Circuit) -> None:
     with CuTensorNetHandle() as libhandle:
         # Finite gate fidelity
         # Check for TTNxGate
-        cfg = Config(truncation_fidelity=0.99)
+        cfg = Config(truncation_fidelity=0.99, leaf_size=3, float_precision=np.float32)
         ttn_gate = simulate(libhandle, circuit, SimulationAlgorithm.TTNxGate, cfg)
-        assert np.isclose(ttn_gate.get_fidelity(), 0.729, atol=1e-3)
+        assert np.isclose(ttn_gate.get_fidelity(), 0.769, atol=1e-3)
         assert ttn_gate.is_valid()
         assert np.isclose(ttn_gate.vdot(ttn_gate), 1.0, atol=cfg._atol)
 
         # Fixed virtual bond dimension
         # Check for TTNxGate
-        cfg = Config(chi=120, leaf_size=3)
+        cfg = Config(chi=120, leaf_size=3, float_precision=np.float32)
         ttn_gate = simulate(libhandle, circuit, SimulationAlgorithm.TTNxGate, cfg)
         assert np.isclose(ttn_gate.get_fidelity(), 0.857, atol=1e-3)
         assert ttn_gate.is_valid()

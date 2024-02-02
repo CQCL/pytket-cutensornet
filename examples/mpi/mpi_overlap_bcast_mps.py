@@ -42,7 +42,7 @@ from mpi4py import MPI
 
 from pytket.circuit import Circuit, fresh_symbol
 
-from pytket.extensions.cutensornet.tnstate import (
+from pytket.extensions.cutensornet.structured_state import (
     simulate,
     Config,
     SimulationAlgorithm,

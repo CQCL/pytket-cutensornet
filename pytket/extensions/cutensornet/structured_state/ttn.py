@@ -34,7 +34,7 @@ from pytket.pauli import QubitPauliString
 
 from pytket.extensions.cutensornet.general import set_logger
 
-from .general import CuTensorNetHandle, Config, TNState, Tensor
+from .general import CuTensorNetHandle, Config, StructuredState, Tensor
 
 
 class DirTTN(IntEnum):
@@ -76,7 +76,7 @@ class TreeNode:
         return new_node
 
 
-class TTN(TNState):
+class TTN(StructuredState):
     """Represents a state as a Tree Tensor Network.
 
     Attributes:
@@ -277,7 +277,7 @@ class TTN(TNState):
 
         return self
 
-    def apply_scalar(self, scalar: complex) -> TNState:
+    def apply_scalar(self, scalar: complex) -> TTN:
         """Multiplies the state by a complex number.
 
         Args:
@@ -573,7 +573,7 @@ class TTN(TNState):
 
         Notes:
             The contents of ``self`` are not updated. This is equivalent to applying
-            ``tnstate = self.copy()`` then ``tnstate.measure(tnstate.get_qubits())``.
+            ``state = self.copy()`` then ``state.measure(state.get_qubits())``.
 
         Returns:
             A dictionary mapping each qubit in the state to its 0 or 1 outcome.

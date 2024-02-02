@@ -72,7 +72,7 @@ class CuTensorNetHandle:
 
 
 class Config:
-    """Configuration class for simulation using ``TNState``."""
+    """Configuration class for simulation using ``StructuredState``."""
 
     def __init__(
         self,
@@ -85,7 +85,7 @@ class Config:
         optim_delta: float = 1e-5,
         loglevel: int = logging.WARNING,
     ):
-        """Instantiate a configuration object for ``TNState`` simulation.
+        """Instantiate a configuration object for ``StructuredState`` simulation.
 
         Note:
             Providing both a custom ``chi`` and ``truncation_fidelity`` will raise an
@@ -192,7 +192,7 @@ class Config:
         )
 
 
-class TNState(ABC):
+class StructuredState(ABC):
     """Class representing a Tensor Network state."""
 
     @abstractmethod
@@ -205,8 +205,8 @@ class TNState(ABC):
         raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
 
     @abstractmethod
-    def apply_gate(self, gate: Command) -> TNState:
-        """Applies the gate to the TNState.
+    def apply_gate(self, gate: Command) -> StructuredState:
+        """Applies the gate to the StructuredState.
 
         Args:
             gate: The gate to be applied.
@@ -221,7 +221,7 @@ class TNState(ABC):
         raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
 
     @abstractmethod
-    def apply_scalar(self, scalar: complex) -> TNState:
+    def apply_scalar(self, scalar: complex) -> StructuredState:
         """Multiplies the state by a complex number.
 
         Args:
@@ -233,17 +233,17 @@ class TNState(ABC):
         raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
 
     @abstractmethod
-    def vdot(self, other: TNState) -> complex:
+    def vdot(self, other: StructuredState) -> complex:
         """Obtain the inner product of the two states: ``<self|other>``.
 
-        It can be used to compute the squared norm of a state ``tnstate`` as
-        ``tnstate.vdot(tnstate)``. The tensors within the state are not modified.
+        It can be used to compute the squared norm of a state ``state`` as
+        ``state.vdot(state)``. The tensors within the state are not modified.
 
         Note:
             The state that is conjugated is ``self``.
 
         Args:
-            other: The other ``TNState``.
+            other: The other ``StructuredState``.
 
         Returns:
             The resulting complex number.
@@ -260,7 +260,7 @@ class TNState(ABC):
 
         Notes:
             The contents of ``self`` are not updated. This is equivalent to applying
-            ``tnstate = self.copy()`` then ``tnstate.measure(tnstate.get_qubits())``.
+            ``state = self.copy()`` then ``state.measure(state.get_qubits())``.
 
         Returns:
             A dictionary mapping each qubit in the state to its 0 or 1 outcome.
@@ -348,7 +348,7 @@ class TNState(ABC):
         """Returns the amplitude of the chosen computational state.
 
         Notes:
-            The result is equivalent to ``tnstate.get_statevector[b]``, but this method
+            The result is equivalent to ``state.get_statevector[b]``, but this method
             is faster when querying a single amplitude (or just a few).
 
         Args:
@@ -390,7 +390,7 @@ class TNState(ABC):
         raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
 
     @abstractmethod
-    def copy(self) -> TNState:
+    def copy(self) -> StructuredState:
         """Returns a deep copy of ``self`` on the same device."""
         raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
 

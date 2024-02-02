@@ -34,7 +34,7 @@ from pytket.pauli import Pauli, QubitPauliString
 
 from pytket.extensions.cutensornet.general import set_logger
 
-from .general import CuTensorNetHandle, Config, TNState, Tensor
+from .general import CuTensorNetHandle, Config, StructuredState, Tensor
 
 
 class DirMPS(Enum):
@@ -44,7 +44,7 @@ class DirMPS(Enum):
     RIGHT = 1
 
 
-class MPS(TNState):
+class MPS(StructuredState):
     """Represents a state as a Matrix Product State.
 
     Attributes:
@@ -205,7 +205,7 @@ class MPS(TNState):
 
         return self
 
-    def apply_scalar(self, scalar: complex) -> TNState:
+    def apply_scalar(self, scalar: complex) -> MPS:
         """Multiplies the state by a complex number.
 
         Args:

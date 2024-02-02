@@ -18,7 +18,7 @@ For an example of its use, see ``examples/mps_tutorial.ipynb`` in
 https://github.com/CQCL/pytket-cutensornet.
 """
 
-from .general import CuTensorNetHandle, Config, TNState
+from .general import CuTensorNetHandle, Config, StructuredState
 from .simulation import SimulationAlgorithm, simulate, prepare_circuit_mps
 
 from .mps import DirMPS, MPS
