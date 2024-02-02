@@ -19,7 +19,10 @@ from collections import defaultdict  # type: ignore
 import numpy as np  # type: ignore
 
 import networkx as nx  # type: ignore
-import kahypar  # type: ignore
+try:
+    import kahypar  # type: ignore
+except ImportError:
+    warnings.warn("local settings failed to import kahypar", ImportWarning)
 
 from pytket.circuit import Circuit, Command, Qubit
 from pytket.transform import Transform
