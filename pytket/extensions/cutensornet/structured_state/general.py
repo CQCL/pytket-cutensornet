@@ -15,7 +15,7 @@ from __future__ import annotations  # type: ignore
 from abc import ABC, abstractmethod
 import warnings
 import logging
-from typing import Any, Optional, Union
+from typing import Any, Optional, Type
 
 import numpy as np  # type: ignore
 
@@ -78,7 +78,7 @@ class Config:
         self,
         chi: Optional[int] = None,
         truncation_fidelity: Optional[float] = None,
-        float_precision: Union[np.float32, np.float64] = np.float64,  # type: ignore
+        float_precision: Type[Any] = np.float64,
         value_of_zero: float = 1e-16,
         leaf_size: int = 8,
         k: int = 4,

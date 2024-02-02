@@ -52,7 +52,7 @@ def simulate(
     algorithm: SimulationAlgorithm,
     config: Config,
 ) -> StructuredState:
-    """Simulates the circuit and returns the ``StructuredState`` representing the final state.
+    """Simulates the circuit and returns the ``StructuredState`` of the final state.
 
     Note:
         A ``libhandle`` should be created via a ``with CuTensorNet() as libhandle:``
@@ -70,7 +70,7 @@ def simulate(
         config: The configuration object for simulation.
 
     Returns:
-        An instance of ``StructuredState`` containing (an approximation of) the final state
+        An instance of ``StructuredState`` for (an approximation of) the final state
         of the circuit. The instance be of the class matching ``algorithm``.
     """
     logger = set_logger("Simulation", level=config.loglevel)
