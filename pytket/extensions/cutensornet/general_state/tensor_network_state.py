@@ -7,6 +7,7 @@ try:
 except ImportError:
     warnings.warn("local settings failed to import cupy", ImportWarning)
 from pytket.circuit import Circuit  # type: ignore
+from pytket.pauli import QubitPauliString  # type: ignore
 from pytket.extensions.cutensornet.general import set_logger
 from pytket.extensions.cutensornet.structured_state import CuTensorNetHandle
 
@@ -103,3 +104,40 @@ class GeneralState:
             cutn.state_update_tensor(
                 self._handle, self._state, gate_id, gate_tensor.data.ptr, 0, 1
             )
+
+    def destroy(self):
+        """Destroys tensor network state."""
+        cutn.destroy_state(self._state)
+
+
+class GeneralOperator:
+    """Handles tensor network operator."""
+
+    def __init__(
+        self,
+        operator: list[tuple[float, QubitPauliString]],
+        num_qubits: int,
+        libhandle: CuTensorNetHandle,
+        loglevel: int = logging.INFO,
+    ) -> None:
+        """Constructs a tensor network operator.
+
+        From a list of Pauli strings and corresponding coefficients.
+
+        Args:
+            operator: List of tuples, containing a Paulistring and a corresponding
+             numeric coefficient.
+            num_qubits: Number of qubits in a circuit for which operator is to be defined.
+            libhandle: cuTensorNet handle.
+            loglevel: Internal logger output level.
+        """
+        self._logger = set_logger("GeneralOperator", loglevel)
+        self._handle = libhandle.handle
+        qubits_dims = (2,) * num_qubits
+        data_type = cq.cudaDataType.CUDA_C_64F  # TODO: implement a config class?
+        self._operator = cutn.create_network_operator(
+            self._handle, num_qubits, qubits_dims, data_type
+        )
+
+    def append_pauli_string(self, pauli_string: QubitPauliString, coeff: float) -> None:
+        pass
