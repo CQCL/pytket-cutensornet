@@ -187,7 +187,7 @@ class MPSxGate(MPS):
             # remove any singular values below ``self._cfg.zero``.
             self._logger.debug(f"Truncating singular values below={self._cfg.zero}.")
             if self._cfg.zero > self._cfg._atol / 1000:
-                self._logger.info(  # This was raised as a warning in ConfigMPS already
+                self._logger.info(  # This was raised as a warning in Config already
                     "Your chosen value_of_zero is relatively large. "
                     "Faithfulness of final fidelity estimate is not guaranteed."
                 )
