@@ -15,7 +15,7 @@ except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 from pytket.circuit import Circuit
 
-from pytket.extensions.cutensornet.tensor_network_convert import (  # type: ignore
+from pytket.extensions.cutensornet.general_state.tensor_network_convert import (  # type: ignore
     tk_to_tensor_network,
     TensorNetwork,
 )

@@ -8,7 +8,7 @@ except ImportError:
     warnings.warn("local settings failed to import cupy", ImportWarning)
 from pytket.circuit import Circuit  # type: ignore
 from pytket.extensions.cutensornet.general import set_logger
-from pytket.extensions.cutensornet.mps import CuTensorNetHandle
+from pytket.extensions.cutensornet.structured_state import CuTensorNetHandle
 
 try:
     import cuquantum as cq  # type: ignore

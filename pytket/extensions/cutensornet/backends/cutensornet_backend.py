@@ -30,7 +30,7 @@ from pytket.backends import ResultHandle, CircuitStatus, StatusEnum, CircuitNotR
 from pytket.backends.backend import KwargTypes, Backend, BackendResult
 from pytket.backends.backendinfo import BackendInfo
 from pytket.backends.resulthandle import _ResultIdTuple
-from pytket.extensions.cutensornet.exact import (
+from pytket.extensions.cutensornet.general_state import (
     TensorNetwork,
     ExpectationValueTensorNetwork,
     tk_to_tensor_network,

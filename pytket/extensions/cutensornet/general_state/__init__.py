@@ -13,7 +13,7 @@
 # limitations under the License.
 """Module for conversion from tket primitives to cuQuantum primitives."""
 
-from pytket.extensions.cutensornet.exact.utils import circuit_statevector_postselect
+from .utils import circuit_statevector_postselect
 
 from .tensor_network_convert import (
     TensorNetwork,
