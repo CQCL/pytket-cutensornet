@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from typing import Optional
+import warnings
 from enum import Enum
 
 from pathlib import Path
@@ -19,6 +20,7 @@ from collections import defaultdict  # type: ignore
 import numpy as np  # type: ignore
 
 import networkx as nx  # type: ignore
+
 try:
     import kahypar  # type: ignore
 except ImportError:
