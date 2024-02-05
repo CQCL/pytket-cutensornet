@@ -6,6 +6,7 @@ try:
     import cupy as cp  # type: ignore
 except ImportError:
     warnings.warn("local settings failed to import cupy", ImportWarning)
+from numpy.typing import NDArray
 from pytket.circuit import Circuit  # type: ignore
 from pytket.pauli import QubitPauliString  # type: ignore
 from pytket.extensions.cutensornet.general import set_logger
@@ -61,10 +62,9 @@ class GeneralState:
         )
         self._mutable_gates_map = {}
         for com in circuit.get_commands():
-            gate_tensor = (
-                com.op.get_unitary()
-                .astype("complex128")
-                .reshape([2] * (2 * com.op.n_qubits), order="F")
+            gate_unitary = com.op.get_unitary().astype("complex128", copy=False)
+            gate_tensor = cp.asarray(gate_unitary, dtype="complex128").reshape(
+                [2] * (2 * com.op.n_qubits), order="F"
             )  # TODO: why column-major order?
             gate_strides = 0  # Always 0?
             gate_qubit_indices = [self._circuit.qubits.index(qb) for qb in com.qubits]
@@ -84,7 +84,7 @@ class GeneralState:
             if com.opgroup is not None:
                 self._mutable_gates_map[com.opgroup] = gate_id
 
-    def update_gates(self, gates_update_map: dict) -> None:
+    def update_gates(self, gates_update_map: dict[str, NDArray]) -> None:
         """Updates gate unitaries in the tensor network state.
 
         Args:
@@ -98,14 +98,14 @@ class GeneralState:
                 raise ValueError(
                     f"Gate {gate_label} unitary's number of rows is not a power of two."
                 )
-            gate_tensor = unitary.astype("complex128").reshape(
+            gate_tensor = cp.asarray(unitary, dtype="complex128").reshape(
                 [2] * (2 * int(gate_n_qubits)), order="F"
             )
             cutn.state_update_tensor(
                 self._handle, self._state, gate_id, gate_tensor.data.ptr, 0, 1
             )
 
-    def destroy(self):
+    def destroy(self) -> None:
         """Destroys tensor network state."""
         cutn.destroy_state(self._state)
 
@@ -113,9 +113,16 @@ class GeneralState:
 class GeneralOperator:
     """Handles tensor network operator."""
 
+    PAULI = {
+        "X": cp.array([[0, 1], [1, 0]], dtype="complex128", order="F"),
+        "Y": cp.array([[0, -1j], [1j, 0]], dtype="complex128", order="F"),
+        "Z": cp.array([[1, 0], [0, -1]], dtype="complex128", order="F"),
+        "I": cp.array([[1, 0], [0, 1]], dtype="complex128", order="F"),
+    }
+
     def __init__(
         self,
-        operator: list[tuple[float, QubitPauliString]],
+        operator: list[tuple[complex, QubitPauliString]],
         num_qubits: int,
         libhandle: CuTensorNetHandle,
         loglevel: int = logging.INFO,
@@ -125,9 +132,10 @@ class GeneralOperator:
         From a list of Pauli strings and corresponding coefficients.
 
         Args:
-            operator: List of tuples, containing a Paulistring and a corresponding
+            operator: List of tuples, containing a Pauli string and a corresponding
              numeric coefficient.
-            num_qubits: Number of qubits in a circuit for which operator is to be defined.
+            num_qubits: Number of qubits in a circuit for which operator is to be
+             defined.
             libhandle: cuTensorNet handle.
             loglevel: Internal logger output level.
         """
@@ -138,6 +146,35 @@ class GeneralOperator:
         self._operator = cutn.create_network_operator(
             self._handle, num_qubits, qubits_dims, data_type
         )
+        for coeff, pauli_string in operator:
+            self.append_pauli_string(pauli_string, coeff)
 
-    def append_pauli_string(self, pauli_string: QubitPauliString, coeff: float) -> None:
-        pass
+    def append_pauli_string(
+        self, pauli_string: QubitPauliString, coeff: complex
+    ) -> None:
+        """Appends a Pauli string to a tensor network operator.
+
+        Args:
+            pauli_string: A Pauli string.
+            coeff: Numeric coefficient.
+        """
+        num_pauli = len(pauli_string.map)
+        num_modes = (1,) * num_pauli
+        state_modes = tuple((qubit.index[0],) for qubit in pauli_string.map.keys())
+        gate_data = tuple(
+            self.PAULI[pauli.name].data.ptr for pauli in pauli_string.map.values()
+        )
+        cutn.network_operator_append_product(
+            self._handle,
+            self._operator,
+            coeff,
+            num_pauli,
+            num_modes,
+            state_modes,
+            0,
+            gate_data,
+        )
+
+    def destroy(self) -> None:
+        """Destroys tensor network operator."""
+        cutn.destroy_network_operator()
