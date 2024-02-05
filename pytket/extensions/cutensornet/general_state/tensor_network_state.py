@@ -6,6 +6,7 @@ try:
     import cupy as cp  # type: ignore
 except ImportError:
     warnings.warn("local settings failed to import cupy", ImportWarning)
+import numpy as np
 from numpy.typing import NDArray
 from pytket.circuit import Circuit  # type: ignore
 from pytket.pauli import QubitPauliString  # type: ignore
@@ -52,10 +53,6 @@ class GeneralState:
         data_type = cq.cudaDataType.CUDA_C_64F  # for now let that be hard-coded
 
         # This is only required (if at all?) when doing evaluation
-        # free_mem = libhandle.dev.mem_info[0]
-        # use half of the total free size
-        # scratch_size = free_mem // 2
-        # scratch_space = cp.cuda.alloc(scratch_size)
 
         self._state = cutn.create_state(
             self._handle, cutn.StatePurity.PURE, num_qubits, qubits_dims, data_type
@@ -90,6 +87,9 @@ class GeneralState:
         Args:
             gates_update_map: Map from gate (Command) opgroup name to a corresponding
              gate unitary.
+
+        Raises:
+            ValueError: If a gate's unitary is of a wrong size.
         """
         for gate_label, unitary in gates_update_map.items():
             gate_id = self._mutable_gates_map[gate_label]
@@ -146,6 +146,7 @@ class GeneralOperator:
         self._operator = cutn.create_network_operator(
             self._handle, num_qubits, qubits_dims, data_type
         )
+        self._logger.debug("Adding operator terms:")
         for coeff, pauli_string in operator:
             self.append_pauli_string(pauli_string, coeff)
 
@@ -158,6 +159,7 @@ class GeneralOperator:
             pauli_string: A Pauli string.
             coeff: Numeric coefficient.
         """
+        self._logger.debug(f"   {coeff}, {pauli_string}")
         num_pauli = len(pauli_string.map)
         num_modes = (1,) * num_pauli
         state_modes = tuple((qubit.index[0],) for qubit in pauli_string.map.keys())
@@ -177,4 +179,101 @@ class GeneralOperator:
 
     def destroy(self) -> None:
         """Destroys tensor network operator."""
-        cutn.destroy_network_operator()
+        cutn.destroy_network_operator(self._operator)
+
+
+class GeneralExpectationValue:
+    """Handles a general tensor network operator expectation value."""
+
+    def __init__(
+        self,
+        state: GeneralState,
+        operator: GeneralOperator,
+        libhandle: CuTensorNetHandle,
+        loglevel: int = logging.INFO,
+        num_hyper_samples: int = 8,
+        scratch_fraction: float = 0.5,
+    ) -> None:
+        """Initialises expectation value object and corresponding work space.
+
+        Notes:
+            State and Operator must have the same handle as ExpectationValue.
+            State (and Operator?) need to exist during the whole lifetime of
+             ExpectationValue.
+
+        Args:
+            state: General tensor network state.
+            operator: General tensor network operator.
+            libhandle: cuTensorNet handle.
+            loglevel: Internal logger output level.
+            num_hyper_samples: Number of hyper samples to use at contraction.
+            scratch_fraction: Fraction of free memory on GPU to allocate as scratch
+             space.
+
+        Raises:
+            MemoryError: If there is insufficient workspace size on a GPU device.
+        """
+        self._handle = libhandle.handle
+        self._logger = set_logger("GeneralExpectationValue", loglevel)
+
+        self._expectation = cutn.create_expectation(self._handle, state, operator)
+
+        # Configure expectation value contraction.
+        # TODO: factor into a separate method, if order-independent with workspace
+        #  allocation
+        num_hyper_samples_dtype = cutn.expectation_get_attribute_dtype(
+            cutn.ExpectationAttribute.OPT_NUM_HYPER_SAMPLES
+        )
+        num_hyper_samples = np.asarray(num_hyper_samples, dtype=num_hyper_samples_dtype)
+        cutn.expectation_configure(
+            self._handle,
+            self._expectation,
+            cutn.ExpectationAttribute.OPT_NUM_HYPER_SAMPLES,
+            num_hyper_samples.ctypes.data,
+            num_hyper_samples.dtype.itemsize,
+        )
+
+        # Set a workspace. One may consider doing this somewhere else outside of the
+        # class, but it seems to really only needed for expectation value.
+        # TODO: need to figure out if this needs to be done explicitly at all
+        stream = cp.cuda.Stream()  # In current cuTN release it is unused (could be 0x0)
+        free_mem = libhandle.dev.mem_info[0]
+        scratch_size = int(scratch_fraction * free_mem)
+        self._scratch_space = cp.cuda.alloc(scratch_size)
+        self._logger.debug(f"Allocated {scratch_size} bytes of scratch memory on GPU")
+        self._work_desc = cutn.create_workspace_descriptor(self._handle)
+        cutn.expectation_prepare(
+            self._handle, self._expectation, scratch_size, self._work_desc, stream.ptr
+        )
+        workspace_size_d = cutn.workspace_get_memory_size(
+            self._handle,
+            self._work_desc,
+            cutn.WorksizePref.RECOMMENDED,
+            cutn.Memspace.DEVICE,
+            cutn.WorkspaceKind.SCRATCH,
+        )
+
+        if workspace_size_d <= scratch_size:
+            cutn.workspace_set_memory(
+                self._handle,
+                self._work_desc,
+                cutn.Memspace.DEVICE,
+                cutn.WorkspaceKind.SCRATCH,
+                self._scratch_space.ptr,
+                workspace_size_d,
+            )
+            self._logger.debug(
+                f"Set {workspace_size_d} bytes of workspace memory out of the allocated"
+                f" scratch space."
+            )
+        else:
+            self.destroy()
+            raise MemoryError(
+                f"Insufficient workspace size on the GPU device {self._handle.dev.id}"
+            )
+
+    def destroy(self) -> None:
+        """Destroys tensor network expectation value and workspace descriptor."""
+        cutn.destroy_workspace_descriptor(self._work_desc)
+        cutn.destroy_expectation(self._expectation)
+        del self._scratch_space  # TODO is this the correct way?
