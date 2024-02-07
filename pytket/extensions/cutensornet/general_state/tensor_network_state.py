@@ -1,5 +1,6 @@
 import logging
 import math
+from typing import Optional
 import warnings
 
 try:
@@ -52,7 +53,10 @@ class GeneralState:
         self._logger.debug(f"Converting a quantum circuit with {num_qubits} qubits.")
         data_type = cq.cudaDataType.CUDA_C_64F  # for now let that be hard-coded
 
-        # This is only required (if at all?) when doing evaluation
+        # These are only required when doing preparation and evaluation.
+        self._stream = None
+        self._scratch_space = None
+        self._work_desc = None
 
         self._state = cutn.create_state(
             self._handle, cutn.StatePurity.PURE, num_qubits, qubits_dims, data_type
@@ -104,6 +108,91 @@ class GeneralState:
             cutn.state_update_tensor(
                 self._handle, self._state, gate_id, gate_tensor.data.ptr, 0, 1
             )
+
+    def configure(self, attributes: Optional[dict] = None) -> None:
+        """Configures tensor network state for future contraction.
+
+        Args:
+            attributes: A dict of cuTensorNet State attributes and their values.
+        """
+        if attributes is None:
+            attributes = {"OPT_NUM_HYPER_SAMPLES": 8}
+        attribute_values = [val for val in attributes.values()]
+        attributes = [getattr(cutn.StateAttribute, attr) for attr in attributes.keys()]
+        for attr, val in zip(attributes, attribute_values):
+            attr_dtype = cutn.state_get_attribute_dtype(attr)
+            attr_arr = np.asarray(val, dtype=attr_dtype)
+            cutn.state_configure(
+                self._handle,
+                self._state,
+                attr_dtype,
+                attr_arr.ctypes.data,
+                attr_arr.dtype.itemsize,
+            )
+
+    def prepare(self, scratch_fraction: float = 0.5) -> None:
+        """Prepare tensor network state for future contraction.
+
+        Allocates workspace memory necessary for contraction.
+
+        Args:
+            scratch_fraction: Fraction of free memory on GPU to allocate as scratch
+             space.
+        """
+        self._stream = (
+            cp.cuda.Stream()
+        )  # In current cuTN release it is unused (could be 0x0)
+        free_mem = self._handle.dev.mem_info[0]
+        scratch_size = int(scratch_fraction * free_mem)
+        self._scratch_space = cp.cuda.alloc(scratch_size)
+        self._logger.debug(f"Allocated {scratch_size} bytes of scratch memory on GPU")
+        self._work_desc = cutn.create_workspace_descriptor(self._handle)
+        cutn.state_prepare(
+            self._handle,
+            self._state,
+            scratch_size,
+            self._work_desc,
+            self._stream.ptr,
+        )
+        workspace_size_d = cutn.workspace_get_memory_size(
+            self._handle,
+            self._work_desc,
+            cutn.WorksizePref.RECOMMENDED,
+            cutn.Memspace.DEVICE,
+            cutn.WorkspaceKind.SCRATCH,
+        )
+
+        if workspace_size_d <= scratch_size:
+            cutn.workspace_set_memory(
+                self._handle,
+                self._work_desc,
+                cutn.Memspace.DEVICE,
+                cutn.WorkspaceKind.SCRATCH,
+                self._scratch_space.ptr,
+                workspace_size_d,
+            )
+            self._logger.debug(
+                f"Set {workspace_size_d} bytes of workspace memory out of the allocated"
+                f" scratch space."
+            )
+        else:
+            cutn.destroy_workspace_descriptor(self._work_desc)
+            del self._scratch_space  # TODO: is it OK to do so?
+
+    def compute(self) -> tuple:
+        """Evaluates state vector."""
+        state_vector = cp.asarray(pow(self._circuit.n_qubits, 2), dtype="complex128")
+        cutn.state_compute(
+            self._handle,
+            self._state,
+            self._work_desc,
+            0,
+            0,
+            state_vector,
+            self._stream.ptr,
+        )
+        self._stream.synchronize()
+        return state_vector
 
     def destroy(self) -> None:
         """Destroys tensor network state."""
