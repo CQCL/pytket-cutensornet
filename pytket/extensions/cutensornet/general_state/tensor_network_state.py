@@ -234,16 +234,22 @@ class GeneralExpectationValue:
         )
 
         # Set a workspace. One may consider doing this somewhere else outside of the
-        # class, but it seems to really only needed for expectation value.
+        # class, but it seems to be really only needed for expectation value.
         # TODO: need to figure out if this needs to be done explicitly at all
-        stream = cp.cuda.Stream()  # In current cuTN release it is unused (could be 0x0)
+        self._stream = (
+            cp.cuda.Stream()
+        )  # In current cuTN release it is unused (could be 0x0)
         free_mem = libhandle.dev.mem_info[0]
         scratch_size = int(scratch_fraction * free_mem)
         self._scratch_space = cp.cuda.alloc(scratch_size)
         self._logger.debug(f"Allocated {scratch_size} bytes of scratch memory on GPU")
         self._work_desc = cutn.create_workspace_descriptor(self._handle)
         cutn.expectation_prepare(
-            self._handle, self._expectation, scratch_size, self._work_desc, stream.ptr
+            self._handle,
+            self._expectation,
+            scratch_size,
+            self._work_desc,
+            self._stream.ptr,
         )
         workspace_size_d = cutn.workspace_get_memory_size(
             self._handle,
@@ -271,6 +277,21 @@ class GeneralExpectationValue:
             raise MemoryError(
                 f"Insufficient workspace size on the GPU device {self._handle.dev.id}"
             )
+
+    def compute(self) -> tuple[complex, complex]:
+        """Computes expectation value."""
+        expectation_value = np.empty(1, dtype="complex128")
+        state_norm = np.empty(1, dtype="complex128")
+        cutn.expectation_compute(
+            self._handle,
+            self._expectation,
+            self._work_desc,
+            expectation_value.ctypes.data,
+            state_norm.ctypes.data,
+            self._stream.ptr,
+        )
+        self._stream.synchronize()
+        return expectation_value.item(), state_norm.item()
 
     def destroy(self) -> None:
         """Destroys tensor network expectation value and workspace descriptor."""
