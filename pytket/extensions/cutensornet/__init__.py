@@ -13,18 +13,6 @@
 # limitations under the License.
 """Module for conversion from tket primitives to cuQuantum primitives."""
 
-from pytket.extensions.cutensornet.general_state.utils import (
-    circuit_statevector_postselect,
-)
-
-from pytket.extensions.cutensornet.general_state.tensor_network_convert import (
-    TensorNetwork,
-    PauliOperatorTensorNetwork,
-    ExpectationValueTensorNetwork,
-    tk_to_tensor_network,
-    measure_qubits_state,
-)
-
 from .backends import CuTensorNetBackend
 
 # _metadata.py is copied to the folder after installation.
