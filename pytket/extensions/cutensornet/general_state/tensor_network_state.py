@@ -116,7 +116,7 @@ class GeneralState:
             attributes: A dict of cuTensorNet State attributes and their values.
         """
         if attributes is None:
-            attributes = {"OPT_NUM_HYPER_SAMPLES": 8}
+            attributes = {"NUM_HYPER_SAMPLES": 8}
         attribute_values = [val for val in attributes.values()]
         attributes = [getattr(cutn.StateAttribute, attr) for attr in attributes.keys()]
         for attr, val in zip(attributes, attribute_values):
