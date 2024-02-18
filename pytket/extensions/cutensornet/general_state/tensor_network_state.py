@@ -44,6 +44,7 @@ class GeneralState:
         self._logger = set_logger("GeneralState", loglevel)
         self._circuit = circuit
         self._handle = libhandle.handle
+        self._dev = libhandle.dev
 
         libhandle.print_device_properties(self._logger)
 
@@ -142,7 +143,7 @@ class GeneralState:
         self._stream = (
             cp.cuda.Stream()
         )  # In current cuTN release it is unused (could be 0x0)
-        free_mem = self._handle.dev.mem_info[0]
+        free_mem = self._dev.mem_info[0]
         scratch_size = int(scratch_fraction * free_mem)
         self._scratch_space = cp.cuda.alloc(scratch_size)
         self._logger.debug(f"Allocated {scratch_size} bytes of scratch memory on GPU")
@@ -303,6 +304,7 @@ class GeneralExpectationValue:
             MemoryError: If there is insufficient workspace size on a GPU device.
         """
         self._handle = libhandle.handle
+        self._dev = libhandle.dev
         self._logger = set_logger("GeneralExpectationValue", loglevel)
 
         self._expectation = cutn.create_expectation(self._handle, state, operator)
@@ -328,7 +330,7 @@ class GeneralExpectationValue:
         self._stream = (
             cp.cuda.Stream()
         )  # In current cuTN release it is unused (could be 0x0)
-        free_mem = libhandle.dev.mem_info[0]
+        free_mem = self._dev.mem_info[0]
         scratch_size = int(scratch_fraction * free_mem)
         self._scratch_space = cp.cuda.alloc(scratch_size)
         self._logger.debug(f"Allocated {scratch_size} bytes of scratch memory on GPU")
@@ -364,7 +366,7 @@ class GeneralExpectationValue:
         else:
             self.destroy()
             raise MemoryError(
-                f"Insufficient workspace size on the GPU device {self._handle.dev.id}"
+                f"Insufficient workspace size on the GPU device {self._dev.id}"
             )
 
     def compute(self) -> tuple[complex, complex]:
