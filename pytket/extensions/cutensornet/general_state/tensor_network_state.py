@@ -125,7 +125,7 @@ class GeneralState:
             cutn.state_configure(
                 self._handle,
                 self._state,
-                attr_dtype,
+                attr,
                 attr_arr.ctypes.data,
                 attr_arr.dtype.itemsize,
             )
