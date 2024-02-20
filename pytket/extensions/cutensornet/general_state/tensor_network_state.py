@@ -187,8 +187,6 @@ class GeneralState:
             self._handle,
             self._state,
             self._work_desc,
-            0,
-            0,
             state_vector,
             self._stream.ptr,
         )
