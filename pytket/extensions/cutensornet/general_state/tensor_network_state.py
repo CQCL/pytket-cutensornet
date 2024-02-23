@@ -1,6 +1,6 @@
 import logging
 import math
-from typing import Optional
+from typing import Union, Optional
 import warnings
 
 try:
@@ -180,18 +180,31 @@ class GeneralState:
             cutn.destroy_workspace_descriptor(self._work_desc)
             del self._scratch_space  # TODO: is it OK to do so?
 
-    def compute(self) -> tuple:
-        """Evaluates state vector."""
-        state_vector = cp.asarray(pow(self._circuit.n_qubits, 2), dtype="complex128")
+    def compute(self, on_host: bool = True) -> Union[cp.ndarray, np.ndarray]:
+        """Evaluates state vector.
+
+        Args:
+            on_host: If :code:`True`, converts cupy :code:`ndarray` to numpy
+                :code:`ndarray`, copying it to host device (CPU).
+
+        Returns:
+            Either a :code:`cupy.ndarray` on a GPU, or a :code:`numpy.ndarray` on a
+            host device (CPU).
+        """
+        state_vector = cp.empty(
+            (2,) * self._circuit.n_qubits, dtype="complex128", order="F"
+        )
         cutn.state_compute(
             self._handle,
             self._state,
             self._work_desc,
-            state_vector,
+            (state_vector.data.ptr,),
             self._stream.ptr,
         )
         self._stream.synchronize()
-        return state_vector
+        if on_host:
+            return cp.asnumpy(state_vector.flatten())
+        return state_vector.flatten()
 
     def destroy(self) -> None:
         """Destroys tensor network state."""
