@@ -67,7 +67,7 @@ class GeneralState:
             gate_unitary = com.op.get_unitary().astype("complex128", copy=False)
             gate_tensor = cp.asarray(gate_unitary, dtype="complex128").reshape(
                 [2] * (2 * com.op.n_qubits), order="F"
-            )  # TODO: why column-major order?
+            )
             gate_strides = 0  # Always 0?
             gate_qubit_indices = [self._circuit.qubits.index(qb) for qb in com.qubits]
             gate_n_qubits = len(gate_qubit_indices)
@@ -177,8 +177,10 @@ class GeneralState:
                 f" scratch space."
             )
         else:
-            cutn.destroy_workspace_descriptor(self._work_desc)
-            del self._scratch_space  # TODO: is it OK to do so?
+            self.destroy()
+            raise MemoryError(
+                f"Insufficient workspace size on the GPU device {self._dev.id}"
+            )
 
     def compute(self, on_host: bool = True) -> Union[cp.ndarray, np.ndarray]:
         """Evaluates state vector.
@@ -208,7 +210,10 @@ class GeneralState:
 
     def destroy(self) -> None:
         """Destroys tensor network state."""
+        if self._work_desc is not None:
+            cutn.destroy_workspace_descriptor(self._work_desc)
         cutn.destroy_state(self._state)
+        del self._scratch_space
 
 
 class GeneralOperator:
@@ -292,8 +297,6 @@ class GeneralExpectationValue:
         operator: GeneralOperator,
         libhandle: CuTensorNetHandle,
         loglevel: int = logging.INFO,
-        num_hyper_samples: int = 8,
-        scratch_fraction: float = 0.5,
     ) -> None:
         """Initialises expectation value object and corresponding work space.
 
@@ -307,9 +310,6 @@ class GeneralExpectationValue:
             operator: General tensor network operator.
             libhandle: cuTensorNet handle.
             loglevel: Internal logger output level.
-            num_hyper_samples: Number of hyper samples to use at contraction.
-            scratch_fraction: Fraction of free memory on GPU to allocate as scratch
-             space.
 
         Raises:
             MemoryError: If there is insufficient workspace size on a GPU device.
@@ -320,23 +320,42 @@ class GeneralExpectationValue:
 
         self._expectation = cutn.create_expectation(self._handle, state, operator)
 
-        # Configure expectation value contraction.
-        # TODO: factor into a separate method, if order-independent with workspace
-        #  allocation
-        num_hyper_samples_dtype = cutn.expectation_get_attribute_dtype(
-            cutn.ExpectationAttribute.OPT_NUM_HYPER_SAMPLES
-        )
-        num_hyper_samples = np.asarray(num_hyper_samples, dtype=num_hyper_samples_dtype)
-        cutn.expectation_configure(
-            self._handle,
-            self._expectation,
-            cutn.ExpectationAttribute.OPT_NUM_HYPER_SAMPLES,
-            num_hyper_samples.ctypes.data,
-            num_hyper_samples.dtype.itemsize,
-        )
+    def configure(self, attributes: Optional[dict] = None) -> None:
+        """Configures expectation value for future contraction.
 
-        # Set a workspace. One may consider doing this somewhere else outside of the
-        # class, but it seems to be really only needed for expectation value.
+        Args:
+            attributes: A map of cuTensorNet :code:`ExpectationAttribute` objects to
+                their values.
+
+        Note:
+            Currently :code:`ExpectationAttribute` has only one attribute.
+        """
+        if attributes is None:
+            attributes = {"OPT_NUM_HYPER_SAMPLES": 8}
+        attribute_values = [val for val in attributes.values()]
+        attributes = [
+            getattr(cutn.ExpectationAttribute, attr) for attr in attributes.keys()
+        ]
+        for attr, val in zip(attributes, attribute_values):
+            attr_dtype = cutn.expectation_get_attribute_dtype(attr)
+            attr_arr = np.asarray(val, dtype=attr_dtype)
+            cutn.expectation_configure(
+                self._handle,
+                self._expectation,
+                attr,
+                attr_arr.ctypes.data,
+                attr_arr.dtype.itemsize,
+            )
+
+    def prepare(self, scratch_fraction: float = 0.5) -> None:
+        """Prepare tensor network state for future contraction.
+
+        Allocates workspace memory necessary for contraction.
+
+        Args:
+            scratch_fraction: Fraction of free memory on GPU to allocate as scratch
+             space.
+        """
         # TODO: need to figure out if this needs to be done explicitly at all
         self._stream = (
             cp.cuda.Stream()
