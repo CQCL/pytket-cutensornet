@@ -309,7 +309,13 @@ class GeneralExpectationValue:
         self._dev = libhandle.dev
         self._logger = set_logger("GeneralExpectationValue", loglevel)
 
-        self._expectation = cutn.create_expectation(self._handle, state, operator)
+        self._stream = None
+        self._scratch_space = None
+        self._work_desc = None
+
+        self._expectation = cutn.create_expectation(
+            self._handle, state._state, operator._operator
+        )
 
     def configure(self, attributes: Optional[dict] = None) -> None:
         """Configures expectation value for future contraction.
@@ -407,6 +413,7 @@ class GeneralExpectationValue:
 
     def destroy(self) -> None:
         """Destroys tensor network expectation value and workspace descriptor."""
-        cutn.destroy_workspace_descriptor(self._work_desc)
+        if self._work_desc is not None:
+            cutn.destroy_workspace_descriptor(self._work_desc)
         cutn.destroy_expectation(self._expectation)
         del self._scratch_space  # TODO is this the correct way?
