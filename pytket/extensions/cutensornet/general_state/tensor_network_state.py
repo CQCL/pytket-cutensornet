@@ -63,21 +63,24 @@ class GeneralState:
             self._handle, cutn.StatePurity.PURE, num_qubits, qubits_dims, data_type
         )
         self._mutable_gates_map = {}
+        self._gate_tensors = []
         for com in circuit.get_commands():
             gate_unitary = com.op.get_unitary().astype("complex128", copy=False)
-            gate_tensor = cp.asarray(gate_unitary, dtype="complex128").reshape(
-                [2] * (2 * com.op.n_qubits), order="F"
+            self._gate_tensors.append(
+                cp.asarray(gate_unitary, dtype="complex128").reshape(
+                    [2] * (2 * com.op.n_qubits), order="F"
+                )
             )
             gate_strides = 0  # Always 0?
-            gate_qubit_indices = [self._circuit.qubits.index(qb) for qb in com.qubits]
-            gate_n_qubits = len(gate_qubit_indices)
-            gate_qubit_indices_reversed = tuple(reversed(gate_qubit_indices))
+            gate_qubit_indices = tuple(
+                self._circuit.qubits.index(qb) for qb in com.qubits
+            )
             gate_id = cutn.state_apply_tensor(
                 self._handle,
                 self._state,
-                gate_n_qubits,
-                gate_qubit_indices_reversed,
-                gate_tensor.data.ptr,
+                com.op.n_qubits,
+                gate_qubit_indices,
+                self._gate_tensors[-1].data.ptr,
                 gate_strides,
                 1,
                 0,
@@ -107,7 +110,7 @@ class GeneralState:
                 [2] * (2 * int(gate_n_qubits)), order="F"
             )
             cutn.state_update_tensor(
-                self._handle, self._state, gate_id, gate_tensor.data.ptr, 0, 1
+                self._handle, self._state, gate_id, gate_tensor.data.ptr, 1
             )
 
     def configure(self, attributes: Optional[dict] = None) -> None:
