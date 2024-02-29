@@ -222,13 +222,6 @@ class GeneralState:
 class GeneralOperator:
     """Handles tensor network operator."""
 
-    PAULI = {
-        "X": cp.array([[0, 1], [1, 0]], dtype="complex128", order="F"),
-        "Y": cp.array([[0, -1j], [1j, 0]], dtype="complex128", order="F"),
-        "Z": cp.array([[1, 0], [0, -1]], dtype="complex128", order="F"),
-        "I": cp.array([[1, 0], [0, 1]], dtype="complex128", order="F"),
-    }
-
     def __init__(
         self,
         operator: list[tuple[complex, QubitPauliString]],
@@ -248,6 +241,12 @@ class GeneralOperator:
             libhandle: cuTensorNet handle.
             loglevel: Internal logger output level.
         """
+        self._pauli = {
+            "X": cp.asarray([[0, 1], [1, 0]]).astype("complex128", order="F"),
+            "Y": cp.asarray([[0, -1j], [1j, 0]]).astype("complex128", order="F"),
+            "Z": cp.asarray([[1, 0], [0, -1]]).astype("complex128", order="F"),
+            "I": cp.asarray([[1, 0], [0, 1]]).astype("complex128", order="F"),
+        }
         self._logger = set_logger("GeneralOperator", loglevel)
         self._handle = libhandle.handle
         qubits_dims = (2,) * num_qubits
@@ -257,34 +256,23 @@ class GeneralOperator:
         )
         self._logger.debug("Adding operator terms:")
         for coeff, pauli_string in operator:
-            self.append_pauli_string(pauli_string, coeff)
-
-    def append_pauli_string(
-        self, pauli_string: QubitPauliString, coeff: complex
-    ) -> None:
-        """Appends a Pauli string to a tensor network operator.
-
-        Args:
-            pauli_string: A Pauli string.
-            coeff: Numeric coefficient.
-        """
-        self._logger.debug(f"   {coeff}, {pauli_string}")
-        num_pauli = len(pauli_string.map)
-        num_modes = (1,) * num_pauli
-        state_modes = tuple((qubit.index[0],) for qubit in pauli_string.map.keys())
-        gate_data = tuple(
-            self.PAULI[pauli.name].data.ptr for pauli in pauli_string.map.values()
-        )
-        cutn.network_operator_append_product(
-            self._handle,
-            self._operator,
-            coeff,
-            num_pauli,
-            num_modes,
-            state_modes,
-            0,
-            gate_data,
-        )
+            self._logger.debug(f"   {coeff}, {pauli_string}")
+            num_pauli = len(pauli_string.map)
+            num_modes = (1,) * num_pauli
+            state_modes = tuple((qubit.index[0],) for qubit in pauli_string.map.keys())
+            gate_data = tuple(
+                self._pauli[pauli.name].data.ptr for pauli in pauli_string.map.values()
+            )
+            cutn.network_operator_append_product(
+                self._handle,
+                self._operator,
+                coeff,
+                num_pauli,
+                num_modes,
+                state_modes,
+                0,
+                gate_data,
+            )
 
     def destroy(self) -> None:
         """Destroys tensor network operator."""
