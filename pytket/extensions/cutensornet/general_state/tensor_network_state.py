@@ -89,6 +89,11 @@ class GeneralState:
             if com.opgroup is not None:
                 self._mutable_gates_map[com.opgroup] = gate_id
 
+    @property
+    def state(self) -> int:
+        """Returns tensor network state handle as Python :code:`int`."""
+        return self._state
+
     def update_gates(self, gates_update_map: dict[str, NDArray]) -> None:
         """Updates gate unitaries in the tensor network state.
 
@@ -273,6 +278,11 @@ class GeneralOperator:
                 0,
                 gate_data,
             )
+
+    @property
+    def operator(self) -> int:
+        """Returns tensor network operator handle as Python :code:`int`."""
+        return self._operator
 
     def destroy(self) -> None:
         """Destroys tensor network operator."""
