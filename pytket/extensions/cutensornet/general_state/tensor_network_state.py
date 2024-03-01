@@ -1,3 +1,4 @@
+from __future__ import annotations
 import logging
 import math
 from typing import Union, Optional
@@ -118,11 +119,14 @@ class GeneralState:
                 self._handle, self._state, gate_id, gate_tensor.data.ptr, 1
             )
 
-    def configure(self, attributes: Optional[dict] = None) -> None:
+    def configure(self, attributes: Optional[dict] = None) -> GeneralState:
         """Configures tensor network state for future contraction.
 
         Args:
             attributes: A dict of cuTensorNet State attributes and their values.
+
+        Returns:
+            Self (to allow for chaining with other methods).
         """
         if attributes is None:
             attributes = {"NUM_HYPER_SAMPLES": 8}
@@ -138,15 +142,22 @@ class GeneralState:
                 attr_arr.ctypes.data,
                 attr_arr.dtype.itemsize,
             )
+        return self
 
-    def prepare(self, scratch_fraction: float = 0.5) -> None:
+    def prepare(self, scratch_fraction: float = 0.5) -> GeneralState:
         """Prepare tensor network state for future contraction.
 
         Allocates workspace memory necessary for contraction.
 
+        Raises:
+            MemoryError: If there is insufficient workspace on GPU.
+
         Args:
             scratch_fraction: Fraction of free memory on GPU to allocate as scratch
              space.
+
+        Returns:
+            Self (to allow for chaining with other methods).
         """
         self._stream = (
             cp.cuda.Stream()
@@ -184,6 +195,7 @@ class GeneralState:
                 f"Set {workspace_size_d} bytes of workspace memory out of the allocated"
                 f" scratch space."
             )
+            return self
         else:
             self.destroy()
             raise MemoryError(
@@ -199,7 +211,7 @@ class GeneralState:
 
         Returns:
             Either a :code:`cupy.ndarray` on a GPU, or a :code:`numpy.ndarray` on a
-            host device (CPU).
+            host device (CPU). Arrays are returned in a 1D shape.
         """
         state_vector = cp.empty(
             (2,) * self._circuit.n_qubits, dtype="complex128", order="F"
@@ -327,7 +339,7 @@ class GeneralExpectationValue:
             self._handle, state._state, operator._operator
         )
 
-    def configure(self, attributes: Optional[dict] = None) -> None:
+    def configure(self, attributes: Optional[dict] = None) -> GeneralExpectationValue:
         """Configures expectation value for future contraction.
 
         Args:
@@ -336,6 +348,9 @@ class GeneralExpectationValue:
 
         Note:
             Currently :code:`ExpectationAttribute` has only one attribute.
+
+        Returns:
+            Self (to allow for chaining with other methods).
         """
         if attributes is None:
             attributes = {"OPT_NUM_HYPER_SAMPLES": 8}
@@ -353,15 +368,22 @@ class GeneralExpectationValue:
                 attr_arr.ctypes.data,
                 attr_arr.dtype.itemsize,
             )
+        return self
 
-    def prepare(self, scratch_fraction: float = 0.5) -> None:
+    def prepare(self, scratch_fraction: float = 0.5) -> GeneralExpectationValue:
         """Prepare tensor network state for future contraction.
 
         Allocates workspace memory necessary for contraction.
 
+        Raises:
+            MemoryError: If there is insufficient space on the GPU device.
+
         Args:
             scratch_fraction: Fraction of free memory on GPU to allocate as scratch
              space.
+
+        Returns:
+            Self (to allow for chaining with other methods).
         """
         # TODO: need to figure out if this needs to be done explicitly at all
         self._stream = (
@@ -400,6 +422,7 @@ class GeneralExpectationValue:
                 f"Set {workspace_size_d} bytes of workspace memory out of the allocated"
                 f" scratch space."
             )
+            return self
         else:
             self.destroy()
             raise MemoryError(
