@@ -9,11 +9,12 @@ try:
 except ImportError:
     warnings.warn("local settings failed to import cupy", ImportWarning)
 import numpy as np
+from sympy import Expr  # type: ignore
 from numpy.typing import NDArray
 from pytket.circuit import Circuit  # type: ignore
-from pytket.pauli import QubitPauliString  # type: ignore
 from pytket.extensions.cutensornet.general import set_logger
 from pytket.extensions.cutensornet.structured_state import CuTensorNetHandle
+from pytket.utils.operators import QubitPauliOperator
 
 try:
     import cuquantum as cq  # type: ignore
@@ -241,7 +242,7 @@ class GeneralOperator:
 
     def __init__(
         self,
-        operator: list[tuple[complex, QubitPauliString]],
+        operator: QubitPauliOperator,
         num_qubits: int,
         libhandle: CuTensorNetHandle,
         loglevel: int = logging.INFO,
@@ -251,8 +252,7 @@ class GeneralOperator:
         From a list of Pauli strings and corresponding coefficients.
 
         Args:
-            operator: List of tuples, containing a Pauli string and a corresponding
-             numeric coefficient.
+            operator: The Pauli operator.
             num_qubits: Number of qubits in a circuit for which operator is to be
              defined.
             libhandle: cuTensorNet handle.
@@ -272,8 +272,12 @@ class GeneralOperator:
             self._handle, num_qubits, qubits_dims, data_type
         )
         self._logger.debug("Adding operator terms:")
-        for coeff, pauli_string in operator:
-            self._logger.debug(f"   {coeff}, {pauli_string}")
+        for pauli_string, coeff in operator._dict.items():
+            if isinstance(coeff, Expr):
+                numeric_coeff = complex(coeff.evalf())  # type: ignore
+            else:
+                numeric_coeff = complex(coeff)  # type: ignore
+            self._logger.debug(f"   {numeric_coeff}, {pauli_string}")
             num_pauli = len(pauli_string.map)
             num_modes = (1,) * num_pauli
             state_modes = tuple((qubit.index[0],) for qubit in pauli_string.map.keys())
@@ -283,7 +287,7 @@ class GeneralOperator:
             cutn.network_operator_append_product(
                 self._handle,
                 self._operator,
-                coeff,
+                numeric_coeff,
                 num_pauli,
                 num_modes,
                 state_modes,

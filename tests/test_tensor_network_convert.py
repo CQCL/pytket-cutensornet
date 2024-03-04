@@ -21,7 +21,7 @@ from pytket.extensions.cutensornet.general_state.tensor_network_convert import (
 )
 
 
-def state_contract(tn: List[Union[NDArray, List]], nqubit: int) -> NDArray:
+def state_contract(tn: List[Union[NDArray, List]]) -> NDArray:
     """Calls cuQuantum contract function to contract an input state tensor network."""
     state_tn = tn.copy()
     state: NDArray = cq.contract(*state_tn).flatten()
@@ -58,7 +58,7 @@ def circuit_overlap_contract(circuit_ket: Circuit) -> float:
 )
 def test_convert_statevec_overlap(circuit: Circuit) -> None:
     tn = tk_to_tensor_network(circuit)
-    result_cu = state_contract(tn, circuit.n_qubits).flatten().round(10)
+    result_cu = state_contract(tn).flatten().round(10)
     state_vector = np.array([circuit.get_statevector()])
     assert np.allclose(result_cu, state_vector)
     ovl = circuit_overlap_contract(circuit)
