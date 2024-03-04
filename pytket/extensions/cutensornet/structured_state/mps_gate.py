@@ -129,6 +129,7 @@ class MPSxGate(MPS):
         # r -> physical bond of the right tensor in the MPS
         # L -> left bond of the outcome of the gate
         # R -> right bond of the outcome of the gate
+        # S -> shared bond of the gate tensor's SVD
         # a,b,c -> the virtual bonds of the tensors
 
         if l_pos == positions[0]:
@@ -136,19 +137,27 @@ class MPSxGate(MPS):
         else:  # Implicit swap
             gate_bonds = "RLrl"
 
-        left_bonds = "abl"
-        right_bonds = "bcr"
-        result_bonds = "acLR"
+        # Apply SVD on the gate tensor to remove any zero singular values ASAP
+        svd_method = tensor.SVDMethod(
+            abs_cutoff=self._cfg.zero,
+            partition="U",  # Contract S directly into U
+        )
+        # Apply the SVD decomposition using the configuration defined above
+        U, S, V = tensor.decompose(
+            f"{gate_bonds}->SLl,SRr", gate_tensor, method=svd_method, options=options
+        )
+        assert S is None  # Due to "partition" option in SVDMethod
 
         # Contract
         self._logger.debug("Contracting the two-qubit gate with its site tensors...")
         T = cq.contract(
-            gate_bonds + "," + left_bonds + "," + right_bonds + "->" + result_bonds,
-            gate_tensor,
+            f"SLl,abl,SRr,bcr->acLR",
+            U,
             self.tensors[l_pos],
+            V,
             self.tensors[r_pos],
             options=options,
-            optimize={"path": [(0, 1), (0, 1)]},
+            optimize={"path": [(0, 1), (0, 1), (0, 1)]},
         )
         self._logger.debug(f"Intermediate tensor of size (MiB)={T.nbytes / 2**20}")
 
