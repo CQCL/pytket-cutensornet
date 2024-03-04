@@ -96,26 +96,15 @@ class MPSxGate(MPS):
         l_pos = min(positions)
         r_pos = max(positions)
 
+        # Always canonicalise. Even in the case of exact simulation (no truncation)
+        # canonicalisation may reduce the bond dimension (thanks to reduced QR).
+        self.canonicalise(l_pos, r_pos)
+
         # Figure out the new dimension of the shared virtual bond
         new_dim = 2 * min(
             self.get_virtual_dimensions(l_pos)[0],
             self.get_virtual_dimensions(r_pos)[1],
         )
-
-        # Canonicalisation may be required if `new_dim` is larger than `chi`
-        # or if set by `truncation_fidelity`
-        if new_dim > self._cfg.chi or self._cfg.truncation_fidelity < 1:
-            # If truncation required, convert to canonical form before
-            # contracting. Avoids the need to apply gauge transformations
-            # to the larger tensor resulting from the contraction.
-            self.canonicalise(l_pos, r_pos)
-
-            # Since canonicalisation may change the dimension of the bonds,
-            # we need to recalculate the value of `new_dim`
-            new_dim = 2 * min(
-                self.get_virtual_dimensions(l_pos)[0],
-                self.get_virtual_dimensions(r_pos)[1],
-            )
 
         # Load the gate's unitary to the GPU memory
         gate_unitary = gate.get_unitary().astype(dtype=self._cfg._complex_t, copy=False)
