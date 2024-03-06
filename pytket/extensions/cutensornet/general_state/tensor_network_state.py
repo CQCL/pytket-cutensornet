@@ -68,10 +68,12 @@ class GeneralState:
         self._gate_tensors = []
         for com in circuit.get_commands():
             gate_unitary = com.op.get_unitary().astype("complex128", copy=False)
+            # Transpose is needed because of the way cuTN stores tensors.
+            # See https://github.com/NVIDIA/cuQuantum/discussions/124#discussioncomment-8683146 for details.
             self._gate_tensors.append(
-                cp.asarray(gate_unitary, dtype="complex128").reshape(
-                    [2] * (2 * com.op.n_qubits), order="F"
-                )
+                cp.asarray(gate_unitary)
+                .T.astype(dtype="complex128", order="F")
+                .reshape([2] * (2 * com.op.n_qubits), order="F")
             )
             gate_strides = 0  # Always 0?
             gate_qubit_indices = tuple(
@@ -258,9 +260,10 @@ class GeneralOperator:
             libhandle: cuTensorNet handle.
             loglevel: Internal logger output level.
         """
+        # Mind the transpose for Y (same argument as in GeneralState)
         self._pauli = {
             "X": cp.asarray([[0, 1], [1, 0]]).astype("complex128", order="F"),
-            "Y": cp.asarray([[0, -1j], [1j, 0]]).astype("complex128", order="F"),
+            "Y": cp.asarray([[0, -1j], [1j, 0]]).T.astype("complex128", order="F"),
             "Z": cp.asarray([[1, 0], [0, -1]]).astype("complex128", order="F"),
             "I": cp.asarray([[1, 0], [0, 1]]).astype("complex128", order="F"),
         }
