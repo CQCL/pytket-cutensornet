@@ -6,6 +6,8 @@ import pytest
 from pytket.circuit import ToffoliBox, Qubit  # type: ignore
 from pytket.passes import DecomposeBoxes, CnXPairwiseDecomposition  # type: ignore
 from pytket.transform import Transform  # type: ignore
+from pytket.pauli import QubitPauliString, Pauli  # type: ignore
+from pytket.utils.operators import QubitPauliOperator  # type: ignore
 
 try:
     import cuquantum as cq  # type: ignore
@@ -41,13 +43,26 @@ from pytket.extensions.cutensornet.structured_state import CuTensorNetHandle
         pytest.lazy_fixture("q4_multicontrols"),  # type: ignore
     ],
 )
-def test_convert_statevec(circuit: Circuit) -> None:
-    sv = None
+def test_convert_statevec_ovl(circuit: Circuit) -> None:
     with CuTensorNetHandle() as libhandle:
         state = GeneralState(circuit, libhandle)
         sv = state.configure().prepare().compute()
         state.destroy()
     sv_pytket = np.array([circuit.get_statevector()])
     assert np.allclose(sv.round(10), sv_pytket.round(10))
-    # ovl = circuit_overlap_contract(circuit)
-    # assert ovl == pytest.approx(1.0)
+
+    op = QubitPauliOperator(
+        {
+            QubitPauliString({Qubit(0): Pauli.I, Qubit(1): Pauli.I}): 1.0,
+        }
+    )
+    with CuTensorNetHandle() as libhandle:
+        state = GeneralState(circuit, libhandle)
+        oper = GeneralOperator(op, 2, libhandle)
+        ev = GeneralExpectationValue(state, oper, libhandle)
+        ovl, state_norm = ev.configure().prepare().compute()
+        ev.destroy()
+        oper.destroy()
+        state.destroy()
+    assert ovl == pytest.approx(1.0)
+    assert state_norm == pytest.approx(1.0)
