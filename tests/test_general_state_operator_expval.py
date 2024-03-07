@@ -1,5 +1,6 @@
 from typing import List, Union
 import warnings
+import cmath
 import numpy as np
 from numpy.typing import NDArray
 import pytest
@@ -66,3 +67,39 @@ def test_convert_statevec_ovl(circuit: Circuit) -> None:
         state.destroy()
     assert ovl == pytest.approx(1.0)
     assert state_norm == pytest.approx(1.0)
+
+
+def test_toffoli_box_with_implicit_swaps() -> None:
+    # Using specific permutation here
+    perm = {
+        (False, False): (True, True),
+        (False, True): (False, False),
+        (True, False): (True, False),
+        (True, True): (False, True),
+    }
+
+    # Create a circuit with more qubits and multiple applications of the permutation
+    # above
+    ket_circ = Circuit(3)
+
+    # Create the circuit
+    ket_circ.add_toffolibox(ToffoliBox(perm), [Qubit(0), Qubit(1)])  # type: ignore
+    ket_circ.add_toffolibox(ToffoliBox(perm), [Qubit(1), Qubit(2)])  # type: ignore
+
+    DecomposeBoxes().apply(ket_circ)
+    CnXPairwiseDecomposition().apply(ket_circ)
+    Transform.OptimiseCliffords().apply(ket_circ)
+
+    # Convert and contract
+    with CuTensorNetHandle() as libhandle:
+        state = GeneralState(ket_circ, libhandle)
+        ket_net_vector = state.configure().prepare().compute()
+        state.destroy()
+
+    # Apply phase
+    ket_net_vector = ket_net_vector * cmath.exp(1j * cmath.pi * ket_circ.phase)
+
+    # Compare to pytket statevector
+    ket_pytket_vector = ket_circ.get_statevector()
+
+    assert np.allclose(ket_net_vector, ket_pytket_vector)

@@ -38,13 +38,16 @@ class GeneralState:
             Circuit should not contain boxes - only explicit gates with specific unitary
             matrix representation available in pytket.
 
+        Note:
+            If present, implicit wire swaps are replaced with explicit SWAP gates.
+
         Args:
             circuit: A pytket circuit to be converted to a tensor network.
             libhandle: cuTensorNet handle.
             loglevel: Internal logger output level.
         """
         self._logger = set_logger("GeneralState", loglevel)
-        self._circuit = circuit
+        self._circuit = circuit.replace_implicit_wire_swaps()
         self._handle = libhandle.handle
         self._dev = libhandle.dev
 
