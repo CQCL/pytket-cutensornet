@@ -12,7 +12,7 @@ cuQuantum `contract` API interface
 
 .. autoclass:: pytket.extensions.cutensornet.general_state.ExpectationValueTensorNetwork
 
-.. autofunction:: pytket.extensions.cutensornet.general_state.measre_qubits_state
+.. autofunction:: pytket.extensions.cutensornet.general_state.measure_qubits_state
 
 .. autofunction:: pytket.extensions.cutensornet.general_state.tk_to_tensor_network
 

@@ -6,7 +6,6 @@ import warnings
 
 try:
     import cupy as cp  # type: ignore
-    from cp.cuda import Stream, MemoryPointer
 except ImportError:
     warnings.warn("local settings failed to import cupy", ImportWarning)
 import numpy as np
@@ -62,8 +61,8 @@ class GeneralState:
         data_type = cq.cudaDataType.CUDA_C_64F  # for now let that be hard-coded
 
         # These are only required when doing preparation and evaluation.
-        self._stream: Optional[Stream] = None
-        self._scratch_space: Optional[MemoryPointer] = None
+        self._stream = None
+        self._scratch_space = None
         self._work_desc = None
 
         self._state = cutn.create_state(
@@ -74,7 +73,8 @@ class GeneralState:
         for com in circuit.get_commands():
             gate_unitary = com.op.get_unitary().astype("complex128", copy=False)
             # Transpose is needed because of the way cuTN stores tensors.
-            # See https://github.com/NVIDIA/cuQuantum/discussions/124#discussioncomment-8683146 for details.
+            # See https://github.com/NVIDIA/cuQuantum/discussions/124
+            # #discussioncomment-8683146 for details.
             self._gate_tensors.append(
                 cp.asarray(gate_unitary)
                 .T.astype(dtype="complex128", order="F")
@@ -226,21 +226,21 @@ class GeneralState:
         state_vector = cp.empty(
             (2,) * self._circuit.n_qubits, dtype="complex128", order="F"
         )
-        cutn.state_compute(
+        cutn.state_compute(  # type: ignore
             self._handle,
             self._state,
             self._work_desc,
             (state_vector.data.ptr,),
             self._stream.ptr,
         )
-        self._stream.synchronize()
+        self._stream.synchronize()  # type: ignore
         if on_host:
             return cp.asnumpy(state_vector.flatten())
         return state_vector.flatten()
 
     def destroy(self) -> None:
         """Destroys tensor network state."""
-        if self._work_desc is not None:
+        if self._work_desc is not None:  # type: ignore
             cutn.destroy_workspace_descriptor(self._work_desc)
         cutn.destroy_state(self._state)
         del self._scratch_space
@@ -306,7 +306,7 @@ class GeneralOperator:
             )
 
     @property
-    def operator(self) -> int:
+    def operator(self) -> Any:
         """Returns tensor network operator handle as Python :code:`int`."""
         return self._operator
 
@@ -345,8 +345,8 @@ class GeneralExpectationValue:
         self._dev = libhandle.dev
         self._logger = set_logger("GeneralExpectationValue", loglevel)
 
-        self._stream: Optional[Stream] = None
-        self._scratch_space: Optional[MemoryPointer] = None
+        self._stream = None
+        self._scratch_space = None
         self._work_desc = None
 
         self._expectation = cutn.create_expectation(
@@ -447,7 +447,7 @@ class GeneralExpectationValue:
         """Computes expectation value."""
         expectation_value = np.empty(1, dtype="complex128")
         state_norm = np.empty(1, dtype="complex128")
-        cutn.expectation_compute(
+        cutn.expectation_compute(  # type: ignore
             self._handle,
             self._expectation,
             self._work_desc,
@@ -455,12 +455,12 @@ class GeneralExpectationValue:
             state_norm.ctypes.data,
             self._stream.ptr,
         )
-        self._stream.synchronize()
+        self._stream.synchronize()  # type: ignore
         return expectation_value.item(), state_norm.item()
 
     def destroy(self) -> None:
         """Destroys tensor network expectation value and workspace descriptor."""
-        if self._work_desc is not None:
+        if self._work_desc is not None:  # type: ignore
             cutn.destroy_workspace_descriptor(self._work_desc)
         cutn.destroy_expectation(self._expectation)
         del self._scratch_space  # TODO is this the correct way?
