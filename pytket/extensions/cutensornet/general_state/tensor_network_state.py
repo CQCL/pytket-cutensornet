@@ -1,11 +1,12 @@
 from __future__ import annotations
 import logging
 import math
-from typing import Union, Optional
+from typing import Union, Optional, Any
 import warnings
 
 try:
     import cupy as cp  # type: ignore
+    from cp.cuda import Stream, MemoryPointer
 except ImportError:
     warnings.warn("local settings failed to import cupy", ImportWarning)
 import numpy as np
@@ -61,8 +62,8 @@ class GeneralState:
         data_type = cq.cudaDataType.CUDA_C_64F  # for now let that be hard-coded
 
         # These are only required when doing preparation and evaluation.
-        self._stream = None
-        self._scratch_space = None
+        self._stream: Optional[Stream] = None
+        self._scratch_space: Optional[MemoryPointer] = None
         self._work_desc = None
 
         self._state = cutn.create_state(
@@ -98,7 +99,7 @@ class GeneralState:
                 self._mutable_gates_map[com.opgroup] = gate_id
 
     @property
-    def state(self) -> int:
+    def state(self) -> Any:
         """Returns tensor network state handle as Python :code:`int`."""
         return self._state
 
@@ -138,8 +139,10 @@ class GeneralState:
         if attributes is None:
             attributes = {"NUM_HYPER_SAMPLES": 8}
         attribute_values = [val for val in attributes.values()]
-        attributes = [getattr(cutn.StateAttribute, attr) for attr in attributes.keys()]
-        for attr, val in zip(attributes, attribute_values):
+        attribute_lst = [
+            getattr(cutn.StateAttribute, attr) for attr in attributes.keys()
+        ]
+        for attr, val in zip(attribute_lst, attribute_values):
             attr_dtype = cutn.state_get_attribute_dtype(attr)
             attr_arr = np.asarray(val, dtype=attr_dtype)
             cutn.state_configure(
@@ -342,8 +345,8 @@ class GeneralExpectationValue:
         self._dev = libhandle.dev
         self._logger = set_logger("GeneralExpectationValue", loglevel)
 
-        self._stream = None
-        self._scratch_space = None
+        self._stream: Optional[Stream] = None
+        self._scratch_space: Optional[MemoryPointer] = None
         self._work_desc = None
 
         self._expectation = cutn.create_expectation(
@@ -366,10 +369,10 @@ class GeneralExpectationValue:
         if attributes is None:
             attributes = {"OPT_NUM_HYPER_SAMPLES": 8}
         attribute_values = [val for val in attributes.values()]
-        attributes = [
+        attribute_lst = [
             getattr(cutn.ExpectationAttribute, attr) for attr in attributes.keys()
         ]
-        for attr, val in zip(attributes, attribute_values):
+        for attr, val in zip(attribute_lst, attribute_values):
             attr_dtype = cutn.expectation_get_attribute_dtype(attr)
             attr_arr = np.asarray(val, dtype=attr_dtype)
             cutn.expectation_configure(
