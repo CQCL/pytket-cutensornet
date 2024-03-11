@@ -7,7 +7,7 @@ from pytket.passes import DecomposeBoxes, CnXPairwiseDecomposition  # type: igno
 from pytket.transform import Transform  # type: ignore
 from pytket.pauli import QubitPauliString, Pauli  # type: ignore
 from pytket.utils.operators import QubitPauliOperator  # type: ignore
-from pytket.circuit import Circuit
+from pytket.circuit import Circuit  # type: ignore
 from pytket.extensions.cutensornet.general_state import (  # type: ignore
     GeneralState,
     GeneralOperator,
