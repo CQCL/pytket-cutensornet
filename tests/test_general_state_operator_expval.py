@@ -1,21 +1,13 @@
-from typing import List, Union
-import warnings
 import cmath
+import random
 import numpy as np
-from numpy.typing import NDArray
 import pytest
 from pytket.circuit import ToffoliBox, Qubit  # type: ignore
 from pytket.passes import DecomposeBoxes, CnXPairwiseDecomposition  # type: ignore
 from pytket.transform import Transform  # type: ignore
 from pytket.pauli import QubitPauliString, Pauli  # type: ignore
 from pytket.utils.operators import QubitPauliOperator  # type: ignore
-
-try:
-    import cuquantum as cq  # type: ignore
-except ImportError:
-    warnings.warn("local settings failed to import cutensornet", ImportWarning)
 from pytket.circuit import Circuit
-
 from pytket.extensions.cutensornet.general_state import (  # type: ignore
     GeneralState,
     GeneralOperator,
@@ -103,3 +95,72 @@ def test_toffoli_box_with_implicit_swaps() -> None:
     ket_pytket_vector = ket_circ.get_statevector()
 
     assert np.allclose(ket_net_vector, ket_pytket_vector)
+
+
+@pytest.mark.parametrize("n_qubits", [4, 5, 6])
+def test_generalised_toffoli_box(n_qubits: int) -> None:
+    def to_bool_tuple(n_qubits: int, x: int) -> tuple:
+        bool_list = []
+        for i in reversed(range(n_qubits)):
+            bool_list.append((x >> i) % 2 == 1)
+        return tuple(bool_list)
+
+    random.seed(1)
+
+    # Generate a random permutation
+    cycle = list(range(2**n_qubits))
+    random.shuffle(cycle)
+
+    perm = dict()
+    for orig, dest in enumerate(cycle):
+        perm[to_bool_tuple(n_qubits, orig)] = to_bool_tuple(n_qubits, dest)
+
+    # Create a circuit implementing the permutation above
+    ket_circ = ToffoliBox(perm).get_circuit()  # type: ignore
+
+    DecomposeBoxes().apply(ket_circ)
+    CnXPairwiseDecomposition().apply(ket_circ)
+    Transform.OptimiseCliffords().apply(ket_circ)
+
+    # The ideal outcome on ket 0 input
+    output = perm[(False,) * n_qubits]
+    # A trivial circuit generating this state
+    bra_circ = Circuit()
+    for q in ket_circ.qubits:
+        bra_circ.add_qubit(q)
+    for i, bit in enumerate(output):
+        if bit:
+            bra_circ.X(i)
+
+    with CuTensorNetHandle() as libhandle:
+        state = GeneralState(ket_circ, libhandle)
+        ket_net_vector = state.configure().prepare().compute()
+        state.destroy()
+    ket_net_vector = ket_net_vector * cmath.exp(1j * cmath.pi * ket_circ.phase)
+    ket_pytket_vector = ket_circ.get_statevector()
+    assert np.allclose(ket_net_vector, ket_pytket_vector)
+
+    with CuTensorNetHandle() as libhandle:
+        state = GeneralState(bra_circ, libhandle)
+        bra_net_vector = state.configure().prepare().compute()
+        state.destroy()
+    bra_net_vector = bra_net_vector * cmath.exp(1j * cmath.pi * bra_circ.phase)
+    bra_pytket_vector = bra_circ.get_statevector()
+    assert np.allclose(bra_net_vector, bra_pytket_vector)
+
+    op = QubitPauliOperator(
+        {
+            QubitPauliString({Qubit(i): Pauli.I for i in range(n_qubits)}): 1.0,
+        }
+    )
+
+    with CuTensorNetHandle() as libhandle:
+        state = GeneralState(ket_circ, libhandle)
+        oper = GeneralOperator(op, 2, libhandle)
+        ev = GeneralExpectationValue(state, oper, libhandle)
+        ovl, state_norm = ev.configure().prepare().compute()
+        ev.destroy()
+        oper.destroy()
+        state.destroy()
+    assert ovl == pytest.approx(1.0)
+    assert state_norm == pytest.approx(1.0)
