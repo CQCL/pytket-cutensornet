@@ -47,7 +47,8 @@ class GeneralState:
             loglevel: Internal logger output level.
         """
         self._logger = set_logger("GeneralState", loglevel)
-        self._circuit = circuit.replace_implicit_wire_swaps()
+        self._circuit = circuit
+        self._circuit.replace_implicit_wire_swaps()
         self._handle = libhandle.handle
         self._dev = libhandle.dev
 

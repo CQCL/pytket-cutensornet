@@ -156,7 +156,7 @@ def test_generalised_toffoli_box(n_qubits: int) -> None:
 
     with CuTensorNetHandle() as libhandle:
         state = GeneralState(ket_circ, libhandle)
-        oper = GeneralOperator(op, 2, libhandle)
+        oper = GeneralOperator(op, n_qubits, libhandle)
         ev = GeneralExpectationValue(state, oper, libhandle)
         ovl, state_norm = ev.configure().prepare().compute()
         ev.destroy()
