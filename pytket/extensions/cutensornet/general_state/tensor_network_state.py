@@ -14,7 +14,7 @@ from numpy.typing import NDArray
 from pytket.circuit import Circuit  # type: ignore
 from pytket.extensions.cutensornet.general import set_logger
 from pytket.extensions.cutensornet.structured_state import CuTensorNetHandle
-from pytket.utils.operators import QubitPauliOperator
+from pytket.utils.operators import QubitPauliOperator  # type: ignore
 
 try:
     import cuquantum as cq  # type: ignore
@@ -182,7 +182,7 @@ class GeneralState:
             self._state,
             scratch_size,
             self._work_desc,
-            self._stream.ptr,
+            self._stream.ptr,  # type: ignore
         )
         workspace_size_d = cutn.workspace_get_memory_size(
             self._handle,
@@ -198,7 +198,7 @@ class GeneralState:
                 self._work_desc,
                 cutn.Memspace.DEVICE,
                 cutn.WorkspaceKind.SCRATCH,
-                self._scratch_space.ptr,
+                self._scratch_space.ptr,  # type: ignore
                 workspace_size_d,
             )
             self._logger.debug(
@@ -226,12 +226,12 @@ class GeneralState:
         state_vector = cp.empty(
             (2,) * self._circuit.n_qubits, dtype="complex128", order="F"
         )
-        cutn.state_compute(  # type: ignore
+        cutn.state_compute(
             self._handle,
             self._state,
             self._work_desc,
             (state_vector.data.ptr,),
-            self._stream.ptr,
+            self._stream.ptr,  # type: ignore
         )
         self._stream.synchronize()  # type: ignore
         if on_host:
@@ -240,8 +240,8 @@ class GeneralState:
 
     def destroy(self) -> None:
         """Destroys tensor network state."""
-        if self._work_desc is not None:  # type: ignore
-            cutn.destroy_workspace_descriptor(self._work_desc)
+        if self._work_desc is not None:
+            cutn.destroy_workspace_descriptor(self._work_desc)  # type: ignore
         cutn.destroy_state(self._state)
         del self._scratch_space
 
@@ -413,7 +413,7 @@ class GeneralExpectationValue:
             self._expectation,
             scratch_size,
             self._work_desc,
-            self._stream.ptr,
+            self._stream.ptr,  # type: ignore
         )
         workspace_size_d = cutn.workspace_get_memory_size(
             self._handle,
@@ -429,7 +429,7 @@ class GeneralExpectationValue:
                 self._work_desc,
                 cutn.Memspace.DEVICE,
                 cutn.WorkspaceKind.SCRATCH,
-                self._scratch_space.ptr,
+                self._scratch_space.ptr,  # type: ignore
                 workspace_size_d,
             )
             self._logger.debug(
@@ -447,20 +447,20 @@ class GeneralExpectationValue:
         """Computes expectation value."""
         expectation_value = np.empty(1, dtype="complex128")
         state_norm = np.empty(1, dtype="complex128")
-        cutn.expectation_compute(  # type: ignore
+        cutn.expectation_compute(
             self._handle,
             self._expectation,
             self._work_desc,
             expectation_value.ctypes.data,
             state_norm.ctypes.data,
-            self._stream.ptr,
+            self._stream.ptr,  # type: ignore
         )
         self._stream.synchronize()  # type: ignore
         return expectation_value.item(), state_norm.item()
 
     def destroy(self) -> None:
         """Destroys tensor network expectation value and workspace descriptor."""
-        if self._work_desc is not None:  # type: ignore
-            cutn.destroy_workspace_descriptor(self._work_desc)
+        if self._work_desc is not None:
+            cutn.destroy_workspace_descriptor(self._work_desc)  # type: ignore
         cutn.destroy_expectation(self._expectation)
         del self._scratch_space  # TODO is this the correct way?

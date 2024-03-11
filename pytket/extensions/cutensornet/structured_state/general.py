@@ -71,7 +71,7 @@ class CuTensorNetHandle:
     def __exit__(self, exc_type: Any, exc_value: Any, exc_tb: Any) -> None:
         self.destroy()
 
-    def print_device_properties(self, logger: Logger):
+    def print_device_properties(self, logger: Logger) -> None:
         """Prints local GPU properties."""
         device_props = cp.cuda.runtime.getDeviceProperties(self.dev.id)
         logger.debug("===== device info ======")
@@ -83,7 +83,7 @@ class CuTensorNetHandle:
         logger.debug("GPU-minor:", device_props["minor"])
         logger.debug("========================")
 
-    def destroy(self):
+    def destroy(self) -> None:
         cutn.destroy(self.handle)
         self._is_destroyed = True
 
