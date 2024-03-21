@@ -15,6 +15,7 @@ from __future__ import annotations  # type: ignore
 from abc import ABC, abstractmethod
 import warnings
 import logging
+from logging import Logger
 from typing import Any, Optional, Type
 
 import numpy as np  # type: ignore
@@ -58,15 +59,31 @@ class CuTensorNetHandle:
         self._is_destroyed = False
 
         # Make sure CuPy uses the specified device
-        cp.cuda.Device(device_id).use()
+        dev = cp.cuda.Device(device_id)
+        dev.use()
 
-        dev = cp.cuda.Device()
-        self.device_id = int(dev)
+        self.dev = dev
+        self.device_id = dev.id
 
     def __enter__(self) -> CuTensorNetHandle:
         return self
 
     def __exit__(self, exc_type: Any, exc_value: Any, exc_tb: Any) -> None:
+        self.destroy()
+
+    def print_device_properties(self, logger: Logger) -> None:
+        """Prints local GPU properties."""
+        device_props = cp.cuda.runtime.getDeviceProperties(self.dev.id)
+        logger.debug("===== device info ======")
+        logger.debug("GPU-name:", device_props["name"].decode())
+        logger.debug("GPU-clock:", device_props["clockRate"])
+        logger.debug("GPU-memoryClock:", device_props["memoryClockRate"])
+        logger.debug("GPU-nSM:", device_props["multiProcessorCount"])
+        logger.debug("GPU-major:", device_props["major"])
+        logger.debug("GPU-minor:", device_props["minor"])
+        logger.debug("========================")
+
+    def destroy(self) -> None:
         cutn.destroy(self.handle)
         self._is_destroyed = True
 

@@ -2,5 +2,5 @@ API documentation
 -----------------
 
 .. toctree::
-    modules/fullTN.rst
+    modules/general_state.rst
     modules/structured_state.rst

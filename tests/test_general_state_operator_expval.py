@@ -1,39 +1,19 @@
-from typing import List, Union
-import warnings
-import random
 import cmath
+import random
 import numpy as np
-from numpy.typing import NDArray
 import pytest
 from pytket.circuit import ToffoliBox, Qubit  # type: ignore
 from pytket.passes import DecomposeBoxes, CnXPairwiseDecomposition  # type: ignore
 from pytket.transform import Transform  # type: ignore
-
-try:
-    import cuquantum as cq  # type: ignore
-except ImportError:
-    warnings.warn("local settings failed to import cutensornet", ImportWarning)
-from pytket.circuit import Circuit
-
-from pytket.extensions.cutensornet.general_state.tensor_network_convert import (  # type: ignore
-    tk_to_tensor_network,
-    TensorNetwork,
+from pytket.pauli import QubitPauliString, Pauli  # type: ignore
+from pytket.utils.operators import QubitPauliOperator  # type: ignore
+from pytket.circuit import Circuit  # type: ignore
+from pytket.extensions.cutensornet.general_state import (  # type: ignore
+    GeneralState,
+    GeneralOperator,
+    GeneralExpectationValue,
 )
-
-
-def state_contract(tn: List[Union[NDArray, List]]) -> NDArray:
-    """Calls cuQuantum contract function to contract an input state tensor network."""
-    state_tn = tn.copy()
-    state: NDArray = cq.contract(*state_tn).flatten()
-    return state
-
-
-def circuit_overlap_contract(circuit_ket: Circuit) -> float:
-    """Calculates an overlap of a state circuit with its adjoint."""
-    ket_net = TensorNetwork(circuit_ket)
-    overlap_net_interleaved = ket_net.vdot(TensorNetwork(circuit_ket))
-    overlap: float = cq.contract(*overlap_net_interleaved)
-    return overlap
+from pytket.extensions.cutensornet.structured_state import CuTensorNetHandle
 
 
 @pytest.mark.parametrize(
@@ -56,13 +36,29 @@ def circuit_overlap_contract(circuit_ket: Circuit) -> float:
         pytest.lazy_fixture("q4_multicontrols"),  # type: ignore
     ],
 )
-def test_convert_statevec_overlap(circuit: Circuit) -> None:
-    tn = tk_to_tensor_network(circuit)
-    result_cu = state_contract(tn).flatten().round(10)
-    state_vector = np.array([circuit.get_statevector()])
-    assert np.allclose(result_cu, state_vector)
-    ovl = circuit_overlap_contract(circuit)
+def test_convert_statevec_ovl(circuit: Circuit) -> None:
+    with CuTensorNetHandle() as libhandle:
+        state = GeneralState(circuit, libhandle)
+        sv = state.configure().prepare().compute()
+        state.destroy()
+    sv_pytket = np.array([circuit.get_statevector()])
+    assert np.allclose(sv.round(10), sv_pytket.round(10))
+
+    op = QubitPauliOperator(
+        {
+            QubitPauliString({Qubit(0): Pauli.I, Qubit(1): Pauli.I}): 1.0,
+        }
+    )
+    with CuTensorNetHandle() as libhandle:
+        state = GeneralState(circuit, libhandle)
+        oper = GeneralOperator(op, 2, libhandle)
+        ev = GeneralExpectationValue(state, oper, libhandle)
+        ovl, state_norm = ev.configure().prepare().compute()
+        ev.destroy()
+        oper.destroy()
+        state.destroy()
     assert ovl == pytest.approx(1.0)
+    assert state_norm == pytest.approx(1.0)
 
 
 def test_toffoli_box_with_implicit_swaps() -> None:
@@ -87,8 +83,12 @@ def test_toffoli_box_with_implicit_swaps() -> None:
     Transform.OptimiseCliffords().apply(ket_circ)
 
     # Convert and contract
-    ket_net = TensorNetwork(ket_circ)
-    ket_net_vector = cq.contract(*ket_net.cuquantum_interleaved).flatten()
+    with CuTensorNetHandle() as libhandle:
+        state = GeneralState(ket_circ, libhandle)
+        ket_net_vector = state.configure().prepare().compute()
+        state.destroy()
+
+    # Apply phase
     ket_net_vector = ket_net_vector * cmath.exp(1j * cmath.pi * ket_circ.phase)
 
     # Compare to pytket statevector
@@ -132,16 +132,35 @@ def test_generalised_toffoli_box(n_qubits: int) -> None:
         if bit:
             bra_circ.X(i)
 
-    ket_net = TensorNetwork(ket_circ)
-    ket_net_vector = cq.contract(*ket_net.cuquantum_interleaved).flatten()
+    with CuTensorNetHandle() as libhandle:
+        state = GeneralState(ket_circ, libhandle)
+        ket_net_vector = state.configure().prepare().compute()
+        state.destroy()
     ket_net_vector = ket_net_vector * cmath.exp(1j * cmath.pi * ket_circ.phase)
     ket_pytket_vector = ket_circ.get_statevector()
     assert np.allclose(ket_net_vector, ket_pytket_vector)
 
-    bra_net = TensorNetwork(bra_circ)
-    bra_net_vector = cq.contract(*bra_net.cuquantum_interleaved).flatten()
+    with CuTensorNetHandle() as libhandle:
+        state = GeneralState(bra_circ, libhandle)
+        bra_net_vector = state.configure().prepare().compute()
+        state.destroy()
     bra_net_vector = bra_net_vector * cmath.exp(1j * cmath.pi * bra_circ.phase)
     bra_pytket_vector = bra_circ.get_statevector()
     assert np.allclose(bra_net_vector, bra_pytket_vector)
 
-    np.isclose(abs(cq.contract(*ket_net.vdot(bra_net))), 1.0)
+    op = QubitPauliOperator(
+        {
+            QubitPauliString({Qubit(i): Pauli.I for i in range(n_qubits)}): 1.0,
+        }
+    )
+
+    with CuTensorNetHandle() as libhandle:
+        state = GeneralState(ket_circ, libhandle)
+        oper = GeneralOperator(op, n_qubits, libhandle)
+        ev = GeneralExpectationValue(state, oper, libhandle)
+        ovl, state_norm = ev.configure().prepare().compute()
+        ev.destroy()
+        oper.destroy()
+        state.destroy()
+    assert ovl == pytest.approx(1.0)
+    assert state_norm == pytest.approx(1.0)
