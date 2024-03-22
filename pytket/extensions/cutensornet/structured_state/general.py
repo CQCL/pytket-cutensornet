@@ -54,7 +54,6 @@ class CuTensorNetHandle:
     """
 
     def __init__(self, device_id: Optional[int] = None):
-        self.handle = cutn.create()
         self._is_destroyed = False
 
         # Make sure CuPy uses the specified device
@@ -62,6 +61,8 @@ class CuTensorNetHandle:
 
         dev = cp.cuda.Device()
         self.device_id = int(dev)
+
+        self.handle = cutn.create()
 
     def __enter__(self) -> CuTensorNetHandle:
         return self
