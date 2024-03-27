@@ -225,6 +225,7 @@ def test_canonicalise_ttn(center: Union[RootPath, Qubit]) -> None:
         pytest.lazy_fixture("q2_lcu3"),  # type: ignore
         pytest.lazy_fixture("q3_v0cx02"),  # type: ignore
         pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
+        pytest.lazy_fixture("q4_with_creates"),  # type: ignore
         pytest.lazy_fixture("q5_h0s1rz2ry3tk4tk13"),  # type: ignore
         pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
         pytest.lazy_fixture("q6_qvol"),  # type: ignore
@@ -286,6 +287,7 @@ def test_exact_circ_sim(circuit: Circuit, algorithm: SimulationAlgorithm) -> Non
         pytest.lazy_fixture("q2_lcu3"),  # type: ignore
         pytest.lazy_fixture("q3_v0cx02"),  # type: ignore
         pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
+        pytest.lazy_fixture("q4_with_creates"),  # type: ignore
         pytest.lazy_fixture("q5_h0s1rz2ry3tk4tk13"),  # type: ignore
         pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
         pytest.lazy_fixture("q6_qvol"),  # type: ignore
@@ -333,6 +335,7 @@ def test_approx_circ_sim_gate_fid(
         pytest.lazy_fixture("q2_lcu3"),  # type: ignore
         pytest.lazy_fixture("q3_v0cx02"),  # type: ignore
         pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
+        pytest.lazy_fixture("q4_with_creates"),  # type: ignore
         pytest.lazy_fixture("q5_h0s1rz2ry3tk4tk13"),  # type: ignore
         pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
         pytest.lazy_fixture("q6_qvol"),  # type: ignore
@@ -366,6 +369,7 @@ def test_approx_circ_sim_chi(circuit: Circuit, algorithm: SimulationAlgorithm) -
         pytest.lazy_fixture("q2_x0cx01cx10"),  # type: ignore
         pytest.lazy_fixture("q2_lcu2"),  # type: ignore
         pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
+        pytest.lazy_fixture("q4_with_creates"),  # type: ignore
         pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
         pytest.lazy_fixture("q6_qvol"),  # type: ignore
     ],
@@ -585,6 +589,7 @@ def test_postselect_circ(circuit: Circuit, postselect_dict: dict) -> None:
         pytest.lazy_fixture("q2_lcu2"),  # type: ignore
         pytest.lazy_fixture("q2_lcu3"),  # type: ignore
         pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
+        pytest.lazy_fixture("q4_with_creates"),  # type: ignore
         pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
     ],
 )

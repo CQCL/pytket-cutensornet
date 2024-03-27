@@ -186,6 +186,24 @@ def q4_multicontrols() -> Circuit:
 
 
 @pytest.fixture
+def q4_with_creates() -> Circuit:
+    circuit = Circuit(4)
+    circuit.qubit_create_all()
+
+    circuit.S(1)
+    circuit.Rz(0.3, 0)
+    circuit.Ry(0.1, 2)
+    circuit.TK1(0.2, 0.9, 0.8, 3)
+    circuit.TK2(0.6, 0.5, 0.7, 1, 2)
+    circuit.X(0)
+    circuit.H(2)
+    circuit.V(1)
+    circuit.Z(3)
+
+    return circuit
+
+
+@pytest.fixture
 def q5_h0s1rz2ry3tk4tk13() -> Circuit:
     circuit = Circuit(5)
     circuit.H(0)
