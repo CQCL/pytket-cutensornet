@@ -128,14 +128,16 @@ class Config:
             ValueError: If the value of ``chi`` is set below 2.
             ValueError: If the value of ``truncation_fidelity`` is not in [0,1].
         """
+        _CHI_LIMIT = 2**60
         if (
             chi is not None
+            and chi < _CHI_LIMIT
             and truncation_fidelity is not None
             and truncation_fidelity != 1.0
         ):
             raise ValueError("Cannot fix both chi and truncation_fidelity.")
         if chi is None:
-            chi = 2**60  # In practice, this is like having it be unbounded
+            chi = _CHI_LIMIT  # In practice, this is like having it be unbounded
         if truncation_fidelity is None:
             truncation_fidelity = 1
 

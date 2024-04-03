@@ -51,6 +51,44 @@ def test_init() -> None:
         assert ttn_gate.is_valid()
 
 
+@pytest.mark.parametrize(
+    "algorithm",
+    [
+        SimulationAlgorithm.MPSxGate,
+        SimulationAlgorithm.MPSxMPO,
+        SimulationAlgorithm.TTNxGate,
+    ],
+)
+def test_copy(algorithm: SimulationAlgorithm) -> None:
+    simple_circ = Circuit(2).H(0).H(1).CX(0, 1)
+
+    with CuTensorNetHandle() as libhandle:
+
+        # Default config
+        cfg = Config()
+        state = simulate(libhandle, simple_circ, algorithm, cfg)
+        assert state.is_valid()
+        copy_state = state.copy()
+        assert copy_state.is_valid()
+        assert np.isclose(copy_state.vdot(state), 1.0, atol=cfg._atol)
+
+        # Bounded chi
+        cfg = Config(chi=8)
+        state = simulate(libhandle, simple_circ, algorithm, cfg)
+        assert state.is_valid()
+        copy_state = state.copy()
+        assert copy_state.is_valid()
+        assert np.isclose(copy_state.vdot(state), 1.0, atol=cfg._atol)
+
+        # Bounded truncation_fidelity
+        cfg = Config(truncation_fidelity=0.9999)
+        state = simulate(libhandle, simple_circ, algorithm, cfg)
+        assert state.is_valid()
+        copy_state = state.copy()
+        assert copy_state.is_valid()
+        assert np.isclose(copy_state.vdot(state), 1.0, atol=cfg._atol)
+
+
 def test_canonicalise_mps() -> None:
     cp.random.seed(1)
     circ = Circuit(5)
