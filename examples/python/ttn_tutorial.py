@@ -9,7 +9,7 @@ from pytket.extensions.cutensornet.structured_state import (
     CuTensorNetHandle,
     Config,
     SimulationAlgorithm,
-    simulate, 
+    simulate,
 )
 
 # # Introduction
@@ -23,6 +23,7 @@ from pytket.extensions.cutensornet.structured_state import (
 # # How to use
 # The interface for TTN matches that of MPS. As such, you should be able to run any code that uses `SimulationAlgorithm.MPSxGate` by replacing it with `SimulationAlgorithm.TTNxGate`. Calling `prepare_circuit_mps` is no longer necessary, since `TTNxGate` can apply gates between non-neighbouring qubits.
 # **NOTE**: If you are new to pytket-cutensornet, it is highly recommended to start reading the `mps_tutorial.ipynb` notebook instead. More details about the use of the library are discussed there (for instance, why and when to call `CuTensorNetHandle()`).
+
 
 def random_graph_circuit(n_qubits: int, edge_prob: float, layers: int) -> Circuit:
     """Random circuit with qubit connectivity determined by a random graph."""
@@ -41,6 +42,7 @@ def random_graph_circuit(n_qubits: int, edge_prob: float, layers: int) -> Circui
 
     return c
 
+
 # For **exact** simulation, you can call `simulate` directly, providing the default `Config()`:
 
 simple_circ = random_graph_circuit(n_qubits=10, edge_prob=0.1, layers=1)
@@ -51,7 +53,7 @@ with CuTensorNetHandle() as libhandle:
 # ## Obtain an amplitude from a TTN
 # Let's first see how to get the amplitude of the state `|10100>` from the output of the previous circuit.
 
-state = int('10100', 2)
+state = int("10100", 2)
 with CuTensorNetHandle() as libhandle:
     my_ttn.update_libhandle(libhandle)
     amplitude = my_ttn.get_amplitude(state)
@@ -99,7 +101,9 @@ print(round(bound_chi_ttn.fidelity, 4))
 start = time()
 with CuTensorNetHandle() as libhandle:
     config = Config(truncation_fidelity=0.99, float_precision=np.float32)
-    fixed_fidelity_ttn = simulate(libhandle, circuit, SimulationAlgorithm.TTNxGate, config)
+    fixed_fidelity_ttn = simulate(
+        libhandle, circuit, SimulationAlgorithm.TTNxGate, config
+    )
 end = time()
 print("Time taken by approximate contraction with fixed truncation fidelity:")
 print(f"{round(end-start,2)} seconds")
@@ -113,7 +117,7 @@ print(round(fixed_fidelity_ttn.fidelity, 4))
 
 # # Using the logger
 
-# You can request a verbose log to be produced during simulation, by assigning the `loglevel` argument when creating a `Config` instance. Currently, two log levels are supported (other than default, which is silent): 
+# You can request a verbose log to be produced during simulation, by assigning the `loglevel` argument when creating a `Config` instance. Currently, two log levels are supported (other than default, which is silent):
 # - `logging.INFO` will print information about progress percent, memory currently occupied by the TTN and current fidelity. Additionally, some high level information of the current stage of the simulation is provided.
 # - `logging.DEBUG` provides all of the messages from the loglevel above plus detailed information of the current operation being carried out and the values of important variables.
 # **Note**: Due to technical issues with the `logging` module and Jupyter notebooks we need to reload the `logging` module. When working with python scripts and command line, just doing `import logging` is enough.

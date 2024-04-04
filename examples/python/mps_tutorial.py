@@ -8,8 +8,8 @@ from pytket.extensions.cutensornet.structured_state import (
     CuTensorNetHandle,
     Config,
     SimulationAlgorithm,
-    simulate, 
-    prepare_circuit_mps
+    simulate,
+    prepare_circuit_mps,
 )
 
 # # Introduction
@@ -20,7 +20,7 @@ from pytket.extensions.cutensornet.structured_state import (
 # ```
 # tensor[i][j][k] = v
 # ```
-# In the case above, we are assigning an entry value `v` of a rank-3 tensor (one `[ ]` coordinate per bond). Each bond allows a different number of values for its indices; for instance `0 <= i < 4` would mean that the first bond of our tensor can take up to four different indices; we refer to this as the *dimension* of the bond. We refer to the bonds connecting different tensors in the MPS as *virtual bonds*; the maximum allowed value for the dimension of virtual bonds is often denoted by the greek letter `chi`. The open bonds are known as *physical bonds* and, in our case, each will correspond to a qubit; hence, they have dimension `2` -- the dimension of the vector space of a single qubit. 
+# In the case above, we are assigning an entry value `v` of a rank-3 tensor (one `[ ]` coordinate per bond). Each bond allows a different number of values for its indices; for instance `0 <= i < 4` would mean that the first bond of our tensor can take up to four different indices; we refer to this as the *dimension* of the bond. We refer to the bonds connecting different tensors in the MPS as *virtual bonds*; the maximum allowed value for the dimension of virtual bonds is often denoted by the greek letter `chi`. The open bonds are known as *physical bonds* and, in our case, each will correspond to a qubit; hence, they have dimension `2` -- the dimension of the vector space of a single qubit.
 # In essence, whenever we want to apply a gate to certain qubit we will connect a tensor (matrix) representing the gate to the corresponding physical bond and *contract* the network back to an MPS form (tensor contraction is a generalisation of matrix multiplication to multidimensional arrays). Whenever a two-qubit gate is applied, the entanglement information after contraction will be kept in the degrees of freedom of the virtual bonds. As such, the dimension of the virtual bonds will generally increase exponentially as we apply entangling gates, leading to large memory footprints of the tensors and, consequently, long runtime for tensor contraction. We provide functionalities to limit the growth of the dimension of the virtual bonds, keeping resource consumption in check. Read the *Approximate simulation* section on this notebook to learn more.
 # **NOTE**: MPS methods can only be applied to circuits that only contain gates that act between nearest-neighbours in a line. If your circuit does not satisfy this constraint, you can use the `prepare_circuit_mps` function (see the *Preparing the circuit* section); this will add multiple `SWAP` gates to the circuit that *need* to be simulated explicitly within the MPS, increasing the resources required considerably. In the future, we will support other tensor network state approaches that do not suffer so drastically from this restrictive connectivity.
 # **References**: To read more about MPS we recommend the following papers.
@@ -55,7 +55,7 @@ with CuTensorNetHandle() as libhandle:
 # ### Obtain an amplitude from an MPS
 # Let's first see how to get the amplitude of the state `|10100>` from the output of the previous circuit.
 
-state = int('10100', 2)
+state = int("10100", 2)
 with CuTensorNetHandle() as libhandle:
     my_mps.update_libhandle(libhandle)
     amplitude = my_mps.get_amplitude(state)
@@ -86,7 +86,7 @@ sample_count = [0 for _ in range(2**n_qubits)]
 
 with CuTensorNetHandle() as libhandle:
     my_mps.update_libhandle(libhandle)
-    
+
     for _ in range(n_samples):
         # Draw a sample
         qubit_outcomes = my_mps.sample()
@@ -96,13 +96,13 @@ with CuTensorNetHandle() as libhandle:
         outcome = int(bitstring, 2)
         # Update the sample dictionary
         sample_count[outcome] += 1
-        
+
 # Calculate the theoretical number of samples per bitstring
-expected_count = [n_samples*abs(state_vector[i])**2 for i in range(2**n_qubits)]
-        
+expected_count = [n_samples * abs(state_vector[i]) ** 2 for i in range(2**n_qubits)]
+
 # Plot a comparison of theory vs sampled
 plt.scatter(range(2**n_qubits), expected_count, label="Theory")
-plt.scatter(range(2**n_qubits), sample_count, label="Experiment", marker='x')
+plt.scatter(range(2**n_qubits), sample_count, label="Experiment", marker="x")
 plt.xlabel("Basis states")
 plt.ylabel("Samples")
 plt.legend()
@@ -139,7 +139,7 @@ with CuTensorNetHandle() as libhandle:
 with CuTensorNetHandle() as libhandle:
     my_mps.update_libhandle(libhandle)
     inner_product = my_mps.vdot(other_mps)
-    
+
 my_state = my_circ.get_statevector()
 other_state = other_circ.get_statevector()
 
@@ -186,6 +186,7 @@ with CuTensorNetHandle() as libhandle:
 # * Provide a value for acceptable two-qubit gate fidelity `truncation_fidelity`. After each two-qubit gate we truncate the dimension of virtual bonds as much as we can while guaranteeing the target gate fidelity. The more fidelity you require, the longer it will take to simulate. **Note**: this is *not* the final fidelity of the output state, but the fidelity per gate.
 # Values for `chi` and `truncation_fidelity` can be set via `Config`. To showcase approximate simulation, let's define a circuit where exact MPS contraction starts struggling.
 
+
 def random_line_circuit(n_qubits: int, layers: int) -> Circuit:
     """Random circuit with line connectivity."""
     c = Circuit(n_qubits)
@@ -209,7 +210,8 @@ def random_line_circuit(n_qubits: int, layers: int) -> Circuit:
 
     return c
 
-circuit = random_line_circuit(n_qubits = 20, layers = 20)
+
+circuit = random_line_circuit(n_qubits=20, layers=20)
 
 # For exact contraction, `chi` must be allowed to be up to `2**(n_qubits // 2)`, meaning that if we set `n_qubits = 20` it would require `chi = 1024`; already too much for this particular circuit to be simulated in a gaming laptop using the current implementation. Instead, let's bound `chi` to a maximum of `16`. Doing so results in faster runtime, at the expense of losing output state fidelity.
 
@@ -228,7 +230,9 @@ print(round(bound_chi_mps.fidelity, 4))
 start = time()
 with CuTensorNetHandle() as libhandle:
     config = Config(truncation_fidelity=0.999)
-    fixed_fidelity_mps = simulate(libhandle, circuit, SimulationAlgorithm.MPSxGate, config)
+    fixed_fidelity_mps = simulate(
+        libhandle, circuit, SimulationAlgorithm.MPSxGate, config
+    )
 end = time()
 print("Time taken by approximate contraction with fixed truncation fidelity:")
 print(f"{round(end-start,2)} seconds")
@@ -248,7 +252,9 @@ print(round(fixed_fidelity_mps.fidelity, 4))
 start = time()
 with CuTensorNetHandle() as libhandle:
     config = Config(chi=16)
-    fixed_fidelity_mps = simulate(libhandle, circuit, SimulationAlgorithm.MPSxGate, config)
+    fixed_fidelity_mps = simulate(
+        libhandle, circuit, SimulationAlgorithm.MPSxGate, config
+    )
 end = time()
 print("MPSxGate")
 print(f"\tTime taken: {round(end-start,2)} seconds")
@@ -257,7 +263,9 @@ print(f"\tLower bound of the fidelity: {round(fixed_fidelity_mps.fidelity, 4)}")
 start = time()
 with CuTensorNetHandle() as libhandle:
     config = Config(chi=16)
-    fixed_fidelity_mps = simulate(libhandle, circuit, SimulationAlgorithm.MPSxMPO, config)
+    fixed_fidelity_mps = simulate(
+        libhandle, circuit, SimulationAlgorithm.MPSxMPO, config
+    )
 end = time()
 print("MPSxMPO, default parameters")
 print(f"\tTime taken: {round(end-start,2)} seconds")
@@ -266,7 +274,9 @@ print(f"\tLower bound of the fidelity: {round(fixed_fidelity_mps.fidelity, 4)}")
 start = time()
 with CuTensorNetHandle() as libhandle:
     config = Config(k=8, optim_delta=1e-15, chi=16)
-    fixed_fidelity_mps = simulate(libhandle, circuit, SimulationAlgorithm.MPSxMPO, config)
+    fixed_fidelity_mps = simulate(
+        libhandle, circuit, SimulationAlgorithm.MPSxMPO, config
+    )
 end = time()
 print("MPSxMPO, custom parameters")
 print(f"\tTime taken: {round(end-start,2)} seconds")
@@ -276,18 +286,18 @@ print(f"\tLower bound of the fidelity: {round(fixed_fidelity_mps.fidelity, 4)}")
 
 # # Using the logger
 
-# You can request a verbose log to be produced during simulation, by assigning the `loglevel` argument when creating a `Config` instance. Currently, two log levels are supported (other than default, which is silent): 
+# You can request a verbose log to be produced during simulation, by assigning the `loglevel` argument when creating a `Config` instance. Currently, two log levels are supported (other than default, which is silent):
 # - `logging.INFO` will print information about progress percent, memory currently occupied by the MPS and current fidelity. Additionally, some high level information of the current stage of the simulation is provided, such as when `MPSxMPO` is applying optimisation sweeps.
 # - `logging.DEBUG` provides all of the messages from the loglevel above plus detailed information of the current operation being carried out and the values of important variables.
 # **Note**: Due to technical issues with the `logging` module and Jupyter notebooks we need to reload the `logging` module. When working with python scripts and command line, just doing `import logging` is enough.
 
 from importlib import reload  # Not needed in Python 2
 import logging
+
 reload(logging)
 
-# An example of the use of `logging.INFO` is provided below. 
+# An example of the use of `logging.INFO` is provided below.
 
 with CuTensorNetHandle() as libhandle:
     config = Config(truncation_fidelity=0.999, loglevel=logging.INFO)
     simulate(libhandle, circuit, SimulationAlgorithm.MPSxMPO, config)
-
