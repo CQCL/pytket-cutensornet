@@ -1,0 +1,52 @@
+name: check examples
+
+on:
+  pull_request:
+    branches:
+      - develop
+      - main
+  schedule:
+    # 04:00 every Saturday morning
+    - cron: '0 4 * * 6'
+
+jobs:
+
+  changes:
+    runs-on: ubuntu-22.04
+    outputs:
+      examples: ${{ steps.filter.outputs.examples }}
+    steps:
+    - uses: actions/checkout@v4
+    - uses: dorny/paths-filter@v3
+      id: filter
+      with:
+        base: ${{ github.ref }}
+        filters: |
+          examples:
+            - 'examples/**'
+            - '.github/**'
+
+  check:
+    name: check examples
+    needs: changes
+    if: github.event_name == 'schedule' || needs.changes.outputs.examples == 'true'
+    runs-on: ubuntu-22.04
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: '0'
+    - run: git fetch --depth=1 origin +refs/tags/*:refs/tags/* +refs/heads/*:refs/remotes/origin/*
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: 3.11
+    - name: install python requirements for notebooks
+      run: |
+        cd examples
+        python -m pip install --upgrade pip
+        python -m pip install .
+        python -m pip install p2j
+    - name: test example notebooks
+      run: |
+        cd examples
+        ./check-examples
