@@ -15,11 +15,11 @@ from pytket.extensions.cutensornet.structured_state import (
 # # Introduction
 # This notebook provides examples of the usage of the MPS functionalities of `pytket_cutensornet`. For more information, see the docs at https://tket.quantinuum.com/extensions/pytket-cutensornet/api/index.html.
 # A Matrix Product State (MPS) represents a state on `n` qubits as a list of `n` tensors connected in a line as show below:
-# ![image.png](attachment:318cc014-ad93-4722-85e8-12f9b2e20ca3.png)
+# ![MPS](images/mps.png)
 # Each of these circles corresponds to a tensor. We refer to each leg of a tensor as a *bond* and the number of bonds a tensor has is its *rank*. In code, a tensor is just a multidimensional array:
-# ```
-# tensor[i][j][k] = v
-# ```
+#
+# ```tensor[i][j][k] = v```
+#
 # In the case above, we are assigning an entry value `v` of a rank-3 tensor (one `[ ]` coordinate per bond). Each bond allows a different number of values for its indices; for instance `0 <= i < 4` would mean that the first bond of our tensor can take up to four different indices; we refer to this as the *dimension* of the bond. We refer to the bonds connecting different tensors in the MPS as *virtual bonds*; the maximum allowed value for the dimension of virtual bonds is often denoted by the greek letter `chi`. The open bonds are known as *physical bonds* and, in our case, each will correspond to a qubit; hence, they have dimension `2` -- the dimension of the vector space of a single qubit.
 # In essence, whenever we want to apply a gate to certain qubit we will connect a tensor (matrix) representing the gate to the corresponding physical bond and *contract* the network back to an MPS form (tensor contraction is a generalisation of matrix multiplication to multidimensional arrays). Whenever a two-qubit gate is applied, the entanglement information after contraction will be kept in the degrees of freedom of the virtual bonds. As such, the dimension of the virtual bonds will generally increase exponentially as we apply entangling gates, leading to large memory footprints of the tensors and, consequently, long runtime for tensor contraction. We provide functionalities to limit the growth of the dimension of the virtual bonds, keeping resource consumption in check. Read the *Approximate simulation* section on this notebook to learn more.
 # **NOTE**: MPS methods can only be applied to circuits that only contain gates that act between nearest-neighbours in a line. If your circuit does not satisfy this constraint, you can use the `prepare_circuit_mps` function (see the *Preparing the circuit* section); this will add multiple `SWAP` gates to the circuit that *need* to be simulated explicitly within the MPS, increasing the resources required considerably. In the future, we will support other tensor network state approaches that do not suffer so drastically from this restrictive connectivity.
