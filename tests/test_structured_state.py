@@ -6,7 +6,7 @@ import cuquantum as cq  # type: ignore
 import cupy as cp  # type: ignore
 import numpy as np  # type: ignore
 
-from pytket.circuit import Circuit, Qubit, OpType  # type: ignore
+from pytket.circuit import Circuit, Qubit, OpType, Op  # type: ignore
 from pytket.pauli import Pauli, QubitPauliString  # type: ignore
 from pytket.extensions.cutensornet.structured_state import (
     CuTensorNetHandle,
@@ -630,6 +630,33 @@ def test_postselect_circ(
         prob = state.postselect(postselect_dict)
         assert np.isclose(prob, sv_prob, atol=cfg._atol)
         assert np.allclose(state.get_statevector(), sv, atol=cfg._atol)
+
+
+def test_ttn_qubit_addition() -> None:
+    with CuTensorNetHandle() as libhandle:
+        ttn = TTNxGate(
+            libhandle,
+            qubit_partition={0: [Qubit(0), Qubit(1)], 1: [Qubit(2), Qubit(3)]},
+            config=Config(leaf_size=2),
+        )
+
+        # Apply some gates
+        ttn._apply_1q_gate(Qubit(1), Op.create(OpType.X))
+        ttn._apply_2q_gate(Qubit(1), Qubit(2), Op.create(OpType.CX))
+        ttn._apply_2q_gate(Qubit(2), Qubit(3), Op.create(OpType.CX))
+        # Add the qubit
+        ttn.add_qubit(new_qubit=Qubit(4), neighbour_qubit=Qubit(3))
+        # Apply some more gates acting on the new qubit
+        ttn._apply_2q_gate(Qubit(3), Qubit(4), Op.create(OpType.CX))
+        ttn._apply_2q_gate(Qubit(4), Qubit(0), Op.create(OpType.CX))
+        ttn._apply_1q_gate(Qubit(4), Op.create(OpType.X))
+
+        # The resulting state should be |11110>
+        sv = np.zeros(2**5)
+        sv[16 + 8 + 4 + 2] = 1
+
+        # Compare the state vectors
+        assert np.allclose(ttn.get_statevector(), sv)
 
 
 @pytest.mark.parametrize(

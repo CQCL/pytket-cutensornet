@@ -14,6 +14,7 @@
 from __future__ import annotations  # type: ignore
 import warnings
 from typing import Optional, Union
+from collections import defaultdict
 from enum import IntEnum
 
 import math  # type: ignore
@@ -701,6 +702,63 @@ class TTN(StructuredState):
         for q, (p, idx) in self.qubit_position.items():
             if p == path and idx > target:
                 self.qubit_position[q] = (p, idx - 1)
+
+    def add_qubit(
+        self, new_qubit: Qubit, neighbour_qubit: Optional[Qubit] = None
+    ) -> None:
+        """Adds a qubit on state |0>.
+
+        Args:
+            new_qubit: The identifier of the qubit to be added to the state.
+            neighbour_qubit: If provided, the extra qubit is added to the same leaf
+                node where this qubit is located. Otherwise, the qubit is added to
+                the leaf node with the least number of qubits.
+
+        Raises:
+            ValueError: If ``neighbour_qubit`` is not present in the state.
+        """
+
+        # Determine in which leaf node the qubit will be included
+        if neighbour_qubit is not None:
+            if neighbour_qubit in self.qubit_position:
+                leaf_path, _ = self.qubit_position[neighbour_qubit]
+            else:
+                raise ValueError(f"Qubit {neighbour_qubit} is not in the TTN.")
+        else:
+            # Gather information of how many qubits are on each leaf node
+            leaf_node_occupancy: dict[RootPath, int] = defaultdict(lambda: 0)
+            for path, _ in self.qubit_position.values():
+                leaf_node_occupancy[path] += 1
+            # Pick the leaf node with the least number of qubits
+            leaf_path = min(leaf_node_occupancy, key=lambda k: leaf_node_occupancy[k])
+
+        # Create the tensor for a qubit in state |0>
+        qubit_tensor = cp.zeros(2, dtype=self._cfg._complex_t)
+        qubit_tensor[0] = 1
+        # Include it in the leaf node
+        leaf_tensor = self.nodes[leaf_path].tensor
+        n_qbonds = (
+            len(leaf_tensor.shape) - 1
+        )  # Total number of physical bonds in this node
+
+        # Glossary of bond IDs
+        # qX -> where X is the X-th physical bond (qubit) in the TTN node
+        # p  -> the parent bond of the TTN node
+        # n  -> the bond of the new qubit
+        node_bonds = [f"q{x}" for x in range(n_qbonds)] + ["p"]
+        result_bonds = [f"q{x}" for x in range(n_qbonds)] + ["n", "p"]
+        self.nodes[leaf_path].tensor = cq.contract(
+            leaf_tensor,
+            node_bonds,
+            qubit_tensor,
+            ["n"],
+            result_bonds,
+            options={"handle": self._lib.handle, "device_id": self._lib.device_id},
+            optimize={"path": [(0, 1)]},
+        )
+
+        # Update the data structure to keep track of this new qubit
+        self.qubit_position[new_qubit] = (leaf_path, n_qbonds)
 
     def expectation_value(self, pauli_string: QubitPauliString) -> float:
         """Obtains the expectation value of the Pauli string observable.
