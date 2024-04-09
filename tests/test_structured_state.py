@@ -561,6 +561,13 @@ def test_circ_approx_explicit_ttn(circuit: Circuit) -> None:
     ],
 )
 @pytest.mark.parametrize(
+    "algorithm",
+    [
+        SimulationAlgorithm.MPSxGate,
+        SimulationAlgorithm.TTNxGate,
+    ],
+)
+@pytest.mark.parametrize(
     "postselect_dict",
     [
         {Qubit("q", 0): 0},
@@ -569,18 +576,20 @@ def test_circ_approx_explicit_ttn(circuit: Circuit) -> None:
         {Qubit("q", 1): 1},
     ],
 )
-def test_postselect_2q_circ(circuit: Circuit, postselect_dict: dict) -> None:
+def test_postselect_2q_circ(
+    circuit: Circuit, algorithm: SimulationAlgorithm, postselect_dict: dict
+) -> None:
     sv = circuit_statevector_postselect(circuit, postselect_dict.copy())
     sv_prob = sv.conj() @ sv
     if not np.isclose(sv_prob, 0.0):
         sv = sv / np.sqrt(sv_prob)  # Normalise
 
     with CuTensorNetHandle() as libhandle:
-        cfg = Config()
-        mps = simulate(libhandle, circuit, SimulationAlgorithm.MPSxGate, cfg)
-        prob = mps.postselect(postselect_dict)
+        cfg = Config(leaf_size=1)
+        state = simulate(libhandle, circuit, algorithm, cfg)
+        prob = state.postselect(postselect_dict)
         assert np.isclose(prob, sv_prob, atol=cfg._atol)
-        assert np.allclose(mps.get_statevector(), sv, atol=cfg._atol)
+        assert np.allclose(state.get_statevector(), sv, atol=cfg._atol)
 
 
 @pytest.mark.parametrize(
@@ -588,6 +597,13 @@ def test_postselect_2q_circ(circuit: Circuit, postselect_dict: dict) -> None:
     [
         pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
         pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
+    ],
+)
+@pytest.mark.parametrize(
+    "algorithm",
+    [
+        SimulationAlgorithm.MPSxGate,
+        SimulationAlgorithm.TTNxGate,
     ],
 )
 @pytest.mark.parametrize(
@@ -600,18 +616,20 @@ def test_postselect_2q_circ(circuit: Circuit, postselect_dict: dict) -> None:
         {Qubit("q", 0): 0, Qubit("q", 2): 1},
     ],
 )
-def test_postselect_circ(circuit: Circuit, postselect_dict: dict) -> None:
+def test_postselect_circ(
+    circuit: Circuit, algorithm: SimulationAlgorithm, postselect_dict: dict
+) -> None:
     sv = circuit_statevector_postselect(circuit, postselect_dict.copy())
     sv_prob = sv.conj() @ sv
     if not np.isclose(sv_prob, 0.0):
         sv = sv / np.sqrt(sv_prob)  # Normalise
 
     with CuTensorNetHandle() as libhandle:
-        cfg = Config()
-        mps = simulate(libhandle, circuit, SimulationAlgorithm.MPSxGate, cfg)
-        prob = mps.postselect(postselect_dict)
+        cfg = Config(leaf_size=2)
+        state = simulate(libhandle, circuit, algorithm, cfg)
+        prob = state.postselect(postselect_dict)
         assert np.isclose(prob, sv_prob, atol=cfg._atol)
-        assert np.allclose(mps.get_statevector(), sv, atol=cfg._atol)
+        assert np.allclose(state.get_statevector(), sv, atol=cfg._atol)
 
 
 @pytest.mark.parametrize(
