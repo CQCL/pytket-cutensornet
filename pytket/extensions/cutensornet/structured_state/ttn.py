@@ -760,6 +760,9 @@ class TTN(StructuredState):
         # Update the data structure to keep track of this new qubit
         self.qubit_position[new_qubit] = (leaf_path, n_qbonds)
 
+        # Report to logger
+        self._logger.debug(f"Qubit {new_qubit} added at {leaf_path}.")
+
     def expectation_value(self, pauli_string: QubitPauliString) -> float:
         """Obtains the expectation value of the Pauli string observable.
 
