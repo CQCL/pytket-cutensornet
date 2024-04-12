@@ -1,6 +1,19 @@
 Changelog
 ~~~~~~~~~
 
+0.6.0 (April 2024)
+------------------
+
+* **New feature**: Tree Tensor Network (TTN) simulator, supporting both fixed ``chi`` and ``truncation_fidelity``. Calculation of single amplitudes is supported by ``get_amplitude`` and inner products by ``vdot``. Measurement and postselection are not yet supported.
+* **New API**: both ``MPS`` and ``TTN`` share a common interface: ``StructuredState``. Import paths have changed, multiple classes have been renamed: ``ConfigMPS`` is now ``Config``, ``ContractionAlg`` is now ``SimulationAlgorithm``. Documentation has been updated accordingly.
+
+* Canonicalisation of MPS is now always applied before a two-qubit gate. We found that this tends to reduce runtime due to canonicalisation decreasing virtual bond dimension.
+* Two-qubit gates are now decomposed (SVD) before applying them to remove null singular values (e.g. in ``XXPhase`` gates).
+* Fixed a bug on copying an ``MPS`` if ``truncation_fidelity`` was set.
+* Fixed a bug on ``CuTensorNetHandle`` that would prevent it from working when the device set was different from the default one (``dev=0``) and when using ``cuTensorNet>=2.3.0``.
+* Fixed a bug on ``TensorNetwork`` due to unsupported ``Create`` operation.
+* Updated pytket version requirement to 1.26.
+
 0.5.4 (January 2024)
 --------------------
 
