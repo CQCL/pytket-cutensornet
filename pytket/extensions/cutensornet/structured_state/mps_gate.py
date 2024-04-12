@@ -96,26 +96,15 @@ class MPSxGate(MPS):
         l_pos = min(positions)
         r_pos = max(positions)
 
+        # Always canonicalise. Even in the case of exact simulation (no truncation)
+        # canonicalisation may reduce the bond dimension (thanks to reduced QR).
+        self.canonicalise(l_pos, r_pos)
+
         # Figure out the new dimension of the shared virtual bond
         new_dim = 2 * min(
             self.get_virtual_dimensions(l_pos)[0],
             self.get_virtual_dimensions(r_pos)[1],
         )
-
-        # Canonicalisation may be required if `new_dim` is larger than `chi`
-        # or if set by `truncation_fidelity`
-        if new_dim > self._cfg.chi or self._cfg.truncation_fidelity < 1:
-            # If truncation required, convert to canonical form before
-            # contracting. Avoids the need to apply gauge transformations
-            # to the larger tensor resulting from the contraction.
-            self.canonicalise(l_pos, r_pos)
-
-            # Since canonicalisation may change the dimension of the bonds,
-            # we need to recalculate the value of `new_dim`
-            new_dim = 2 * min(
-                self.get_virtual_dimensions(l_pos)[0],
-                self.get_virtual_dimensions(r_pos)[1],
-            )
 
         # Load the gate's unitary to the GPU memory
         gate_unitary = gate.get_unitary().astype(dtype=self._cfg._complex_t, copy=False)
@@ -129,6 +118,7 @@ class MPSxGate(MPS):
         # r -> physical bond of the right tensor in the MPS
         # L -> left bond of the outcome of the gate
         # R -> right bond of the outcome of the gate
+        # S -> shared bond of the gate tensor's SVD
         # a,b,c -> the virtual bonds of the tensors
 
         if l_pos == positions[0]:
@@ -136,19 +126,27 @@ class MPSxGate(MPS):
         else:  # Implicit swap
             gate_bonds = "RLrl"
 
-        left_bonds = "abl"
-        right_bonds = "bcr"
-        result_bonds = "acLR"
+        # Apply SVD on the gate tensor to remove any zero singular values ASAP
+        svd_method = tensor.SVDMethod(
+            abs_cutoff=self._cfg.zero,
+            partition="U",  # Contract S directly into U
+        )
+        # Apply the SVD decomposition using the configuration defined above
+        U, S, V = tensor.decompose(
+            f"{gate_bonds}->SLl,SRr", gate_tensor, method=svd_method, options=options
+        )
+        assert S is None  # Due to "partition" option in SVDMethod
 
         # Contract
         self._logger.debug("Contracting the two-qubit gate with its site tensors...")
         T = cq.contract(
-            gate_bonds + "," + left_bonds + "," + right_bonds + "->" + result_bonds,
-            gate_tensor,
+            f"SLl,abl,SRr,bcr->acLR",
+            U,
             self.tensors[l_pos],
+            V,
             self.tensors[r_pos],
             options=options,
-            optimize={"path": [(0, 1), (0, 1)]},
+            optimize={"path": [(0, 1), (0, 1), (0, 1)]},
         )
         self._logger.debug(f"Intermediate tensor of size (MiB)={T.nbytes / 2**20}")
 
@@ -187,7 +185,7 @@ class MPSxGate(MPS):
             # remove any singular values below ``self._cfg.zero``.
             self._logger.debug(f"Truncating singular values below={self._cfg.zero}.")
             if self._cfg.zero > self._cfg._atol / 1000:
-                self._logger.info(  # This was raised as a warning in ConfigMPS already
+                self._logger.info(  # This was raised as a warning in Config already
                     "Your chosen value_of_zero is relatively large. "
                     "Faithfulness of final fidelity estimate is not guaranteed."
                 )

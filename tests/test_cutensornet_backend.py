@@ -111,6 +111,7 @@ def test_expectation_value() -> None:
         pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
         pytest.lazy_fixture("q4_lcu1"),  # type: ignore
         pytest.lazy_fixture("q4_multicontrols"),  # type: ignore
+        pytest.lazy_fixture("q4_with_creates"),  # type: ignore
     ],
 )
 def test_compile_convert_statevec_overlap(circuit: Circuit) -> None:

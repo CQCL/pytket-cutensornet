@@ -178,7 +178,7 @@ class TensorNetwork:
         self._input_nodes = []
         self._output_nodes = []
         for i, node in reversed(list(enumerate(self._network.nodes(data=True)))):
-            if node[1]["desc"] not in ("Input", "Output"):
+            if node[1]["desc"] not in ("Input", "Output", "Create"):
                 n_out_edges = len(list(self._network.out_edges(node[0])))
                 if n_out_edges > 1:
                     src_ports = [
@@ -213,7 +213,7 @@ class TensorNetwork:
             else:
                 if node[1]["desc"] == "Output":
                     self._output_nodes.append(i)
-                if node[1]["desc"] == "Input":
+                if node[1]["desc"] == "Input" or node[1]["desc"] == "Create":
                     self._input_nodes.append(i)
                     node_tensors.append(np.array([1, 0], dtype="complex128"))
         if adj:
