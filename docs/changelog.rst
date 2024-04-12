@@ -2,7 +2,7 @@ Changelog
 ~~~~~~~~~
 
 0.6.0 (April 2024)
--------------------
+------------------
 
 * **New feature**: Tree Tensor Network (TTN) simulator, supporting both fixed ``chi`` and ``truncation_fidelity``. Calculation of single amplitudes is supported by ``get_amplitude`` and inner products by ``vdot``. Measurement and postselection are not yet supported.
 * **New API**: both ``MPS`` and ``TTN`` share a common interface: ``StructuredState``. Import paths have changed, multiple classes have been renamed: ``ConfigMPS`` is now ``Config``, ``ContractionAlg`` is now ``SimulationAlgorithm``. Documentation has been updated accordingly.
