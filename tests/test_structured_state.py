@@ -63,7 +63,6 @@ def test_copy(algorithm: SimulationAlgorithm) -> None:
     simple_circ = Circuit(2).H(0).H(1).CX(0, 1)
 
     with CuTensorNetHandle() as libhandle:
-
         # Default config
         cfg = Config()
         state = simulate(libhandle, simple_circ, algorithm, cfg)
