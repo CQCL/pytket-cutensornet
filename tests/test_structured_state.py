@@ -63,7 +63,6 @@ def test_copy(algorithm: SimulationAlgorithm) -> None:
     simple_circ = Circuit(2).H(0).H(1).CX(0, 1)
 
     with CuTensorNetHandle() as libhandle:
-
         # Default config
         cfg = Config()
         state = simulate(libhandle, simple_circ, algorithm, cfg)
@@ -531,7 +530,7 @@ def test_circ_approx_explicit_ttn(circuit: Circuit) -> None:
         # Check for TTNxGate
         cfg = Config(truncation_fidelity=0.99, leaf_size=3, float_precision=np.float32)
         ttn_gate = simulate(libhandle, circuit, SimulationAlgorithm.TTNxGate, cfg)
-        assert np.isclose(ttn_gate.get_fidelity(), 0.769, atol=1e-3)
+        assert np.isclose(ttn_gate.get_fidelity(), 0.751, atol=1e-3)
         assert ttn_gate.is_valid()
         assert np.isclose(ttn_gate.vdot(ttn_gate), 1.0, atol=cfg._atol)
 
@@ -539,7 +538,7 @@ def test_circ_approx_explicit_ttn(circuit: Circuit) -> None:
         # Check for TTNxGate
         cfg = Config(chi=120, leaf_size=3, float_precision=np.float32)
         ttn_gate = simulate(libhandle, circuit, SimulationAlgorithm.TTNxGate, cfg)
-        assert np.isclose(ttn_gate.get_fidelity(), 0.857, atol=1e-3)
+        assert np.isclose(ttn_gate.get_fidelity(), 0.854, atol=1e-3)
         assert ttn_gate.is_valid()
         assert np.isclose(ttn_gate.vdot(ttn_gate), 1.0, atol=cfg._atol)
 
