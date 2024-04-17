@@ -1,6 +1,11 @@
 Changelog
 ~~~~~~~~~
 
+0.6.1 (April 2024)
+------------------
+
+* When using ``simulate`` with ``TTNxGate`` algorithm, the initial partition is obtained using NetworkX instead of KaHyPar by default. This makes setup easier and means that ``TTNxGate`` can now be used when installing from PyPI. KaHyPar can still be used if ``use_kahypar`` from ``Config`` is set to True.
+
 0.6.0 (April 2024)
 ------------------
 
