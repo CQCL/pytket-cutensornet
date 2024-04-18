@@ -122,6 +122,9 @@ def simulate(
     # Apply the circuit's phase to the state
     state.apply_scalar(np.exp(1j * np.pi * circuit.phase))
 
+    # Relabel qubits according to the implicit swaps (if any)
+    state.apply_qubit_relabelling(circuit.implicit_qubit_permutation())
+
     logger.info("Simulation completed.")
     logger.info(f"Final StructuredState size={state.get_byte_size() / 2**20} MiB")
     logger.info(f"Final StructuredState fidelity={state.fidelity}")
@@ -138,6 +141,7 @@ def prepare_circuit_mps(circuit: Circuit) -> tuple[Circuit, dict[Qubit, Qubit]]:
         The qubits in the output circuit will be renamed. Implicit SWAPs may be added
         to the circuit, meaning that the logical qubit held at the ``node[i]`` qubit
         at the beginning of the circuit may differ from the one it holds at the end.
+        Consider applying ``apply_qubit_relabelling`` on the MPS after simulation.
 
     Args:
         circuit: The circuit to be simulated.

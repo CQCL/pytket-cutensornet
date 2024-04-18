@@ -217,6 +217,33 @@ class MPS(StructuredState):
         self.tensors[0] *= scalar
         return self
 
+    def apply_qubit_relabelling(self, qubit_map: dict[Qubit, Qubit]) -> MPS:
+        """Relabels each qubit ``q`` as ``qubit_map[q]``.
+
+        This does not apply any SWAP gate, nor it changes the internal structure of the
+        state. It simply changes the label of the physical bonds of the tensor network.
+
+        Args:
+            qubit_map: Dictionary mapping each qubit to its new label.
+
+        Returns:
+            ``self``, to allow for method chaining.
+
+        Raises:
+            ValueError: If any of the keys in ``qubit_map`` are not qubits in the state.
+        """
+        new_qubit_position = dict()
+        for q_orig, q_new in qubit_map.items():
+            # Check the qubit is in the state
+            if q_orig not in self.qubit_position:
+                raise ValueError(f"Qubit {q_orig} is not in the state.")
+            # Apply the relabelling for this qubit
+            new_qubit_position[q_new] = self.qubit_position[q_orig]
+
+        self.qubit_position = new_qubit_position
+        self._logger.debug(f"Relabelled qubits... {qubit_map}")
+        return self
+
     def canonicalise(self, l_pos: int, r_pos: int) -> None:
         """Canonicalises the MPS object.
 
