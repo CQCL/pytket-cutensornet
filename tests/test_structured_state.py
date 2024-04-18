@@ -262,6 +262,7 @@ def test_canonicalise_ttn(center: Union[RootPath, Qubit]) -> None:
         pytest.lazy_fixture("q2_lcu3"),  # type: ignore
         pytest.lazy_fixture("q3_v0cx02"),  # type: ignore
         pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
+        pytest.lazy_fixture("q3_toffoli_box_with_implicit_swaps"),  # type: ignore
         pytest.lazy_fixture("q4_with_creates"),  # type: ignore
         pytest.lazy_fixture("q5_h0s1rz2ry3tk4tk13"),  # type: ignore
         pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
@@ -324,6 +325,7 @@ def test_exact_circ_sim(circuit: Circuit, algorithm: SimulationAlgorithm) -> Non
         pytest.lazy_fixture("q2_lcu3"),  # type: ignore
         pytest.lazy_fixture("q3_v0cx02"),  # type: ignore
         pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
+        pytest.lazy_fixture("q3_toffoli_box_with_implicit_swaps"),  # type: ignore
         pytest.lazy_fixture("q4_with_creates"),  # type: ignore
         pytest.lazy_fixture("q5_h0s1rz2ry3tk4tk13"),  # type: ignore
         pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
@@ -372,6 +374,7 @@ def test_approx_circ_sim_gate_fid(
         pytest.lazy_fixture("q2_lcu3"),  # type: ignore
         pytest.lazy_fixture("q3_v0cx02"),  # type: ignore
         pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
+        pytest.lazy_fixture("q3_toffoli_box_with_implicit_swaps"),  # type: ignore
         pytest.lazy_fixture("q4_with_creates"),  # type: ignore
         pytest.lazy_fixture("q5_h0s1rz2ry3tk4tk13"),  # type: ignore
         pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
@@ -586,6 +589,7 @@ def test_postselect_2q_circ(circuit: Circuit, postselect_dict: dict) -> None:
     "circuit",
     [
         pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
+        pytest.lazy_fixture("q3_toffoli_box_with_implicit_swaps"),  # type: ignore
         pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
     ],
 )
@@ -607,7 +611,11 @@ def test_postselect_circ(circuit: Circuit, postselect_dict: dict) -> None:
 
     with CuTensorNetHandle() as libhandle:
         cfg = Config()
+
+        circuit, qubit_map = prepare_circuit_mps(circuit)
         mps = simulate(libhandle, circuit, SimulationAlgorithm.MPSxGate, cfg)
+        mps.apply_qubit_relabelling(qubit_map)
+
         prob = mps.postselect(postselect_dict)
         assert np.isclose(prob, sv_prob, atol=cfg._atol)
         assert np.allclose(mps.get_statevector(), sv, atol=cfg._atol)
@@ -626,6 +634,7 @@ def test_postselect_circ(circuit: Circuit, postselect_dict: dict) -> None:
         pytest.lazy_fixture("q2_lcu2"),  # type: ignore
         pytest.lazy_fixture("q2_lcu3"),  # type: ignore
         pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
+        pytest.lazy_fixture("q3_toffoli_box_with_implicit_swaps"),  # type: ignore
         pytest.lazy_fixture("q4_with_creates"),  # type: ignore
         pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
     ],
@@ -654,7 +663,9 @@ def test_expectation_value(circuit: Circuit, observable: QubitPauliString) -> No
     # Simulate the circuit and obtain the expectation value
     with CuTensorNetHandle() as libhandle:
         cfg = Config()
+        circuit, qubit_map = prepare_circuit_mps(circuit)
         mps = simulate(libhandle, circuit, SimulationAlgorithm.MPSxGate, cfg)
+        mps.apply_qubit_relabelling(qubit_map)
         assert np.isclose(
             mps.expectation_value(observable), expectation_value, atol=cfg._atol
         )
@@ -701,6 +712,7 @@ def test_sample_circ_2q(circuit: Circuit) -> None:
     "circuit",
     [
         pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
+        pytest.lazy_fixture("q3_toffoli_box_with_implicit_swaps"),  # type: ignore
         pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
     ],
 )
@@ -711,7 +723,9 @@ def test_measure_circ(circuit: Circuit) -> None:
     qB = circuit.qubits[-3]  # Third list significant qubit
 
     with CuTensorNetHandle() as libhandle:
+        circuit, qubit_map = prepare_circuit_mps(circuit)
         mps = simulate(libhandle, circuit, SimulationAlgorithm.MPSxGate, Config())
+        mps.apply_qubit_relabelling(qubit_map)
 
         # Compute the probabilities of each outcome
         p = {(0, 0): 0.0, (0, 1): 0.0, (1, 0): 0.0, (1, 1): 0.0}

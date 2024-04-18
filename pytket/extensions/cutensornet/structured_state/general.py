@@ -241,6 +241,24 @@ class StructuredState(ABC):
         raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
 
     @abstractmethod
+    def apply_qubit_relabelling(self, qubit_map: dict[Qubit, Qubit]) -> StructuredState:
+        """Relabels each qubit ``q`` as ``qubit_map[q]``.
+
+        This does not apply any SWAP gate, nor it changes the internal structure of the
+        state. It simply changes the label of the physical bonds of the tensor network.
+
+        Args:
+            qubit_map: Dictionary mapping each qubit to its new label.
+
+        Returns:
+            ``self``, to allow for method chaining.
+
+        Raises:
+            ValueError: If any of the keys in ``qubit_map`` are not qubits in the state.
+        """
+        raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
+
+    @abstractmethod
     def vdot(self, other: StructuredState) -> complex:
         """Obtain the inner product of the two states: ``<self|other>``.
 
