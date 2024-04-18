@@ -278,4 +278,8 @@ def q3_toffoli_box_with_implicit_swaps() -> Circuit:
     CnXPairwiseDecomposition().apply(circ)
     Transform.OptimiseCliffords().apply(circ)
 
+    # Check that, indeed, there are implicit swaps
+    implicit_perm = circ.implicit_qubit_permutation()
+    assert any(qin != qout for qin, qout in implicit_perm.items())
+
     return circ
