@@ -1,8 +1,9 @@
 import pytest
 import numpy as np
 from scipy.stats import unitary_group  # type: ignore
-from pytket.circuit import Circuit, OpType, Unitary2qBox
-from pytket.passes import DecomposeBoxes
+from pytket.circuit import Circuit, OpType, Unitary2qBox, ToffoliBox, Qubit
+from pytket.passes import DecomposeBoxes, CnXPairwiseDecomposition
+from pytket.transform import Transform
 
 
 def random_line_circuit(n_qubits: int, layers: int) -> Circuit:
@@ -253,3 +254,32 @@ def q8_qvol() -> Circuit:
 def q15_qvol() -> Circuit:
     np.random.seed(1)
     return quantum_volume_circuit(n_qubits=15)
+
+
+@pytest.fixture
+def q3_toffoli_box_with_implicit_swaps() -> Circuit:
+    # Using specific permutation here
+    perm = {
+        (False, False): (True, True),
+        (False, True): (False, False),
+        (True, False): (True, False),
+        (True, True): (False, True),
+    }
+
+    # Create a circuit with more qubits and multiple applications of the permutation
+    # above
+    circ = Circuit(3)
+
+    # Create the circuit
+    circ.add_toffolibox(ToffoliBox(perm), [Qubit(0), Qubit(1)])  # type: ignore
+    circ.add_toffolibox(ToffoliBox(perm), [Qubit(1), Qubit(2)])  # type: ignore
+
+    DecomposeBoxes().apply(circ)
+    CnXPairwiseDecomposition().apply(circ)
+    Transform.OptimiseCliffords().apply(circ)
+
+    # Check that, indeed, there are implicit swaps
+    implicit_perm = circ.implicit_qubit_permutation()
+    assert any(qin != qout for qin, qout in implicit_perm.items())
+
+    return circ
