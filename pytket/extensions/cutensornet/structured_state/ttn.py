@@ -552,8 +552,8 @@ class TTN(StructuredState):
         if self.get_qubits() != other.get_qubits():
             raise RuntimeError(
                 "The sets of qubits are not the same."
-                "\n\tself has {self.get_qubits()}"
-                "\n\tother has {other.get_qubits()}"
+                f"\n\tself has {self.get_qubits()}"
+                f"\n\tother has {other.get_qubits()}"
             )
         if len(self.qubit_position) == 0:
             raise RuntimeError("There are no qubits in the TTN.")
