@@ -174,6 +174,12 @@ class MPS(StructuredState):
         unitary = cp.asarray(unitary, dtype=self._cfg._complex_t)
 
         self._logger.debug(f"Applying gate {gate}.")
+        if len(gate.qubits) not in [1, 2]:
+            raise ValueError(
+                "Gates must act on only 1 or 2 qubits! "
+                + f"This is not satisfied by {gate}."
+            )
+
         self.apply_unitary(unitary, gate.qubits)
 
         return self
