@@ -27,6 +27,7 @@ Classes
     .. automethod:: __init__
     .. automethod:: is_valid
     .. automethod:: apply_gate
+    .. automethod:: apply_unitary
     .. automethod:: apply_scalar
     .. automethod:: vdot
     .. automethod:: sample
