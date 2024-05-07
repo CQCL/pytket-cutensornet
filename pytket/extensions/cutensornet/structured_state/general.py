@@ -64,12 +64,20 @@ class CuTensorNetHandle:
 
         self.handle = cutn.create()
 
+    def destroy(self) -> None:
+        """Destroys the memory handle, releasing memory.
+
+        Only call this method if you are initialising a ``CuTensorNetHandle`` outside
+        a ``with CuTensorNetHandle() as libhandle`` statement.
+        """
+        cutn.destroy(self.handle)
+        self._is_destroyed = True
+
     def __enter__(self) -> CuTensorNetHandle:
         return self
 
     def __exit__(self, exc_type: Any, exc_value: Any, exc_tb: Any) -> None:
-        cutn.destroy(self.handle)
-        self._is_destroyed = True
+        self.destroy()
 
 
 class Config:

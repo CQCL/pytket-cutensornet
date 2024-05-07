@@ -18,13 +18,14 @@ Simulation
 
 .. autoclass:: pytket.extensions.cutensornet.structured_state.CuTensorNetHandle
 
+    .. automethod:: destroy
+
 
 Classes
 ~~~~~~~
 
 .. autoclass:: pytket.extensions.cutensornet.structured_state.StructuredState()
 
-    .. automethod:: __init__
     .. automethod:: is_valid
     .. automethod:: apply_gate
     .. automethod:: apply_unitary
