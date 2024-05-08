@@ -64,12 +64,20 @@ class CuTensorNetHandle:
 
         self.handle = cutn.create()
 
+    def destroy(self) -> None:
+        """Destroys the memory handle, releasing memory.
+
+        Only call this method if you are initialising a ``CuTensorNetHandle`` outside
+        a ``with CuTensorNetHandle() as libhandle`` statement.
+        """
+        cutn.destroy(self.handle)
+        self._is_destroyed = True
+
     def __enter__(self) -> CuTensorNetHandle:
         return self
 
     def __exit__(self, exc_type: Any, exc_value: Any, exc_tb: Any) -> None:
-        cutn.destroy(self.handle)
-        self._is_destroyed = True
+        self.destroy()
 
 
 class Config:
@@ -224,7 +232,35 @@ class StructuredState(ABC):
 
         Raises:
             RuntimeError: If the ``CuTensorNetHandle`` is out of scope.
-            RuntimeError: If gate is not supported.
+            ValueError: If the command introduced is not a unitary gate.
+            ValueError: If gate acts on more than 2 qubits.
+        """
+        raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
+
+    @abstractmethod
+    def apply_unitary(
+        self, unitary: cp.ndarray, qubits: list[Qubit]
+    ) -> StructuredState:
+        """Applies the unitary to the specified qubits of the StructuredState.
+
+        Note:
+            It is assumed that the matrix provided by the user is unitary. If this is
+            not the case, the program will still run, but its behaviour is undefined.
+
+        Args:
+            unitary: The matrix to be applied as a CuPy ndarray. It should either be
+                a 2x2 matrix if acting on one qubit or a 4x4 matrix if acting on two.
+            qubits: The qubits the unitary acts on. Only one qubit and two qubit
+                unitaries are supported.
+
+        Returns:
+            ``self``, to allow for method chaining.
+
+        Raises:
+            RuntimeError: If the ``CuTensorNetHandle`` is out of scope.
+            ValueError: If the number of qubits provided is not one or two.
+            ValueError: If the size of the matrix does not match with the number of
+                qubits provided.
         """
         raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
 
