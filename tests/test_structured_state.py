@@ -621,6 +621,67 @@ def test_postselect_circ(circuit: Circuit, postselect_dict: dict) -> None:
         assert np.allclose(mps.get_statevector(), sv, atol=cfg._atol)
 
 
+def test_mps_qubit_addition() -> None:
+    with CuTensorNetHandle() as libhandle:
+        config = Config()
+        mps = MPSxGate(
+            libhandle,
+            qubits=[Qubit(0), Qubit(1), Qubit(2), Qubit(3)],
+            config=config,
+        )
+
+        x = cp.asarray(
+            [
+                [0, 1],
+                [1, 0],
+            ],
+            dtype=config._complex_t,
+        )
+        cx = cp.asarray(
+            [
+                [1, 0, 0, 0],
+                [0, 1, 0, 0],
+                [0, 0, 0, 1],
+                [0, 0, 1, 0],
+            ],
+            dtype=config._complex_t,
+        )
+
+        # Apply some gates
+        mps.apply_unitary(x, [Qubit(1)])  # |0100>
+        mps.apply_unitary(cx, [Qubit(1), Qubit(2)])  # |0110>
+        mps.apply_unitary(cx, [Qubit(2), Qubit(3)])  # |0111>
+        # Add a qubit at the end of the MPS
+        mps.add_qubit(new_qubit=Qubit(4), position=len(mps))  # |01110>
+        # Apply some more gates acting on the new qubit
+        mps.apply_unitary(cx, [Qubit(3), Qubit(4)])  # |01111>
+        mps.apply_unitary(cx, [Qubit(4), Qubit(3)])  # |01101>
+        # Add a qubit at position 3
+        mps.add_qubit(new_qubit=Qubit(6), position=3)  # |011001>
+        # Apply some more gates acting on the new qubit
+        mps.apply_unitary(x, [Qubit(6)])  # |011101>
+        mps.apply_unitary(cx, [Qubit(6), Qubit(2)])  # |010101>
+        mps.apply_unitary(cx, [Qubit(6), Qubit(3)])  # |010111>
+        # Add another qubit at the end of the MPS
+        mps.add_qubit(new_qubit=Qubit(5), position=len(mps))  # |0101110>
+        # Apply some more gates acting on the new qubit
+        mps.apply_unitary(x, [Qubit(5)])  # |0101111>
+        mps.apply_unitary(cx, [Qubit(4), Qubit(5)])  # |0101110>
+
+        # The resulting state should be |0101110>
+        sv = np.zeros(2**7)
+        sv[int("0101110", 2)] = 1
+
+        # However, since mps.get_statevector will sort qubits in ILO, the bits would
+        # change position. Instead, we can relabel the qubits.
+        mps.apply_qubit_relabelling(
+            {q: Qubit(i) for q, i in mps.qubit_position.items()}
+        )
+
+        # Compare the state vectors
+        assert np.allclose(mps.get_statevector(), sv)
+
+
 @pytest.mark.parametrize(
     "circuit",
     [
