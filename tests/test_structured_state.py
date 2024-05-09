@@ -663,9 +663,8 @@ def test_mps_qubit_addition() -> None:
         mps.apply_unitary(cx, [Qubit(6), Qubit(2)])  # |010101>
         mps.apply_unitary(cx, [Qubit(6), Qubit(3)])  # |010111>
         # Add another qubit at the end of the MPS
-        mps.add_qubit(new_qubit=Qubit(5), position=len(mps))  # |0101110>
+        mps.add_qubit(new_qubit=Qubit(5), position=len(mps), state=1)  # |0101111>
         # Apply some more gates acting on the new qubit
-        mps.apply_unitary(x, [Qubit(5)])  # |0101111>
         mps.apply_unitary(cx, [Qubit(4), Qubit(5)])  # |0101110>
 
         # The resulting state should be |0101110>
