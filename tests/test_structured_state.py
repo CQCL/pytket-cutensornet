@@ -835,4 +835,3 @@ def test_mps_qubit_addition_and_measure() -> None:
         sv = np.zeros(2**4)
         sv[int("0100", 2)] = 1
         assert np.allclose(mps.get_statevector(), sv)
-

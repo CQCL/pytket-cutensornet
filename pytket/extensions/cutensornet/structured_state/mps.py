@@ -346,7 +346,7 @@ class MPS(StructuredState):
         for pos in reversed(range(position, orig_mps_len)):
             self.canonical_form[pos + 1] = self.canonical_form[pos]
         # The canonical form of the new tensor is both LEFT and RIGHT, just choose one
-        self.canonical_form[position] = DirMPS.LEFT
+        self.canonical_form[position] = DirMPS.LEFT  # type: ignore
 
         # Finally, update the dictionary tracking the qubit position
         for q, pos in self.qubit_position.items():
