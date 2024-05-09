@@ -288,6 +288,70 @@ class MPS(StructuredState):
         self._logger.debug(f"Relabelled qubits... {qubit_map}")
         return self
 
+    def add_qubit(self, new_qubit: Qubit, position: int) -> MPS:
+        """Adds a qubit on state |0> at the specified position.
+
+        Args:
+            new_qubit: The identifier of the qubit to be added to the state.
+
+
+        Returns:
+            ``self``, to allow for method chaining.
+
+        Raises:
+            ValueError: If ``new_qubit`` already exists in the state.
+            ValueError: If ``position`` is negative or larger than ``len(self)``.
+        """
+        options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
+
+        if new_qubit in self.qubit_position.keys():
+            raise ValueError(
+                f"Qubit {new_qubit} cannot be added, it already is in the MPS."
+            )
+        if position < 0 or position > len(self):
+            raise ValueError(
+                f"Qubit {new_qubit} cannot be added, position {position} "
+                "is out of bounds."
+            )
+
+        # Identify the dimension of the virtual bond where the new qubit will appear
+        if position == len(self):
+            dim = self.get_virtual_dimensions(len(self) - 1)[1]  # Rightmost bond
+        else:  # Otherwise, pick the left bond of the tensor currently in ``position``
+            dim = self.get_virtual_dimensions(position)[0]
+
+        # Create the tensor for I \otimes |0>
+        identity = cp.eye(dim, dtype=self._cfg._complex_t)
+        qubit_tensor = cp.zeros(2, dtype=self._cfg._complex_t)
+        qubit_tensor[0] = 1
+        # Apply the tensor product
+        new_tensor = cq.contract(
+            "lr,p->lrp",
+            identity,
+            qubit_tensor,
+            options=options,
+            optimize={"path": [(0, 1)]},
+        )
+
+        # Place this ``new_tensor`` in the MPS at ``position``,
+        # the previous tensors at ``position`` onwards are shifted to the right
+        orig_mps_len = len(self)  # Store it in variable, since this will change
+        self.tensors.insert(position, new_tensor)
+
+        # Update the dictionary tracking canonical form
+        for pos in reversed(range(position, orig_mps_len)):
+            self.canonical_form[pos + 1] = self.canonical_form[pos]
+        # Note: the canonical form of ``new_tensor`` is *both* left and right, so we
+        #   can leave `self.canonical_form[position]` to be whatever it was before.
+
+        # Finally, update the dictionary tracking qubit position
+        for q, pos in self.qubit_position.items():
+            if pos >= position:
+                self.qubit_position[q] += 1
+        self.qubit_position[new_qubit] = position
+
+        return self
+
     def canonicalise(self, l_pos: int, r_pos: int) -> None:
         """Canonicalises the MPS object.
 
