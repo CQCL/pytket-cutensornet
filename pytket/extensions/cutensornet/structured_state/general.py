@@ -330,7 +330,7 @@ class StructuredState(ABC):
         raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
 
     @abstractmethod
-    def measure(self, qubits: set[Qubit], destructive: bool=True) -> dict[Qubit, int]:
+    def measure(self, qubits: set[Qubit], destructive: bool = True) -> dict[Qubit, int]:
         """Applies a Z measurement on each of the ``qubits``.
 
         Notes:

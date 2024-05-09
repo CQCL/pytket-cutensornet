@@ -288,7 +288,7 @@ class MPS(StructuredState):
         self._logger.debug(f"Relabelled qubits... {qubit_map}")
         return self
 
-    def add_qubit(self, new_qubit: Qubit, position: int, state: int=0) -> MPS:
+    def add_qubit(self, new_qubit: Qubit, position: int, state: int = 0) -> MPS:
         """Adds a qubit on state |0> at the specified position.
 
         Args:
@@ -312,9 +312,7 @@ class MPS(StructuredState):
                 f"Qubit {new_qubit} cannot be added, it already is in the MPS."
             )
         if position < 0 or position > len(self):
-            raise ValueError(
-                f"Index {position} is not a valid position in the MPS."
-            )
+            raise ValueError(f"Index {position} is not a valid position in the MPS.")
         if state not in [0, 1]:
             raise ValueError(
                 f"Cannot initialise qubit to state {state}. Only 0 or 1 are supported."
@@ -588,7 +586,7 @@ class MPS(StructuredState):
         mps = self.copy()
         return mps.measure(mps.get_qubits())
 
-    def measure(self, qubits: set[Qubit], destructive: bool=True) -> dict[Qubit, int]:
+    def measure(self, qubits: set[Qubit], destructive: bool = True) -> dict[Qubit, int]:
         """Applies a Z measurement on each of the ``qubits``.
 
         Notes:
