@@ -6,6 +6,7 @@ Unreleased
 
 * New feature: ``apply_unitary`` both for ``MPS`` and ``TTN`` to apply an arbitrary unitary matrix, rather than a ``pytket.Command``.
 * New feature: ``apply_qubit_relabelling`` both for ``MPS`` and ``TTN`` to change the name of their qubits. This is now used within ``simulate`` to take into account the action of implicit SWAPs in pytket circuits (no additional SWAP gates are applied).
+* API change: ``apply_scalar`` replaced by ``apply_global_phase``, which verifies that the complex number has unit absolute value.
 
 0.6.1 (April 2024)
 ------------------

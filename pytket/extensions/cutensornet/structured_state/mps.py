@@ -249,7 +249,27 @@ class MPS(StructuredState):
 
         return self
 
-    def apply_scalar(self, scalar: complex) -> MPS:
+    def apply_global_phase(self, phase: complex) -> MPS:
+        """Multiplies the state by a complex phase.
+
+        Args:
+            phase: The complex number to be multiplied.
+
+        Returns:
+            ``self``, to allow for method chaining.
+
+        Raises:
+            ValueError: If the complex ``phase`` does not have unit absolute value.
+        """
+        if not np.isclose(abs(phase), 1.0):
+            raise ValueError(
+                f"The complex number {phase} is not a phase; "
+                f"it has absolute value {abs(phase)}, it should be 1."
+            )
+        self._apply_scalar(phase)
+        return self
+
+    def _apply_scalar(self, scalar: complex) -> MPS:
         """Multiplies the state by a complex number.
 
         Args:
@@ -258,7 +278,10 @@ class MPS(StructuredState):
         Returns:
             ``self``, to allow for method chaining.
         """
-        self.tensors[0] *= scalar
+        if len(self) > 0:
+            self.tensors[0] *= scalar
+            if not np.isclose(abs(scalar), 1.0):
+                self.canonical_form[0] = None  # No longer an isometry
         return self
 
     def apply_qubit_relabelling(self, qubit_map: dict[Qubit, Qubit]) -> MPS:

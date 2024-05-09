@@ -29,7 +29,7 @@ Classes
     .. automethod:: is_valid
     .. automethod:: apply_gate
     .. automethod:: apply_unitary
-    .. automethod:: apply_scalar
+    .. automethod:: apply_global_phase
     .. automethod:: vdot
     .. automethod:: sample
     .. automethod:: measure

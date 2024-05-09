@@ -265,14 +265,17 @@ class StructuredState(ABC):
         raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
 
     @abstractmethod
-    def apply_scalar(self, scalar: complex) -> StructuredState:
-        """Multiplies the state by a complex number.
+    def apply_global_phase(self, phase: complex) -> StructuredState:
+        """Multiplies the state by a complex phase.
 
         Args:
-            scalar: The complex number to be multiplied.
+            phase: The complex number to be multiplied.
 
         Returns:
             ``self``, to allow for method chaining.
+
+        Raises:
+            ValueError: If the complex ``phase`` does not have unit absolute value.
         """
         raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
 

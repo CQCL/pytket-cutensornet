@@ -320,7 +320,27 @@ class TTN(StructuredState):
 
         return self
 
-    def apply_scalar(self, scalar: complex) -> TTN:
+    def apply_global_phase(self, phase: complex) -> TTN:
+        """Multiplies the state by a complex phase.
+
+        Args:
+            phase: The complex number to be multiplied.
+
+        Returns:
+            ``self``, to allow for method chaining.
+
+        Raises:
+            ValueError: If the complex ``phase`` does not have unit absolute value.
+        """
+        if not np.isclose(abs(phase), 1.0):
+            raise ValueError(
+                f"The complex number {phase} is not a phase; "
+                f"it has absolute value {abs(phase)}, it should be 1."
+            )
+        self._apply_scalar(phase)
+        return self
+
+    def _apply_scalar(self, scalar: complex) -> TTN:
         """Multiplies the state by a complex number.
 
         Args:
@@ -329,7 +349,14 @@ class TTN(StructuredState):
         Returns:
             ``self``, to allow for method chaining.
         """
-        self.nodes[()].tensor *= scalar
+        if len(self.qubit_position) > 0:
+            # Pick an arbitrary qubit
+            qubit = self.get_qubits().pop()
+            qubit_path = self.qubit_position[qubit][0]
+            # Apply the scalar to the leaf node holding this qubit
+            self.nodes[qubit_path].tensor *= scalar
+            if not np.isclose(abs(scalar), 1.0):
+                self.nodes[qubit_path].canonical_form = None  # No longer an isometry
         return self
 
     def apply_qubit_relabelling(self, qubit_map: dict[Qubit, Qubit]) -> TTN:

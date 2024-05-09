@@ -120,7 +120,7 @@ def simulate(
     state._flush()
 
     # Apply the circuit's phase to the state
-    state.apply_scalar(np.exp(1j * np.pi * circuit.phase))
+    state.apply_global_phase(np.exp(1j * np.pi * circuit.phase))
 
     # Relabel qubits according to the implicit swaps (if any)
     state.apply_qubit_relabelling(circuit.implicit_qubit_permutation())
