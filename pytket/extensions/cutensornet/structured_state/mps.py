@@ -288,12 +288,14 @@ class MPS(StructuredState):
         self._logger.debug(f"Relabelled qubits... {qubit_map}")
         return self
 
-    def add_qubit(self, new_qubit: Qubit, position: int) -> MPS:
+    def add_qubit(self, new_qubit: Qubit, position: int, state: int=0) -> MPS:
         """Adds a qubit on state |0> at the specified position.
 
         Args:
             new_qubit: The identifier of the qubit to be added to the state.
-
+            position: The location the new qubit should be inserted at in the MPS.
+                Qubits on this and later indexed have their position shifted by 1.
+            state: Choose either ``0`` or ``1`` for the new qubit state.
 
         Returns:
             ``self``, to allow for method chaining.
@@ -301,6 +303,7 @@ class MPS(StructuredState):
         Raises:
             ValueError: If ``new_qubit`` already exists in the state.
             ValueError: If ``position`` is negative or larger than ``len(self)``.
+            ValueError: If ``state`` is not ``0`` or ``1``.
         """
         options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
 
@@ -310,8 +313,11 @@ class MPS(StructuredState):
             )
         if position < 0 or position > len(self):
             raise ValueError(
-                f"Qubit {new_qubit} cannot be added, position {position} "
-                "is out of bounds."
+                f"Index {position} is not a valid position in the MPS."
+            )
+        if state not in [0, 1]:
+            raise ValueError(
+                f"Cannot initialise qubit to state {state}. Only 0 or 1 are supported."
             )
 
         # Identify the dimension of the virtual bond where the new qubit will appear
@@ -320,10 +326,10 @@ class MPS(StructuredState):
         else:  # Otherwise, pick the left bond of the tensor currently in ``position``
             dim = self.get_virtual_dimensions(position)[0]
 
-        # Create the tensor for I \otimes |0>
+        # Create the tensor for I \otimes |state>
         identity = cp.eye(dim, dtype=self._cfg._complex_t)
         qubit_tensor = cp.zeros(2, dtype=self._cfg._complex_t)
-        qubit_tensor[0] = 1
+        qubit_tensor[state] = 1
         # Apply the tensor product
         new_tensor = cq.contract(
             "lr,p->lrp",
@@ -582,24 +588,25 @@ class MPS(StructuredState):
         mps = self.copy()
         return mps.measure(mps.get_qubits())
 
-    def measure(self, qubits: set[Qubit]) -> dict[Qubit, int]:
-        """Applies a Z measurement on ``qubits``, updates the MPS and returns outcome.
+    def measure(self, qubits: set[Qubit], destructive: bool=True) -> dict[Qubit, int]:
+        """Applies a Z measurement on each of the ``qubits``.
 
         Notes:
-            After applying this function, ``self`` will contain the MPS of the projected
-            state over the non-measured qubits.
-
-            The resulting state has been normalised.
+            After applying this function, ``self`` will contain the normalised
+            projected state.
 
         Args:
             qubits: The subset of qubits to be measured.
+            destructive: If ``True``, the resulting state will not contain the
+                measured qubits. If ``False``, these qubits will appear on the
+                state corresponding to the measurement outcome. Defaults to ``True``.
 
         Returns:
             A dictionary mapping the given ``qubits`` to their measurement outcome,
             i.e. either ``0`` or ``1``.
 
         Raises:
-            ValueError: If an element in ``qubits`` is not a qubit in the MPS.
+            ValueError: If an element in ``qubits`` is not a qubit in the state.
         """
         result = dict()
 
@@ -654,6 +661,11 @@ class MPS(StructuredState):
             )  # Normalise
 
             self._postselect_qubit(position_qubit_map[pos], postselection_tensor)
+
+            # If the measurement is not destructive, we must add the qubit back again
+            if not destructive:
+                qubit = position_qubit_map[pos]
+                self.add_qubit(qubit, pos, state=outcome)
 
         return result
 

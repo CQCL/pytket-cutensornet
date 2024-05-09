@@ -650,17 +650,18 @@ class TTN(StructuredState):
         """
         raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
 
-    def measure(self, qubits: set[Qubit]) -> dict[Qubit, int]:
-        """Applies a Z measurement on ``qubits``, updates the state and returns outcome.
+    def measure(self, qubits: set[Qubit], destructive: bool=True) -> dict[Qubit, int]:
+        """Applies a Z measurement on each of the ``qubits``.
 
         Notes:
-            After applying this function, ``self`` will contain the projected
-            state over the non-measured qubits.
-
-            The resulting state has been normalised.
+            After applying this function, ``self`` will contain the normalised
+            projected state.
 
         Args:
             qubits: The subset of qubits to be measured.
+            destructive: If ``True``, the resulting state will not contain the
+                measured qubits. If ``False``, these qubits will appear on the
+                state corresponding to the measurement outcome. Defaults to ``True``.
 
         Returns:
             A dictionary mapping the given ``qubits`` to their measurement outcome,
