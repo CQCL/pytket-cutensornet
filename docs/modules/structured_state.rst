@@ -51,10 +51,12 @@ Classes
 .. autoclass:: pytket.extensions.cutensornet.structured_state.MPSxGate()
 
     .. automethod:: __init__
+    .. automethod:: add_qubit
 
 .. autoclass:: pytket.extensions.cutensornet.structured_state.MPSxMPO()
 
     .. automethod:: __init__
+    .. automethod:: add_qubit
 
 
 Miscellaneous
