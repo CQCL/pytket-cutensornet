@@ -289,13 +289,14 @@ class MPS(StructuredState):
         return self
 
     def add_qubit(self, new_qubit: Qubit, position: int, state: int = 0) -> MPS:
-        """Adds a qubit on state ``|0>`` at the specified position.
+        """Adds a qubit at the specified position.
 
         Args:
             new_qubit: The identifier of the qubit to be added to the state.
             position: The location the new qubit should be inserted at in the MPS.
                 Qubits on this and later indexed have their position shifted by 1.
             state: Choose either ``0`` or ``1`` for the new qubit's state.
+                Defaults to ``0``.
 
         Returns:
             ``self``, to allow for method chaining.
