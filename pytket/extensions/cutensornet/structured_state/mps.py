@@ -16,7 +16,7 @@ import warnings
 from typing import Union
 from enum import Enum
 
-from random import random  # type: ignore
+from random import Random  # type: ignore
 import numpy as np  # type: ignore
 
 try:
@@ -89,6 +89,8 @@ class MPS(StructuredState):
         self._lib = libhandle
         self._cfg = config
         self._logger = set_logger("MPS", level=config.loglevel)
+        self._rng = Random()
+        self._rng.seed(self._cfg.seed)
         self.fidelity = 1.0
 
         n_tensors = len(qubits)
@@ -585,7 +587,13 @@ class MPS(StructuredState):
         # modify the algorithm in `measure`. This may be done eventually if `copy`
         # is shown to be a bottleneck when sampling (which is likely).
         mps = self.copy()
-        return mps.measure(mps.get_qubits())
+        outcomes = mps.measure(mps.get_qubits())
+        # If the user sets a seed for the MPS, we'd like that every copy of the MPS produces
+        # the same sequence of samples, but samples within a sequence may be different between
+        # each other. We achieve the latter by updating the state of `self._rng`.
+        self._rng.setstate(mps._rng.getstate())
+
+        return outcomes
 
     def measure(self, qubits: set[Qubit], destructive: bool = True) -> dict[Qubit, int]:
         """Applies a Z measurement on each of the ``qubits``.
@@ -649,7 +657,7 @@ class MPS(StructuredState):
             )
 
             # Throw a coin to decide measurement outcome
-            outcome = 0 if prob > random() else 1
+            outcome = 0 if prob > self._rng.random() else 1
             result[position_qubit_map[pos]] = outcome
             self._logger.debug(f"Outcome of qubit at {pos} is {outcome}.")
 
@@ -1024,6 +1032,16 @@ class MPS(StructuredState):
         new_mps.tensors = [t.copy() for t in self.tensors]
         new_mps.canonical_form = self.canonical_form.copy()
         new_mps.qubit_position = self.qubit_position.copy()
+
+        # If the user has set a seed, assume that they'd want every copy
+        # to behave in the same way, so we copy the RNG state
+        if self._cfg.seed is not None:
+            # Setting state (rather than just copying the seed) allows for the
+            # copy to continue from the same point in the sequence of random
+            # numbers as the original copy
+            new_mps._rng.setstate(self._rng.getstate())
+        # Otherwise, samples will be different between copies, since their
+        # self._rng will be initialised from system randomnes when seed=None.
 
         self._logger.debug(
             "Successfully copied an MPS "
