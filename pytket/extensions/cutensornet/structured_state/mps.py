@@ -588,9 +588,9 @@ class MPS(StructuredState):
         # is shown to be a bottleneck when sampling (which is likely).
         mps = self.copy()
         outcomes = mps.measure(mps.get_qubits())
-        # If the user sets a seed for the MPS, we'd like that every copy of the MPS produces
-        # the same sequence of samples, but samples within a sequence may be different between
-        # each other. We achieve the latter by updating the state of `self._rng`.
+        # If the user sets a seed for the MPS, we'd like that every copy of the MPS
+        # produces the same sequence of samples, but samples within a sequence may be
+        # different from each other. Achieved by updating the state of `self._rng`.
         self._rng.setstate(mps._rng.getstate())
 
         return outcomes
