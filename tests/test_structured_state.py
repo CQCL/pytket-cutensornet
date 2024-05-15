@@ -674,6 +674,39 @@ def test_expectation_value(circuit: Circuit, observable: QubitPauliString) -> No
 @pytest.mark.parametrize(
     "circuit",
     [
+        pytest.lazy_fixture("q2_v0cx01cx10"),  # type: ignore
+        pytest.lazy_fixture("q2_hadamard_test"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu2"),  # type: ignore
+        pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
+        pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
+    ],
+)
+def test_sample_with_seed(circuit: Circuit) -> None:
+    n_samples = 10
+    config = Config(seed=1234)
+
+    with CuTensorNetHandle() as libhandle:
+        mps_0 = simulate(libhandle, circuit, SimulationAlgorithm.MPSxGate, config)
+        mps_1 = simulate(libhandle, circuit, SimulationAlgorithm.MPSxGate, config)
+        mps_2 = mps_0.copy()
+
+        all_outcomes = []
+        for _ in range(n_samples):
+            # Check that all copies of the MPS result in the same sample
+            outcomes_0 = mps_0.sample()
+            outcomes_1 = mps_1.sample()
+            outcomes_2 = mps_2.sample()
+            assert outcomes_0 == outcomes_1 and outcomes_0 == outcomes_2
+
+            all_outcomes.append(outcomes_0)
+
+        # Check that the outcomes change between different samples
+        assert not all(outcome == outcomes_0 for outcome in all_outcomes)
+
+
+@pytest.mark.parametrize(
+    "circuit",
+    [
         pytest.lazy_fixture("q2_x1"),  # type: ignore
         pytest.lazy_fixture("q2_x0cx01"),  # type: ignore
         pytest.lazy_fixture("q2_v0cx01cx10"),  # type: ignore
