@@ -161,8 +161,7 @@ class MPS(StructuredState):
         Raises:
             RuntimeError: If the ``CuTensorNetHandle`` is out of scope.
             ValueError: If the command introduced is not a unitary gate.
-            ValueError: If gate acts on more than 2 qubits or acts on non-adjacent
-                qubits.
+            ValueError: If gate acts on more than 2 qubits.
         """
         try:
             unitary = gate.op.get_unitary()
@@ -207,7 +206,6 @@ class MPS(StructuredState):
             ValueError: If the number of qubits provided is not one or two.
             ValueError: If the size of the matrix does not match with the number of
                 qubits provided.
-            ValueError: If qubits are non-adjacent.
         """
         if self._lib._is_destroyed:
             raise RuntimeError(
@@ -233,16 +231,10 @@ class MPS(StructuredState):
                     "The unitary introduced acts on two qubits but it is not 4x4."
                 )
 
-            positions = [self.qubit_position[q] for q in qubits]
-            dist = positions[1] - positions[0]
-            # We explicitly allow both dist==1 or dist==-1 so that non-symmetric
-            # gates such as CX can use the same Op for the two ways it can be in.
-            if dist not in [1, -1]:
-                raise ValueError("Gates must be applied to adjacent qubits!")
             self._apply_2q_unitary(unitary, qubits[0], qubits[1])
             # The tensors will in general no longer be in canonical form.
-            self.canonical_form[positions[0]] = None
-            self.canonical_form[positions[1]] = None
+            self.canonical_form[self.qubit_position[qubits[0]]] = None
+            self.canonical_form[self.qubit_position[qubits[1]]] = None
 
         else:
             raise ValueError("Gates must act on only 1 or 2 qubits!")

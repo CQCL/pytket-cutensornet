@@ -22,11 +22,12 @@ except ImportError:
 try:
     import cuquantum as cq  # type: ignore
     from cuquantum.cutensornet import tensor  # type: ignore
+    from cuquantum.cutensornet.experimental import contract_decompose  # type: ignore
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
 from pytket.circuit import Qubit
-from .mps import MPS
+from .mps import MPS, DirMPS
 
 
 class MPSxGate(MPS):
@@ -85,21 +86,20 @@ class MPSxGate(MPS):
         Returns:
             ``self``, to allow for method chaining.
         """
-        options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
+
+        # If qubits are not adjacent, use an alternative approach
+        if abs(self.qubit_position[q0] - self.qubit_position[q1]) != 1:
+            self._apply_2q_unitary_nonadjacent(unitary, q0, q1)
 
         positions = [self.qubit_position[q0], self.qubit_position[q1]]
         l_pos = min(positions)
         r_pos = max(positions)
 
+        options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
+
         # Always canonicalise. Even in the case of exact simulation (no truncation)
         # canonicalisation may reduce the bond dimension (thanks to reduced QR).
         self.canonicalise(l_pos, r_pos)
-
-        # Figure out the new dimension of the shared virtual bond
-        new_dim = 2 * min(
-            self.get_virtual_dimensions(l_pos)[0],
-            self.get_virtual_dimensions(r_pos)[1],
-        )
 
         # Reshape into a rank-4 tensor
         gate_tensor = cp.reshape(unitary, (2, 2, 2, 2))
@@ -141,10 +141,6 @@ class MPSxGate(MPS):
         )
         self._logger.debug(f"Intermediate tensor of size (MiB)={T.nbytes / 2**20}")
 
-        # Get the template of the MPS tensors involved
-        L = self.tensors[l_pos]
-        R = self.tensors[r_pos]
-
         if self._cfg.truncation_fidelity < 1:
             # Apply SVD decomposition to truncate as much as possible before exceeding
             # a `discarded_weight_cutoff` of `1 - self._cfg.truncation_fidelity`.
@@ -159,9 +155,13 @@ class MPSxGate(MPS):
                 normalization="L2",  # Sum of squares singular values must equal 1
             )
 
-        elif new_dim > self._cfg.chi:
+        else:
             # Apply SVD decomposition and truncate up to a `max_extent` (for the shared
             # bond) of `self._cfg.chi`.
+            # If user did not provide a value for `chi`, this is still given a
+            # default value that is so large that it causes no truncation at all.
+            # Nevertheless, we apply SVD so that singular values below `self._cfg.zero`
+            # are truncated.
             self._logger.debug(f"Truncating to (or below) chosen chi={self._cfg.chi}")
 
             svd_method = tensor.SVDMethod(
@@ -171,54 +171,32 @@ class MPSxGate(MPS):
                 normalization="L2",  # Sum of squares singular values must equal 1
             )
 
-        else:
-            # The user did not explicitly ask for truncation, but it is advantageous to
-            # remove any singular values below ``self._cfg.zero``.
-            self._logger.debug(f"Truncating singular values below={self._cfg.zero}.")
-            if self._cfg.zero > self._cfg._atol / 1000:
-                self._logger.info(  # This was raised as a warning in Config already
-                    "Your chosen value_of_zero is relatively large. "
-                    "Faithfulness of final fidelity estimate is not guaranteed."
-                )
-
-            # NOTE: There is no guarantee of canonical form in this case. This is fine
-            # since canonicalisation is just meant to detect the optimal singular values
-            # to truncate, but if we find values that are essentially zero, we are safe
-            # to remove them.
-            svd_method = tensor.SVDMethod(
-                abs_cutoff=self._cfg.zero,
-                partition="U",  # Contract S directly into U (named L in our case)
-                normalization=None,  # Without canonicalisation we must not normalise
-            )
-
         # Apply the SVD decomposition using the configuration defined above
         L, S, R, svd_info = tensor.decompose(
             "acLR->asL,scR", T, method=svd_method, options=options, return_info=True
         )
         assert S is None  # Due to "partition" option in SVDMethod
 
-        # Update fidelity if there was some truncation (of non-zero singular values)
-        if new_dim > self._cfg.chi or self._cfg.truncation_fidelity < 1:
-            # discarded_weight is calculated within cuTensorNet as:
-            #                             sum([s**2 for s in S'])
-            #     discarded_weight = 1 - -------------------------
-            #                             sum([s**2 for s in S])
-            # where S is the list of original singular values and S' is the set of
-            # singular values that remain after truncation (before normalisation).
-            # It can be shown that the fidelity |<psi|phi>|^2 (for |phi> and |psi>
-            # unit vectors before and after truncation) is equal to 1 - disc_weight.
-            #
-            # We multiply the fidelity of the current step to the overall fidelity
-            # to keep track of a lower bound for the fidelity.
-            this_fidelity = 1.0 - svd_info.discarded_weight
-            self.fidelity *= this_fidelity
-            self._logger.debug(f"Truncation done. Truncation fidelity={this_fidelity}")
-
-        else:
-            self._logger.debug(f"Truncation done. Fidelity estimate unchanged.")
-
+        # Update fidelity if there was some truncation
+        #
+        # discarded_weight is calculated within cuTensorNet as:
+        #                             sum([s**2 for s in S'])
+        #     discarded_weight = 1 - -------------------------
+        #                             sum([s**2 for s in S])
+        # where S is the list of original singular values and S' is the set of
+        # singular values that remain after truncation (before normalisation).
+        # It can be shown that the fidelity |<psi|phi>|^2 (for |phi> and |psi>
+        # unit vectors before and after truncation) is equal to 1 - disc_weight.
+        #
+        # We multiply the fidelity of the current step to the overall fidelity
+        # to keep track of a lower bound for the fidelity.
+        this_fidelity = 1.0 - svd_info.discarded_weight
+        self.fidelity *= this_fidelity
+        # Report to logger
+        self._logger.debug(f"Truncation done. Truncation fidelity={this_fidelity}")
         self._logger.debug(
-            f"Reduced virtual bond dimension from {new_dim} to {R.shape[0]}."
+            "Reduced virtual bond dimension from "
+            f"{svd_info.full_extent} to {svd_info.reduced_extent}."
         )
 
         self.tensors[l_pos] = L
@@ -231,3 +209,20 @@ class MPSxGate(MPS):
             self._logger.info(f"MPS fidelity={self.fidelity}")
 
         return self
+
+    def _apply_2q_unitary_nonadjacent(
+        self, unitary: cp.ndarray, q0: Qubit, q1: Qubit
+    ) -> MPSxGate:
+        """Applies the 2-qubit unitary to the MPS between non-adjacent qubits.
+
+        The MPS is converted to canonical and truncation is applied if necessary.
+
+        Args:
+            unitary: The unitary to be applied.
+            q0: The first qubit in the tuple |q0>|q1> the unitary acts on.
+            q1: The second qubit in the tuple |q0>|q1> the unitary acts on.
+
+        Returns:
+            ``self``, to allow for method chaining.
+        """
+        raise NotImplementedError()
