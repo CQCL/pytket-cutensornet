@@ -89,7 +89,8 @@ class MPSxGate(MPS):
 
         # If qubits are not adjacent, use an alternative approach
         if abs(self.qubit_position[q0] - self.qubit_position[q1]) != 1:
-            self._apply_2q_unitary_nonadjacent(unitary, q0, q1)
+            return self._apply_2q_unitary_nonadjacent(unitary, q0, q1)
+        # Otherwise, proceed as normal
 
         positions = [self.qubit_position[q0], self.qubit_position[q1]]
         l_pos = min(positions)
