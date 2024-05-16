@@ -87,6 +87,7 @@ class Config:
         self,
         chi: Optional[int] = None,
         truncation_fidelity: Optional[float] = None,
+        seed: Optional[int] = None,
         float_precision: Type[Any] = np.float64,
         value_of_zero: float = 1e-16,
         leaf_size: int = 8,
@@ -110,6 +111,11 @@ class Config:
                 ``|<psi|phi>|^2 >= trucantion_fidelity``, where ``|psi>`` and ``|phi>``
                 are the states before and after truncation (both normalised).
                 If not provided, it will default to its maximum value 1.
+            seed: Seed for the random number generator. Setting a seed provides
+                reproducibility across simulations using ``StructuredState``, in the
+                sense that they will produce the same sequence of measurement outcomes.
+                Crucially, consecutive samples taken from the same ``StructuredState``
+                can still be different from each other.
             float_precision: The floating point precision used in tensor calculations;
                 choose from ``numpy`` types: ``np.float64`` or ``np.float32``.
                 Complex numbers are represented using two of such
@@ -184,6 +190,8 @@ class Config:
                 UserWarning,
             )
 
+        self.seed = seed
+
         if leaf_size >= 65:  # Imposed to avoid bond ID collisions
             # More than 20 qubits is already unreasonable for a leaf anyway
             raise ValueError("Maximum allowed leaf_size is 65.")
@@ -199,6 +207,7 @@ class Config:
         return Config(
             chi=self.chi,
             truncation_fidelity=self.truncation_fidelity,
+            seed=self.seed,
             float_precision=self._real_t,  # type: ignore
             value_of_zero=self.zero,
             leaf_size=self.leaf_size,
