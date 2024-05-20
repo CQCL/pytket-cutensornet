@@ -149,8 +149,7 @@ class MPS(StructuredState):
         """Apply the gate to the MPS.
 
         Note:
-            Only one-qubit gates and two-qubit gates are supported. Two-qubit
-            gates must act on adjacent qubits.
+            Only one-qubit gates and two-qubit gates are supported.
 
         Args:
             gate: The gate to be applied.
