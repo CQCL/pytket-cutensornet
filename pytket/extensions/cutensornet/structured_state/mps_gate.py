@@ -25,7 +25,7 @@ try:
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
-from pytket.circuit import Op
+from pytket.circuit import Qubit
 from .mps import MPS
 
 
@@ -35,23 +35,19 @@ class MPSxGate(MPS):
     https://arxiv.org/abs/2002.07730
     """
 
-    def _apply_1q_gate(self, position: int, gate: Op) -> MPSxGate:
-        """Applies the 1-qubit gate to the MPS.
+    def _apply_1q_unitary(self, unitary: cp.ndarray, qubit: Qubit) -> MPSxGate:
+        """Applies the 1-qubit unitary to the MPS.
 
         This does not increase the dimension of any bond.
 
         Args:
-            position: The position of the MPS tensor that this gate
-                is applied to.
-            gate: The gate to be applied.
+            unitary: The unitary to be applied.
+            qubit: The qubit the unitary acts on.
 
         Returns:
             ``self``, to allow for method chaining.
         """
-
-        # Load the gate's unitary to the GPU memory
-        gate_unitary = gate.get_unitary().astype(dtype=self._cfg._complex_t, copy=False)
-        gate_tensor = cp.asarray(gate_unitary, dtype=self._cfg._complex_t)
+        position = self.qubit_position[qubit]
 
         # Glossary of bond IDs
         # p -> physical bond of the MPS tensor
@@ -66,7 +62,7 @@ class MPSxGate(MPS):
         # Contract
         new_tensor = cq.contract(
             gate_bonds + "," + T_bonds + "->" + result_bonds,
-            gate_tensor,
+            unitary,
             self.tensors[position],
             options={"handle": self._lib.handle, "device_id": self._lib.device_id},
             optimize={"path": [(0, 1)]},
@@ -76,23 +72,22 @@ class MPSxGate(MPS):
         self.tensors[position] = new_tensor
         return self
 
-    def _apply_2q_gate(self, positions: tuple[int, int], gate: Op) -> MPSxGate:
-        """Applies the 2-qubit gate to the MPS.
+    def _apply_2q_unitary(self, unitary: cp.ndarray, q0: Qubit, q1: Qubit) -> MPSxGate:
+        """Applies the 2-qubit unitary to the MPS.
 
-        If doing so increases the virtual bond dimension beyond ``chi``;
-        truncation is automatically applied.
-        The MPS is converted to canonical form before truncating.
+        The MPS is converted to canonical and truncation is applied if necessary.
 
         Args:
-            positions: The position of the MPS tensors that this gate
-                is applied to. They must be contiguous.
-            gate: The gate to be applied.
+            unitary: The unitary to be applied.
+            q0: The first qubit in the tuple |q0>|q1> the unitary acts on.
+            q1: The second qubit in the tuple |q0>|q1> the unitary acts on.
 
         Returns:
             ``self``, to allow for method chaining.
         """
         options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
 
+        positions = [self.qubit_position[q0], self.qubit_position[q1]]
         l_pos = min(positions)
         r_pos = max(positions)
 
@@ -106,12 +101,8 @@ class MPSxGate(MPS):
             self.get_virtual_dimensions(r_pos)[1],
         )
 
-        # Load the gate's unitary to the GPU memory
-        gate_unitary = gate.get_unitary().astype(dtype=self._cfg._complex_t, copy=False)
-        gate_tensor = cp.asarray(gate_unitary, dtype=self._cfg._complex_t)
-
         # Reshape into a rank-4 tensor
-        gate_tensor = cp.reshape(gate_tensor, (2, 2, 2, 2))
+        gate_tensor = cp.reshape(unitary, (2, 2, 2, 2))
 
         # Glossary of bond IDs
         # l -> physical bond of the left tensor in the MPS

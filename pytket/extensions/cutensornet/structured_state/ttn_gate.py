@@ -25,7 +25,7 @@ try:
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
-from pytket.circuit import Op, Qubit
+from pytket.circuit import Qubit
 from .ttn import TTN, DirTTN, RootPath
 
 
@@ -34,23 +34,18 @@ class TTNxGate(TTN):
     of a circuit as a ``TTN``.
     """
 
-    def _apply_1q_gate(self, qubit: Qubit, gate: Op) -> TTNxGate:
+    def _apply_1q_unitary(self, unitary: cp.ndarray, qubit: Qubit) -> TTNxGate:
         """Applies the 1-qubit gate to the TTN.
 
         This does not increase the dimension of any bond.
 
         Args:
-            qubit: The qubit that this gate is applied to.
-            gate: The gate to be applied.
+            unitary: The unitary to be applied.
+            qubit: The qubit the unitary acts on.
 
         Returns:
             ``self``, to allow for method chaining.
         """
-
-        # Load the gate's unitary to the GPU memory
-        gate_unitary = gate.get_unitary().astype(dtype=self._cfg._complex_t, copy=False)
-        gate_tensor = cp.asarray(gate_unitary, dtype=self._cfg._complex_t)
-
         path, target = self.qubit_position[qubit]
         node_tensor = self.nodes[path].tensor
         n_qbonds = (
@@ -72,7 +67,7 @@ class TTNxGate(TTN):
         new_tensor = cq.contract(
             node_tensor,
             node_bonds,
-            gate_tensor,
+            unitary,
             ["o", "i"],
             result_bonds,
             options={"handle": self._lib.handle, "device_id": self._lib.device_id},
@@ -84,28 +79,23 @@ class TTNxGate(TTN):
         self.nodes[path].tensor = new_tensor
         return self
 
-    def _apply_2q_gate(self, q0: Qubit, q1: Qubit, gate: Op) -> TTNxGate:
+    def _apply_2q_unitary(self, unitary: cp.ndarray, q0: Qubit, q1: Qubit) -> TTNxGate:
         """Applies the 2-qubit gate to the TTN.
 
-        Truncation is automatically applied according to the parameters
-        in the ``Config`` object passed to this ``TTN``.
-        The TTN is converted to canonical form before truncating.
+        The TTN is converted to canonical and truncation is applied if necessary.
 
         Args:
-            q0: The 0-th qubit the gate acts upon.
-            q1: The 1-st qubit the gate acts upon.
-            gate: The gate to be applied.
+            unitary: The unitary to be applied.
+            q0: The first qubit in the tuple |q0>|q1> the unitary acts on.
+            q1: The second qubit in the tuple |q0>|q1> the unitary acts on.
 
         Returns:
             ``self``, to allow for method chaining.
         """
         options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
 
-        # Load the gate's unitary to the GPU memory
-        gate_unitary = gate.get_unitary().astype(dtype=self._cfg._complex_t, copy=False)
-        gate_tensor = cp.asarray(gate_unitary, dtype=self._cfg._complex_t)
         # Reshape into a rank-4 tensor
-        gate_tensor = cp.reshape(gate_tensor, (2, 2, 2, 2))
+        gate_tensor = cp.reshape(unitary, (2, 2, 2, 2))
 
         (path_q0, bond_q0) = self.qubit_position[q0]
         (path_q1, bond_q1) = self.qubit_position[q1]

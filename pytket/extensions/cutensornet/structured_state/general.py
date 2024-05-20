@@ -64,12 +64,20 @@ class CuTensorNetHandle:
 
         self.handle = cutn.create()
 
+    def destroy(self) -> None:
+        """Destroys the memory handle, releasing memory.
+
+        Only call this method if you are initialising a ``CuTensorNetHandle`` outside
+        a ``with CuTensorNetHandle() as libhandle`` statement.
+        """
+        cutn.destroy(self.handle)
+        self._is_destroyed = True
+
     def __enter__(self) -> CuTensorNetHandle:
         return self
 
     def __exit__(self, exc_type: Any, exc_value: Any, exc_tb: Any) -> None:
-        cutn.destroy(self.handle)
-        self._is_destroyed = True
+        self.destroy()
 
 
 class Config:
@@ -79,6 +87,7 @@ class Config:
         self,
         chi: Optional[int] = None,
         truncation_fidelity: Optional[float] = None,
+        seed: Optional[int] = None,
         float_precision: Type[Any] = np.float64,
         value_of_zero: float = 1e-16,
         leaf_size: int = 8,
@@ -102,6 +111,11 @@ class Config:
                 ``|<psi|phi>|^2 >= trucantion_fidelity``, where ``|psi>`` and ``|phi>``
                 are the states before and after truncation (both normalised).
                 If not provided, it will default to its maximum value 1.
+            seed: Seed for the random number generator. Setting a seed provides
+                reproducibility across simulations using ``StructuredState``, in the
+                sense that they will produce the same sequence of measurement outcomes.
+                Crucially, consecutive samples taken from the same ``StructuredState``
+                can still be different from each other.
             float_precision: The floating point precision used in tensor calculations;
                 choose from ``numpy`` types: ``np.float64`` or ``np.float32``.
                 Complex numbers are represented using two of such
@@ -176,6 +190,8 @@ class Config:
                 UserWarning,
             )
 
+        self.seed = seed
+
         if leaf_size >= 65:  # Imposed to avoid bond ID collisions
             # More than 20 qubits is already unreasonable for a leaf anyway
             raise ValueError("Maximum allowed leaf_size is 65.")
@@ -191,6 +207,7 @@ class Config:
         return Config(
             chi=self.chi,
             truncation_fidelity=self.truncation_fidelity,
+            seed=self.seed,
             float_precision=self._real_t,  # type: ignore
             value_of_zero=self.zero,
             leaf_size=self.leaf_size,
@@ -224,7 +241,35 @@ class StructuredState(ABC):
 
         Raises:
             RuntimeError: If the ``CuTensorNetHandle`` is out of scope.
-            RuntimeError: If gate is not supported.
+            ValueError: If the command introduced is not a unitary gate.
+            ValueError: If gate acts on more than 2 qubits.
+        """
+        raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
+
+    @abstractmethod
+    def apply_unitary(
+        self, unitary: cp.ndarray, qubits: list[Qubit]
+    ) -> StructuredState:
+        """Applies the unitary to the specified qubits of the StructuredState.
+
+        Note:
+            It is assumed that the matrix provided by the user is unitary. If this is
+            not the case, the program will still run, but its behaviour is undefined.
+
+        Args:
+            unitary: The matrix to be applied as a CuPy ndarray. It should either be
+                a 2x2 matrix if acting on one qubit or a 4x4 matrix if acting on two.
+            qubits: The qubits the unitary acts on. Only one qubit and two qubit
+                unitaries are supported.
+
+        Returns:
+            ``self``, to allow for method chaining.
+
+        Raises:
+            RuntimeError: If the ``CuTensorNetHandle`` is out of scope.
+            ValueError: If the number of qubits provided is not one or two.
+            ValueError: If the size of the matrix does not match with the number of
+                qubits provided.
         """
         raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
 
@@ -294,17 +339,18 @@ class StructuredState(ABC):
         raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
 
     @abstractmethod
-    def measure(self, qubits: set[Qubit]) -> dict[Qubit, int]:
-        """Applies a Z measurement on ``qubits``, updates the state and returns outcome.
+    def measure(self, qubits: set[Qubit], destructive: bool = True) -> dict[Qubit, int]:
+        """Applies a Z measurement on each of the ``qubits``.
 
         Notes:
-            After applying this function, ``self`` will contain the projected
-            state over the non-measured qubits.
-
-            The resulting state has been normalised.
+            After applying this function, ``self`` will contain the normalised
+            projected state.
 
         Args:
             qubits: The subset of qubits to be measured.
+            destructive: If ``True``, the resulting state will not contain the
+                measured qubits. If ``False``, these qubits will appear on the
+                state corresponding to the measurement outcome. Defaults to ``True``.
 
         Returns:
             A dictionary mapping the given ``qubits`` to their measurement outcome,
