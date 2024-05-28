@@ -469,3 +469,7 @@ class StructuredState(ABC):
     @abstractmethod
     def _flush(self) -> None:
         raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
+
+
+def safe_chr(x: int):
+    return chr(x+592)  # Use symbols in the IPA extension of Unicode

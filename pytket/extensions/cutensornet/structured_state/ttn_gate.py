@@ -27,6 +27,7 @@ except ImportError:
 
 from pytket.circuit import Qubit
 from .ttn import TTN, DirTTN, RootPath
+from .general import safe_chr
 
 
 class TTNxGate(TTN):
@@ -110,7 +111,7 @@ class TTNxGate(TTN):
         # r -> right child bond of the TTN node
         # p -> the parent bond of the TTN node
         # s -> the shared bond resulting from a decomposition
-        # chr(x) -> bond of the x-th qubit in a leaf node
+        # safe_chr(x) -> bond of the x-th qubit in a leaf node
         gate_bonds = "ABab"
 
         # If the two qubits are in the same leaf node, contract the gate with it.
@@ -118,7 +119,7 @@ class TTNxGate(TTN):
         if path_q0 == path_q1:
             leaf_node = self.nodes[path_q0]
             n_qbonds = len(leaf_node.tensor.shape) - 1  # Num of qubit bonds
-            aux_bonds = [chr(x) for x in range(n_qbonds)]
+            aux_bonds = [safe_chr(x) for x in range(n_qbonds)]
             aux_bonds[bond_q0] = "a"
             aux_bonds[bond_q1] = "b"
             leaf_bonds = "".join(aux_bonds) + "p"
@@ -219,7 +220,7 @@ class TTNxGate(TTN):
         # "pushing" through the rest of the arc towards `q1`.
         leaf_node = self.nodes[path_q0]
         n_qbonds = len(leaf_node.tensor.shape) - 1  # Num of qubit bonds
-        aux_bonds = [chr(x) for x in range(n_qbonds)]
+        aux_bonds = [safe_chr(x) for x in range(n_qbonds)]
         aux_bonds[bond_q0] = "a"
         leaf_bonds = "".join(aux_bonds) + "p"
         aux_bonds[bond_q0] = "A"
@@ -339,7 +340,7 @@ class TTNxGate(TTN):
         # All we need to do is contract the `msg_tensor` and `V` into the leaf.
         leaf_node = self.nodes[path_q1]
         n_qbonds = len(leaf_node.tensor.shape) - 1  # Num of qubit bonds
-        aux_bonds = [chr(x) for x in range(n_qbonds)]
+        aux_bonds = [safe_chr(x) for x in range(n_qbonds)]
         aux_bonds[bond_q1] = "b"  # Connect `b` to `q1`
         leaf_bonds = "".join(aux_bonds) + "p"
         msg_bonds = "SpP"

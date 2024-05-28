@@ -36,7 +36,7 @@ from pytket.pauli import QubitPauliString
 
 from pytket.extensions.cutensornet.general import set_logger
 
-from .general import CuTensorNetHandle, Config, StructuredState, Tensor
+from .general import CuTensorNetHandle, Config, StructuredState, Tensor, safe_chr
 
 
 class DirTTN(IntEnum):
@@ -423,7 +423,7 @@ class TTN(StructuredState):
         assert len(towards_parent) != 0
 
         # Glossary of bond IDs
-        # chr(x) -> bond of the x-th qubit in the node (if it is a leaf)
+        # safe_chr(x) -> bond of the x-th qubit in the node (if it is a leaf)
         # l -> left child bond of the TTN node
         # r -> right child bond of the TTN node
         # p -> parent bond of the TTN node
@@ -441,7 +441,7 @@ class TTN(StructuredState):
             # Otherwise, apply QR decomposition
             if self.nodes[path].is_leaf:
                 n_qbonds = len(self.nodes[path].tensor.shape) - 1  # Num of qubit bonds
-                q_bonds = "".join(chr(x) for x in range(n_qbonds))
+                q_bonds = "".join(safe_chr(x) for x in range(n_qbonds))
                 node_bonds = q_bonds + "p"
                 Q_bonds = q_bonds + "s"
             else:
@@ -547,7 +547,7 @@ class TTN(StructuredState):
 
             leaf_node = self.nodes[target_path]
             n_qbonds = len(leaf_node.tensor.shape) - 1  # Number of qubit bonds
-            q_bonds = "".join(chr(x) for x in range(n_qbonds))
+            q_bonds = "".join(safe_chr(x) for x in range(n_qbonds))
             node_bonds = q_bonds + "p"
             new_bonds = q_bonds + "s"
             R_bonds = "ps"
@@ -573,7 +573,7 @@ class TTN(StructuredState):
             # tensor to be returned
             target_bond = self.qubit_position[center][1]
             Q_bonds = node_bonds[:target_bond] + "s" + node_bonds[target_bond + 1 :]
-            R_bonds = chr(target_bond) + "s"
+            R_bonds = safe_chr(target_bond) + "s"
 
             Q, R = tensor.decompose(
                 node_bonds + "->" + Q_bonds + "," + R_bonds,
