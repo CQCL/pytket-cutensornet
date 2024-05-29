@@ -93,10 +93,6 @@ class CuTensorNetHandle:
         logger.debug("GPU-minor:", device_props["minor"])
         logger.debug("========================")
 
-    def destroy(self) -> None:
-        cutn.destroy(self.handle)
-        self._is_destroyed = True
-
 
 class Config:
     """Configuration class for simulation using ``StructuredState``."""
