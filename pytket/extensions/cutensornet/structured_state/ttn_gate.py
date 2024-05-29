@@ -25,7 +25,7 @@ try:
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
-from pytket.circuit import Op, Qubit
+from pytket.circuit import Qubit
 from .ttn import TTN, DirTTN, RootPath
 
 
@@ -34,23 +34,18 @@ class TTNxGate(TTN):
     of a circuit as a ``TTN``.
     """
 
-    def _apply_1q_gate(self, qubit: Qubit, gate: Op) -> TTNxGate:
+    def _apply_1q_unitary(self, unitary: cp.ndarray, qubit: Qubit) -> TTNxGate:
         """Applies the 1-qubit gate to the TTN.
 
         This does not increase the dimension of any bond.
 
         Args:
-            qubit: The qubit that this gate is applied to.
-            gate: The gate to be applied.
+            unitary: The unitary to be applied.
+            qubit: The qubit the unitary acts on.
 
         Returns:
             ``self``, to allow for method chaining.
         """
-
-        # Load the gate's unitary to the GPU memory
-        gate_unitary = gate.get_unitary().astype(dtype=self._cfg._complex_t, copy=False)
-        gate_tensor = cp.asarray(gate_unitary, dtype=self._cfg._complex_t)
-
         path, target = self.qubit_position[qubit]
         node_tensor = self.nodes[path].tensor
         n_qbonds = (
@@ -72,7 +67,7 @@ class TTNxGate(TTN):
         new_tensor = cq.contract(
             node_tensor,
             node_bonds,
-            gate_tensor,
+            unitary,
             ["o", "i"],
             result_bonds,
             options={"handle": self._lib.handle, "device_id": self._lib.device_id},
@@ -84,28 +79,23 @@ class TTNxGate(TTN):
         self.nodes[path].tensor = new_tensor
         return self
 
-    def _apply_2q_gate(self, q0: Qubit, q1: Qubit, gate: Op) -> TTNxGate:
+    def _apply_2q_unitary(self, unitary: cp.ndarray, q0: Qubit, q1: Qubit) -> TTNxGate:
         """Applies the 2-qubit gate to the TTN.
 
-        Truncation is automatically applied according to the parameters
-        in the ``Config`` object passed to this ``TTN``.
-        The TTN is converted to canonical form before truncating.
+        The TTN is converted to canonical and truncation is applied if necessary.
 
         Args:
-            q0: The 0-th qubit the gate acts upon.
-            q1: The 1-st qubit the gate acts upon.
-            gate: The gate to be applied.
+            unitary: The unitary to be applied.
+            q0: The first qubit in the tuple |q0>|q1> the unitary acts on.
+            q1: The second qubit in the tuple |q0>|q1> the unitary acts on.
 
         Returns:
             ``self``, to allow for method chaining.
         """
         options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
 
-        # Load the gate's unitary to the GPU memory
-        gate_unitary = gate.get_unitary().astype(dtype=self._cfg._complex_t, copy=False)
-        gate_tensor = cp.asarray(gate_unitary, dtype=self._cfg._complex_t)
         # Reshape into a rank-4 tensor
-        gate_tensor = cp.reshape(gate_tensor, (2, 2, 2, 2))
+        gate_tensor = cp.reshape(unitary, (2, 2, 2, 2))
 
         (path_q0, bond_q0) = self.qubit_position[q0]
         (path_q1, bond_q1) = self.qubit_position[q1]
@@ -115,6 +105,7 @@ class TTNxGate(TTN):
         # b -> the input bond of the gate on q1
         # A -> the output bond of the gate on q0
         # B -> the output bond of the gate on q1
+        # S -> the shared bond of the gate tensor's SVD
         # l -> left child bond of the TTN node
         # r -> right child bond of the TTN node
         # p -> the parent bond of the TTN node
@@ -172,19 +163,29 @@ class TTNxGate(TTN):
         #   of `canonicalise()`.
         self.canonicalise(center=(*common_path, DirTTN.LEFT))
 
-        # The overall strategy is to connect the `a` bond of the gate tensor to
-        # the corresponding bond for `q0` in the TTN (so that its bond `A`) becomes
-        # the new physical bond for `q0`. However, bonds `b` and `B` corresponding to
-        # `q1` are left open. We combine this `gate_tensor` with the leaf node of `q0`
-        # and QR-decompose the result; where the Q tensor will be the new
-        # (canonicalised) leaf node and R becomes our `msg_tensor`. The latter contains
-        # the open bonds `b` and `B` and our objective is to "push" this `msg_tensor`
+        # Apply SVD on the gate tensor to remove any zero singular values ASAP
+        svd_method = tensor.SVDMethod(
+            abs_cutoff=self._cfg.zero,
+            partition="U",  # Contract S directly into U
+        )
+        # Apply the SVD decomposition using the configuration defined above
+        U, S, V = tensor.decompose(
+            f"{gate_bonds}->SAa,SBb", gate_tensor, method=svd_method, options=options
+        )
+        assert S is None  # Due to "partition" option in SVDMethod
+
+        # The overall strategy is to connect the `U` tensor above with the physical bond
+        # for `q0` in the TTN, so that its bond `A` becomes the new physical bond and
+        # the bond `S` is left dangling (open). We combine this `gate_tensor` with the
+        # leaf node of `q0` and QR-decompose the result; where the Q tensor will be the
+        # new (canonicalised) leaf node and R becomes our `msg_tensor`. The latter
+        # contains the open bond `S` and our objective is to "push" this `msg_tensor`
         # through the TTN towards the leaf node of `q1`. Here, "push through" means
         # contract with the next tensor, and apply QR decomposition, so that the
         # `msg_tensor` carrying `b` and `B` ends up one bond closer to `q1`.
         # Once `msg_tensor` is directly connected to the leaf node containing `q1`, we
-        # just need to contract them, connecting `b` to `q1`, with `B` becoming the
-        # new physical bond.
+        # just need to apply the `V` tensor above to `q1` and connect its `S` bond with
+        # that of the `msg_tensor`.
         bonds_to_q0 = [  # Bonds in the "arc" from the common ancestor to `q0`
             path_q0[:i] for i in range(len(common_path) + 1, len(path_q0) + 1)
         ]
@@ -205,14 +206,14 @@ class TTNxGate(TTN):
         assert len(bonds_to_q1) == 1 or len(bonds_to_q1[0]) < len(bonds_to_q1[1])
         assert len(bonds_to_q1[-1]) == len(path_q1)
 
-        # The `msg_tensor` has four bonds. Our convention will be that the first bond
-        # always corresponds to `B`, the second bond is `b`, the third bond connects
-        # it to the TTN in the child direction and the fourth connects it to the TTN
-        # in the `DirTTN.PARENT` direction. If we label the third bond with `l`, then
-        # the fourth bond will be labelled `L` (and vice versa). Same for `r` and `p`.
+        # The `msg_tensor` has three bonds. Our convention will be that the first bond
+        # always corresponds to `S`, the second bond connects the `msg_tensor`
+        # to the TTN in the child direction and the third connects it to the TTN
+        # in the `DirTTN.PARENT` direction. If we label the second bond with `l`, then
+        # the third bond will be labelled `L` (and vice versa). Same for `r` and `p`.
 
-        # We begin applying the gate to the TTN by contracting `gate_tensor` into the
-        # leaf node containing `q0`, with the `b` and `B` bonds of the latter left open.
+        # We begin applying the gate to the TTN by contracting `U` into the
+        # leaf node containing `q0`, with the `S` bond of the former left open.
         # We immediately QR-decompose the resulting tensor, so that Q becomes the new
         # (canonicalised) leaf node and R becomes the `msg_tensor` that we will be
         # "pushing" through the rest of the arc towards `q1`.
@@ -223,13 +224,14 @@ class TTNxGate(TTN):
         leaf_bonds = "".join(aux_bonds) + "p"
         aux_bonds[bond_q0] = "A"
         Q_bonds = "".join(aux_bonds) + "s"
-        R_bonds = "Bbsp"  # The `msg_tensor`
+        R_bonds = "Ssp"  # The `msg_tensor`
+        U_bonds = "SAa"
 
         # Apply the contraction followed by a QR decomposition
         leaf_node.tensor, msg_tensor = contract_decompose(
-            f"{leaf_bonds},{gate_bonds}->{Q_bonds},{R_bonds}",
+            f"{leaf_bonds},{U_bonds}->{Q_bonds},{R_bonds}",
             leaf_node.tensor,
-            gate_tensor,
+            U,
             algorithm={"qr_method": tensor.QRMethod()},
             options=options,
             optimize={"path": [(0, 1)]},
@@ -248,9 +250,9 @@ class TTNxGate(TTN):
             node = self.nodes[parent_bond]
 
             node_bonds = "lrp"
-            msg_bonds = "BbLl" if child_dir == DirTTN.LEFT else "BbRr"
+            msg_bonds = "SLl" if child_dir == DirTTN.LEFT else "SRr"
             Q_bonds = "Lrs" if child_dir == DirTTN.LEFT else "lRs"
-            R_bonds = "Bbsp"  # The new `msg_tensor`
+            R_bonds = "Ssp"  # The new `msg_tensor`
 
             self._logger.debug(
                 f"Pushing msg_tensor ({msg_tensor.nbytes // 2**20} MiB) through node "
@@ -277,9 +279,9 @@ class TTNxGate(TTN):
         common_ancestor_node = self.nodes[parent_bond]
 
         node_bonds = "lrp"
-        msg_bonds = "BbLl" if child_dir == DirTTN.LEFT else "BbRr"
+        msg_bonds = "SLl" if child_dir == DirTTN.LEFT else "SRr"
         Q_bonds = "Lsp" if child_dir == DirTTN.LEFT else "sRp"
-        R_bonds = "Bbrs" if child_dir == DirTTN.LEFT else "Bbls"  # The new `msg_tensor`
+        R_bonds = "Srs" if child_dir == DirTTN.LEFT else "Sls"  # The new `msg_tensor`
 
         self._logger.debug(
             f"Pushing msg_tensor ({msg_tensor.nbytes // 2**20} MiB) through node "
@@ -312,9 +314,9 @@ class TTNxGate(TTN):
             node = self.nodes[parent_bond]
 
             node_bonds = "lrp"
-            msg_bonds = "BbpP"
+            msg_bonds = "SpP"
             Q_bonds = "srP" if child_dir == DirTTN.LEFT else "lsP"
-            R_bonds = "Bbls" if child_dir == DirTTN.LEFT else "Bbrs"  # New `msg_tensor`
+            R_bonds = "Sls" if child_dir == DirTTN.LEFT else "Srs"  # New `msg_tensor`
 
             self._logger.debug(
                 f"Pushing msg_tensor ({msg_tensor.nbytes // 2**20} MiB) through node "
@@ -334,23 +336,25 @@ class TTNxGate(TTN):
             node.canonical_form = child_dir
 
         # Finally, the `msg_tensor` is in the parent bond of the leaf node of `q1`.
-        # All we need to do is contract the `msg_tensor` into the leaf.
+        # All we need to do is contract the `msg_tensor` and `V` into the leaf.
         leaf_node = self.nodes[path_q1]
         n_qbonds = len(leaf_node.tensor.shape) - 1  # Num of qubit bonds
         aux_bonds = [chr(x) for x in range(n_qbonds)]
         aux_bonds[bond_q1] = "b"  # Connect `b` to `q1`
         leaf_bonds = "".join(aux_bonds) + "p"
-        msg_bonds = "BbpP"
+        msg_bonds = "SpP"
+        V_bonds = "SBb"
         aux_bonds[bond_q1] = "B"  # `B` becomes the new physical bond `q1`
         result_bonds = "".join(aux_bonds) + "P"
 
         # Apply the contraction
         leaf_node.tensor = cq.contract(
-            f"{leaf_bonds},{msg_bonds}->{result_bonds}",
+            f"{leaf_bonds},{V_bonds},{msg_bonds}->{result_bonds}",
             leaf_node.tensor,
+            V,
             msg_tensor,
             options=options,
-            optimize={"path": [(0, 1)]},
+            optimize={"path": [(0, 1), (0, 1)]},
         )
         # The leaf node lost its canonical form
         leaf_node.canonical_form = None

@@ -8,6 +8,7 @@ Please mention any github issues addressed by this PR.
 
 # Checklist
 
+- [ ] I have run the tests on a device with GPUs.
 - [ ] I have performed a self-review of my code.
 - [ ] I have commented hard-to-understand parts of my code.
 - [ ] I have made corresponding changes to the public API documentation.

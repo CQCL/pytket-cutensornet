@@ -53,6 +53,43 @@ def test_init() -> None:
         assert ttn_gate.is_valid()
 
 
+@pytest.mark.parametrize(
+    "algorithm",
+    [
+        SimulationAlgorithm.MPSxGate,
+        SimulationAlgorithm.MPSxMPO,
+        SimulationAlgorithm.TTNxGate,
+    ],
+)
+def test_copy(algorithm: SimulationAlgorithm) -> None:
+    simple_circ = Circuit(2).H(0).H(1).CX(0, 1)
+
+    with CuTensorNetHandle() as libhandle:
+        # Default config
+        cfg = Config()
+        state = simulate(libhandle, simple_circ, algorithm, cfg)
+        assert state.is_valid()
+        copy_state = state.copy()
+        assert copy_state.is_valid()
+        assert np.isclose(copy_state.vdot(state), 1.0, atol=cfg._atol)
+
+        # Bounded chi
+        cfg = Config(chi=8)
+        state = simulate(libhandle, simple_circ, algorithm, cfg)
+        assert state.is_valid()
+        copy_state = state.copy()
+        assert copy_state.is_valid()
+        assert np.isclose(copy_state.vdot(state), 1.0, atol=cfg._atol)
+
+        # Bounded truncation_fidelity
+        cfg = Config(truncation_fidelity=0.9999)
+        state = simulate(libhandle, simple_circ, algorithm, cfg)
+        assert state.is_valid()
+        copy_state = state.copy()
+        assert copy_state.is_valid()
+        assert np.isclose(copy_state.vdot(state), 1.0, atol=cfg._atol)
+
+
 def test_canonicalise_mps() -> None:
     cp.random.seed(1)
     circ = Circuit(5)
@@ -227,6 +264,8 @@ def test_canonicalise_ttn(center: Union[RootPath, Qubit]) -> None:
         pytest.lazy_fixture("q2_lcu3"),  # type: ignore
         pytest.lazy_fixture("q3_v0cx02"),  # type: ignore
         pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
+        pytest.lazy_fixture("q3_toffoli_box_with_implicit_swaps"),  # type: ignore
+        pytest.lazy_fixture("q4_with_creates"),  # type: ignore
         pytest.lazy_fixture("q5_h0s1rz2ry3tk4tk13"),  # type: ignore
         pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
         pytest.lazy_fixture("q6_qvol"),  # type: ignore
@@ -288,6 +327,8 @@ def test_exact_circ_sim(circuit: Circuit, algorithm: SimulationAlgorithm) -> Non
         pytest.lazy_fixture("q2_lcu3"),  # type: ignore
         pytest.lazy_fixture("q3_v0cx02"),  # type: ignore
         pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
+        pytest.lazy_fixture("q3_toffoli_box_with_implicit_swaps"),  # type: ignore
+        pytest.lazy_fixture("q4_with_creates"),  # type: ignore
         pytest.lazy_fixture("q5_h0s1rz2ry3tk4tk13"),  # type: ignore
         pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
         pytest.lazy_fixture("q6_qvol"),  # type: ignore
@@ -335,6 +376,8 @@ def test_approx_circ_sim_gate_fid(
         pytest.lazy_fixture("q2_lcu3"),  # type: ignore
         pytest.lazy_fixture("q3_v0cx02"),  # type: ignore
         pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
+        pytest.lazy_fixture("q3_toffoli_box_with_implicit_swaps"),  # type: ignore
+        pytest.lazy_fixture("q4_with_creates"),  # type: ignore
         pytest.lazy_fixture("q5_h0s1rz2ry3tk4tk13"),  # type: ignore
         pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
         pytest.lazy_fixture("q6_qvol"),  # type: ignore
@@ -368,6 +411,7 @@ def test_approx_circ_sim_chi(circuit: Circuit, algorithm: SimulationAlgorithm) -
         pytest.lazy_fixture("q2_x0cx01cx10"),  # type: ignore
         pytest.lazy_fixture("q2_lcu2"),  # type: ignore
         pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
+        pytest.lazy_fixture("q4_with_creates"),  # type: ignore
         pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
         pytest.lazy_fixture("q6_qvol"),  # type: ignore
     ],
@@ -491,7 +535,7 @@ def test_circ_approx_explicit_ttn(circuit: Circuit) -> None:
         # Check for TTNxGate
         cfg = Config(truncation_fidelity=0.99, leaf_size=3, float_precision=np.float32)
         ttn_gate = simulate(libhandle, circuit, SimulationAlgorithm.TTNxGate, cfg)
-        assert np.isclose(ttn_gate.get_fidelity(), 0.769, atol=1e-3)
+        assert np.isclose(ttn_gate.get_fidelity(), 0.751, atol=1e-3)
         assert ttn_gate.is_valid()
         assert np.isclose(ttn_gate.vdot(ttn_gate), 1.0, atol=cfg._atol)
 
@@ -499,7 +543,7 @@ def test_circ_approx_explicit_ttn(circuit: Circuit) -> None:
         # Check for TTNxGate
         cfg = Config(chi=120, leaf_size=3, float_precision=np.float32)
         ttn_gate = simulate(libhandle, circuit, SimulationAlgorithm.TTNxGate, cfg)
-        assert np.isclose(ttn_gate.get_fidelity(), 0.857, atol=1e-3)
+        assert np.isclose(ttn_gate.get_fidelity(), 0.854, atol=1e-3)
         assert ttn_gate.is_valid()
         assert np.isclose(ttn_gate.vdot(ttn_gate), 1.0, atol=cfg._atol)
 
@@ -547,6 +591,7 @@ def test_postselect_2q_circ(circuit: Circuit, postselect_dict: dict) -> None:
     "circuit",
     [
         pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
+        pytest.lazy_fixture("q3_toffoli_box_with_implicit_swaps"),  # type: ignore
         pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
     ],
 )
@@ -568,7 +613,11 @@ def test_postselect_circ(circuit: Circuit, postselect_dict: dict) -> None:
 
     with CuTensorNetHandle() as libhandle:
         cfg = Config()
+
+        circuit, qubit_map = prepare_circuit_mps(circuit)
         mps = simulate(libhandle, circuit, SimulationAlgorithm.MPSxGate, cfg)
+        mps.apply_qubit_relabelling(qubit_map)
+
         prob = mps.postselect(postselect_dict)
         assert np.isclose(prob, sv_prob, atol=cfg._atol)
         assert np.allclose(mps.get_statevector(), sv, atol=cfg._atol)
@@ -587,6 +636,8 @@ def test_postselect_circ(circuit: Circuit, postselect_dict: dict) -> None:
         pytest.lazy_fixture("q2_lcu2"),  # type: ignore
         pytest.lazy_fixture("q2_lcu3"),  # type: ignore
         pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
+        pytest.lazy_fixture("q3_toffoli_box_with_implicit_swaps"),  # type: ignore
+        pytest.lazy_fixture("q4_with_creates"),  # type: ignore
         pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
     ],
 )
@@ -614,10 +665,45 @@ def test_expectation_value(circuit: Circuit, observable: QubitPauliString) -> No
     # Simulate the circuit and obtain the expectation value
     with CuTensorNetHandle() as libhandle:
         cfg = Config()
+        circuit, qubit_map = prepare_circuit_mps(circuit)
         mps = simulate(libhandle, circuit, SimulationAlgorithm.MPSxGate, cfg)
+        mps.apply_qubit_relabelling(qubit_map)
         assert np.isclose(
             mps.expectation_value(observable), expectation_value, atol=cfg._atol
         )
+
+
+@pytest.mark.parametrize(
+    "circuit",
+    [
+        pytest.lazy_fixture("q2_v0cx01cx10"),  # type: ignore
+        pytest.lazy_fixture("q2_hadamard_test"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu2"),  # type: ignore
+        pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
+        pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
+    ],
+)
+def test_sample_with_seed(circuit: Circuit) -> None:
+    n_samples = 10
+    config = Config(seed=1234)
+
+    with CuTensorNetHandle() as libhandle:
+        mps_0 = simulate(libhandle, circuit, SimulationAlgorithm.MPSxGate, config)
+        mps_1 = simulate(libhandle, circuit, SimulationAlgorithm.MPSxGate, config)
+        mps_2 = mps_0.copy()
+
+        all_outcomes = []
+        for _ in range(n_samples):
+            # Check that all copies of the MPS result in the same sample
+            outcomes_0 = mps_0.sample()
+            outcomes_1 = mps_1.sample()
+            outcomes_2 = mps_2.sample()
+            assert outcomes_0 == outcomes_1 and outcomes_0 == outcomes_2
+
+            all_outcomes.append(outcomes_0)
+
+        # Check that the outcomes change between different samples
+        assert not all(outcome == outcomes_0 for outcome in all_outcomes)
 
 
 @pytest.mark.parametrize(
@@ -661,6 +747,7 @@ def test_sample_circ_2q(circuit: Circuit) -> None:
     "circuit",
     [
         pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
+        pytest.lazy_fixture("q3_toffoli_box_with_implicit_swaps"),  # type: ignore
         pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
     ],
 )
@@ -671,7 +758,9 @@ def test_measure_circ(circuit: Circuit) -> None:
     qB = circuit.qubits[-3]  # Third list significant qubit
 
     with CuTensorNetHandle() as libhandle:
+        circuit, qubit_map = prepare_circuit_mps(circuit)
         mps = simulate(libhandle, circuit, SimulationAlgorithm.MPSxGate, Config())
+        mps.apply_qubit_relabelling(qubit_map)
 
         # Compute the probabilities of each outcome
         p = {(0, 0): 0.0, (0, 1): 0.0, (1, 0): 0.0, (1, 1): 0.0}
@@ -690,3 +779,94 @@ def test_measure_circ(circuit: Circuit) -> None:
     # Check sample frequency consistent with theoretical probability
     for outcome, count in sample_dict.items():
         assert np.isclose(count / n_samples, p[outcome], atol=0.1)
+
+
+def test_mps_qubit_addition_and_measure() -> None:
+    with CuTensorNetHandle() as libhandle:
+        config = Config()
+        mps = MPSxGate(
+            libhandle,
+            qubits=[Qubit(0), Qubit(1), Qubit(2), Qubit(3)],
+            config=config,
+        )
+
+        x = cp.asarray(
+            [
+                [0, 1],
+                [1, 0],
+            ],
+            dtype=config._complex_t,
+        )
+        cx = cp.asarray(
+            [
+                [1, 0, 0, 0],
+                [0, 1, 0, 0],
+                [0, 0, 0, 1],
+                [0, 0, 1, 0],
+            ],
+            dtype=config._complex_t,
+        )
+
+        # Apply some gates
+        mps.apply_unitary(x, [Qubit(1)])  # |0100>
+        mps.apply_unitary(cx, [Qubit(1), Qubit(2)])  # |0110>
+        mps.apply_unitary(cx, [Qubit(2), Qubit(3)])  # |0111>
+        # Add a qubit at the end of the MPS
+        mps.add_qubit(new_qubit=Qubit(4), position=len(mps))  # |01110>
+        # Apply some more gates acting on the new qubit
+        mps.apply_unitary(cx, [Qubit(3), Qubit(4)])  # |01111>
+        mps.apply_unitary(cx, [Qubit(4), Qubit(3)])  # |01101>
+        # Add a qubit at position 3
+        mps.add_qubit(new_qubit=Qubit(6), position=3)  # |011001>
+        # Apply some more gates acting on the new qubit
+        mps.apply_unitary(x, [Qubit(6)])  # |011101>
+        mps.apply_unitary(cx, [Qubit(6), Qubit(2)])  # |010101>
+        mps.apply_unitary(cx, [Qubit(6), Qubit(3)])  # |010111>
+        # Add another qubit at the end of the MPS
+        mps.add_qubit(new_qubit=Qubit(5), position=len(mps), state=1)  # |0101111>
+        # Apply some more gates acting on the new qubit
+        mps.apply_unitary(cx, [Qubit(4), Qubit(5)])  # |0101110>
+
+        # The resulting state should be |0101110>
+        sv = np.zeros(2**7)
+        sv[int("0101110", 2)] = 1
+
+        # However, since mps.get_statevector will sort qubits in ILO, the bits would
+        # change position. Instead, we can relabel the qubits.
+        mps.apply_qubit_relabelling(
+            {q: Qubit(i) for q, i in mps.qubit_position.items()}
+        )
+
+        # Compare the state vectors
+        assert np.allclose(mps.get_statevector(), sv)
+
+        # Measure some of the qubits destructively
+        outcomes = mps.measure({Qubit(0), Qubit(2), Qubit(4)}, destructive=True)
+        # Since the state is |0101110>, the outcomes are deterministic
+        assert outcomes[Qubit(0)] == 0
+        assert outcomes[Qubit(2)] == 0
+        assert outcomes[Qubit(4)] == 1
+
+        # Note that the qubit identifiers have not been updated,
+        # so the qubits that were measured are no longer in the MPS.
+        with pytest.raises(ValueError, match="not a qubit in the MPS"):
+            mps.measure({Qubit(0)})
+
+        # Measure some of the remaining qubits non-destructively
+        outcomes = mps.measure({Qubit(1), Qubit(6)}, destructive=False)
+        assert outcomes[Qubit(1)] == 1
+        assert outcomes[Qubit(6)] == 0
+
+        # The resulting state should be |1110>, verify it
+        sv = np.zeros(2**4)
+        sv[int("1110", 2)] = 1
+        assert np.allclose(mps.get_statevector(), sv)
+
+        # Apply a few more gates to check it works
+        mps.apply_unitary(x, [Qubit(1)])  # |0110>
+        mps.apply_unitary(cx, [Qubit(3), Qubit(5)])  # |0100>
+
+        # The resulting state should be |0100>, verify it
+        sv = np.zeros(2**4)
+        sv[int("0100", 2)] = 1
+        assert np.allclose(mps.get_statevector(), sv)

@@ -100,7 +100,9 @@ def simulate(
         sorted_gates = _get_sorted_gates(circuit, algorithm)
 
     elif algorithm == SimulationAlgorithm.TTNxGate:
-        qubit_partition = _get_qubit_partition(circuit, config.leaf_size)
+        qubit_partition = _get_qubit_partition(
+            circuit, config.leaf_size, config.use_kahypar
+        )
         state = TTNxGate(  # type: ignore
             libhandle,
             qubit_partition,
@@ -120,6 +122,9 @@ def simulate(
     # Apply the circuit's phase to the state
     state.apply_scalar(np.exp(1j * np.pi * circuit.phase))
 
+    # Relabel qubits according to the implicit swaps (if any)
+    state.apply_qubit_relabelling(circuit.implicit_qubit_permutation())
+
     logger.info("Simulation completed.")
     logger.info(f"Final StructuredState size={state.get_byte_size() / 2**20} MiB")
     logger.info(f"Final StructuredState fidelity={state.fidelity}")
@@ -136,6 +141,7 @@ def prepare_circuit_mps(circuit: Circuit) -> tuple[Circuit, dict[Qubit, Qubit]]:
         The qubits in the output circuit will be renamed. Implicit SWAPs may be added
         to the circuit, meaning that the logical qubit held at the ``node[i]`` qubit
         at the beginning of the circuit may differ from the one it holds at the end.
+        Consider applying ``apply_qubit_relabelling`` on the MPS after simulation.
 
     Args:
         circuit: The circuit to be simulated.
@@ -163,7 +169,7 @@ def prepare_circuit_mps(circuit: Circuit) -> tuple[Circuit, dict[Qubit, Qubit]]:
 
 
 def _get_qubit_partition(
-    circuit: Circuit, max_q_per_leaf: int
+    circuit: Circuit, max_q_per_leaf: int, use_kahypar: bool
 ) -> dict[int, list[Qubit]]:
     """Returns a qubit partition for a TTN.
 
@@ -174,6 +180,8 @@ def _get_qubit_partition(
     Args:
         circuit: The circuit to be simulated.
         max_q_per_leaf: The maximum allowed number of qubits per node leaf
+        use_kahypar: Use KaHyPar for graph partitioning if this is True.
+            Otherwise, use NetworkX (worse, but easy to setup).
 
     Returns:
         A dictionary describing the partition in the format expected by TTN.
@@ -214,9 +222,14 @@ def _get_qubit_partition(
         old_partition = partition.copy()
         for key, group in old_partition.items():
             # Apply the balanced bisection on this group
-            (groupA, groupB) = _apply_kahypar_bisection(
-                connectivity_graph.subgraph(group),
-            )
+            if use_kahypar:  # Using KaHyPar
+                (groupA, groupB) = _apply_kahypar_bisection(
+                    connectivity_graph.subgraph(group),
+                )
+            else:  # Using NetworkX
+                (groupA, groupB) = nx.community.kernighan_lin_bisection(
+                    connectivity_graph.subgraph(group),
+                )
             # Groups A and B are on the same subtree (key separated by +1)
             partition[2 * key] = groupA
             partition[2 * key + 1] = groupB

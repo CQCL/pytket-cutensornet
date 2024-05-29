@@ -25,7 +25,7 @@ try:
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
-from pytket.circuit import Op
+from pytket.circuit import Qubit
 from .mps import MPS
 
 
@@ -35,23 +35,19 @@ class MPSxGate(MPS):
     https://arxiv.org/abs/2002.07730
     """
 
-    def _apply_1q_gate(self, position: int, gate: Op) -> MPSxGate:
-        """Applies the 1-qubit gate to the MPS.
+    def _apply_1q_unitary(self, unitary: cp.ndarray, qubit: Qubit) -> MPSxGate:
+        """Applies the 1-qubit unitary to the MPS.
 
         This does not increase the dimension of any bond.
 
         Args:
-            position: The position of the MPS tensor that this gate
-                is applied to.
-            gate: The gate to be applied.
+            unitary: The unitary to be applied.
+            qubit: The qubit the unitary acts on.
 
         Returns:
             ``self``, to allow for method chaining.
         """
-
-        # Load the gate's unitary to the GPU memory
-        gate_unitary = gate.get_unitary().astype(dtype=self._cfg._complex_t, copy=False)
-        gate_tensor = cp.asarray(gate_unitary, dtype=self._cfg._complex_t)
+        position = self.qubit_position[qubit]
 
         # Glossary of bond IDs
         # p -> physical bond of the MPS tensor
@@ -66,7 +62,7 @@ class MPSxGate(MPS):
         # Contract
         new_tensor = cq.contract(
             gate_bonds + "," + T_bonds + "->" + result_bonds,
-            gate_tensor,
+            unitary,
             self.tensors[position],
             options={"handle": self._lib.handle, "device_id": self._lib.device_id},
             optimize={"path": [(0, 1)]},
@@ -76,25 +72,28 @@ class MPSxGate(MPS):
         self.tensors[position] = new_tensor
         return self
 
-    def _apply_2q_gate(self, positions: tuple[int, int], gate: Op) -> MPSxGate:
-        """Applies the 2-qubit gate to the MPS.
+    def _apply_2q_unitary(self, unitary: cp.ndarray, q0: Qubit, q1: Qubit) -> MPSxGate:
+        """Applies the 2-qubit unitary to the MPS.
 
-        If doing so increases the virtual bond dimension beyond ``chi``;
-        truncation is automatically applied.
-        The MPS is converted to canonical form before truncating.
+        The MPS is converted to canonical and truncation is applied if necessary.
 
         Args:
-            positions: The position of the MPS tensors that this gate
-                is applied to. They must be contiguous.
-            gate: The gate to be applied.
+            unitary: The unitary to be applied.
+            q0: The first qubit in the tuple |q0>|q1> the unitary acts on.
+            q1: The second qubit in the tuple |q0>|q1> the unitary acts on.
 
         Returns:
             ``self``, to allow for method chaining.
         """
         options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
 
+        positions = [self.qubit_position[q0], self.qubit_position[q1]]
         l_pos = min(positions)
         r_pos = max(positions)
+
+        # Always canonicalise. Even in the case of exact simulation (no truncation)
+        # canonicalisation may reduce the bond dimension (thanks to reduced QR).
+        self.canonicalise(l_pos, r_pos)
 
         # Figure out the new dimension of the shared virtual bond
         new_dim = 2 * min(
@@ -102,33 +101,15 @@ class MPSxGate(MPS):
             self.get_virtual_dimensions(r_pos)[1],
         )
 
-        # Canonicalisation may be required if `new_dim` is larger than `chi`
-        # or if set by `truncation_fidelity`
-        if new_dim > self._cfg.chi or self._cfg.truncation_fidelity < 1:
-            # If truncation required, convert to canonical form before
-            # contracting. Avoids the need to apply gauge transformations
-            # to the larger tensor resulting from the contraction.
-            self.canonicalise(l_pos, r_pos)
-
-            # Since canonicalisation may change the dimension of the bonds,
-            # we need to recalculate the value of `new_dim`
-            new_dim = 2 * min(
-                self.get_virtual_dimensions(l_pos)[0],
-                self.get_virtual_dimensions(r_pos)[1],
-            )
-
-        # Load the gate's unitary to the GPU memory
-        gate_unitary = gate.get_unitary().astype(dtype=self._cfg._complex_t, copy=False)
-        gate_tensor = cp.asarray(gate_unitary, dtype=self._cfg._complex_t)
-
         # Reshape into a rank-4 tensor
-        gate_tensor = cp.reshape(gate_tensor, (2, 2, 2, 2))
+        gate_tensor = cp.reshape(unitary, (2, 2, 2, 2))
 
         # Glossary of bond IDs
         # l -> physical bond of the left tensor in the MPS
         # r -> physical bond of the right tensor in the MPS
         # L -> left bond of the outcome of the gate
         # R -> right bond of the outcome of the gate
+        # S -> shared bond of the gate tensor's SVD
         # a,b,c -> the virtual bonds of the tensors
 
         if l_pos == positions[0]:
@@ -136,19 +117,27 @@ class MPSxGate(MPS):
         else:  # Implicit swap
             gate_bonds = "RLrl"
 
-        left_bonds = "abl"
-        right_bonds = "bcr"
-        result_bonds = "acLR"
+        # Apply SVD on the gate tensor to remove any zero singular values ASAP
+        svd_method = tensor.SVDMethod(
+            abs_cutoff=self._cfg.zero,
+            partition="U",  # Contract S directly into U
+        )
+        # Apply the SVD decomposition using the configuration defined above
+        U, S, V = tensor.decompose(
+            f"{gate_bonds}->SLl,SRr", gate_tensor, method=svd_method, options=options
+        )
+        assert S is None  # Due to "partition" option in SVDMethod
 
         # Contract
         self._logger.debug("Contracting the two-qubit gate with its site tensors...")
         T = cq.contract(
-            gate_bonds + "," + left_bonds + "," + right_bonds + "->" + result_bonds,
-            gate_tensor,
+            f"SLl,abl,SRr,bcr->acLR",
+            U,
             self.tensors[l_pos],
+            V,
             self.tensors[r_pos],
             options=options,
-            optimize={"path": [(0, 1), (0, 1)]},
+            optimize={"path": [(0, 1), (0, 1), (0, 1)]},
         )
         self._logger.debug(f"Intermediate tensor of size (MiB)={T.nbytes / 2**20}")
 

@@ -29,7 +29,7 @@ setup(
     name="pytket-cutensornet",
     version=metadata["__extension_version__"],
     author="TKET development team",
-    author_email="tket-support@cambridgequantum.com",
+    author_email="tket-support@quantinuum.com",
     python_requires=">=3.10",
     project_urls={
         "Documentation": "https://tket.quantinuum.com/extensions/pytket-cutensornet/index.html",
@@ -42,7 +42,7 @@ setup(
     license="Apache 2",
     packages=find_namespace_packages(include=["pytket.*"]),
     include_package_data=True,
-    install_requires=["pytket ~= 1.24"],
+    install_requires=["pytket ~= 1.27", "networkx >= 2.8.8"],
     classifiers=[
         "Environment :: Console",
         "Programming Language :: Python :: 3.10",
