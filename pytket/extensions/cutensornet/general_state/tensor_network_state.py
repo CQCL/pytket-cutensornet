@@ -106,7 +106,7 @@ class GeneralState:
         if "NUM_HYPER_SAMPLES" not in attributes:
             attributes["NUM_HYPER_SAMPLES"] = 8
         attribute_pairs = [
-            getattr(cutn.StateAttribute, v) for k, v in attributes.items()
+            (getattr(cutn.StateAttribute, k), v) for k, v in attributes.items()
         ]
 
         for attr, val in attribute_pairs:
@@ -339,7 +339,7 @@ class GeneralExpectationValue:
         if "OPT_NUM_HYPER_SAMPLES" not in attributes:
             attributes["OPT_NUM_HYPER_SAMPLES"] = 8
         attribute_pairs = [
-            getattr(cutn.ExpectationAttribute, v) for k, v in attributes.items()
+            (getattr(cutn.ExpectationAttribute, k), v) for k, v in attributes.items()
         ]
 
         for attr, val in attribute_pairs:
