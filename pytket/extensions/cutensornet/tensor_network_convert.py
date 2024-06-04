@@ -22,7 +22,6 @@ import networkx as nx  # type: ignore
 from networkx.classes.reportviews import OutMultiEdgeView, OutMultiEdgeDataView  # type: ignore
 import numpy as np
 from numpy.typing import NDArray
-from pytket import Qubit  # type: ignore
 from pytket.utils import Graph
 from pytket.pauli import QubitPauliString  # type: ignore
 from pytket.circuit import Circuit, Qubit  # type: ignore
