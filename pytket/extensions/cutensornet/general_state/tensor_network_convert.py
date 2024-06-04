@@ -52,18 +52,18 @@ class TensorNetwork:
         # self._circuit.replace_implicit_wire_swaps()
         self._qubit_names_ilo = [str(q) for q in self._circuit.qubits]
         self._logger.debug(f"ILO-ordered qubit names: {self._qubit_names_ilo}")
-        self._graph = Graph(self._circuit)
+        self._graph = Graph(self._circuit)  # type: ignore
         qname_to_q = {
             qname: q for qname, q in zip(self._qubit_names_ilo, self._circuit.qubits)
         }
         self._output_index_to_qubit = {
-            oi: qname_to_q[qname] for oi, qname in self._graph.output_names.items()
+            oi: qname_to_q[qname] for oi, qname in self._graph.output_names.items()  # type: ignore
         }
         self._logger.debug(
             f"NX output index to (possibly re-labeled) qubit objects map: "
             f"{self._output_index_to_qubit}"
         )
-        self._network = self._graph.as_nx()
+        self._network = self._graph.as_nx()  # type: ignore
         self._node_tensors = self._assign_node_tensors(adj=adj)
         self._node_tensor_indices, self.sticky_indices = self._get_tn_indices(
             self._network, adj=adj
@@ -263,14 +263,14 @@ class TensorNetwork:
         nodes_out = self._output_nodes
         # Re-order outward edges indices according to ILO
         edges_out = [
-            edge for edge in net.edges() if edge[1] in self._graph.output_names
+            edge for edge in net.edges() if edge[1] in self._graph.output_names  # type: ignore
         ]
         eids = [
             record[0][0] for key, record in edge_indices.items() if key in edges_out
         ]
         eids_sorted = sorted(eids, key=abs)
-        qnames_graph_ordered = [qname for qname in self._graph.output_names.values()]
-        oids_graph_ordered = [oid for oid in self._graph.output_names.keys()]
+        qnames_graph_ordered = [qname for qname in self._graph.output_names.values()]  # type: ignore
+        oids_graph_ordered = [oid for oid in self._graph.output_names.keys()]  # type: ignore
         eids_qubit_ordered = [
             eids_sorted[qnames_graph_ordered.index(q)] for q in self._qubit_names_ilo
         ]  # Order eid's in the same way as qnames_graph_ordered as compared to ILO
