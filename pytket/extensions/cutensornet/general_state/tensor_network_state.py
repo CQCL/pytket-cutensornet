@@ -47,8 +47,7 @@ class GeneralState:
         self._logger = set_logger("GeneralState", loglevel)
         self._circuit = circuit
         self._circuit.replace_implicit_wire_swaps()
-        self._handle = libhandle.handle
-        self._dev = libhandle.dev
+        self._lib = libhandle
 
         libhandle.print_device_properties(self._logger)
 
@@ -64,7 +63,7 @@ class GeneralState:
         self._work_desc = None
 
         self._state = cutn.create_state(
-            self._handle, cutn.StatePurity.PURE, num_qubits, qubits_dims, data_type
+            self._lib.handle, cutn.StatePurity.PURE, num_qubits, qubits_dims, data_type
         )
         self._gate_tensors = []
         for com in circuit.get_commands():
@@ -75,7 +74,7 @@ class GeneralState:
             )
 
             cutn.state_apply_tensor_operator(
-                handle=self._handle,
+                handle=self._lib.handle,
                 tensor_network_state=self._state,
                 num_state_modes=com.op.n_qubits,
                 state_modes=gate_qubit_indices,
@@ -112,7 +111,7 @@ class GeneralState:
             attr_dtype = cutn.state_get_attribute_dtype(attr)
             attr_arr = np.asarray(val, dtype=attr_dtype)
             cutn.state_configure(
-                self._handle,
+                self._lib.handle,
                 self._state,
                 attr,
                 attr_arr.ctypes.data,
@@ -138,20 +137,20 @@ class GeneralState:
         self._stream = (
             cp.cuda.Stream()
         )  # In current cuTN release it is unused (could be 0x0)
-        free_mem = self._dev.mem_info[0]
+        free_mem = self._lib.dev.mem_info[0]
         scratch_size = int(scratch_fraction * free_mem)
         self._scratch_space = cp.cuda.alloc(scratch_size)
         self._logger.debug(f"Allocated {scratch_size} bytes of scratch memory on GPU")
-        self._work_desc = cutn.create_workspace_descriptor(self._handle)
+        self._work_desc = cutn.create_workspace_descriptor(self._lib.handle)
         cutn.state_prepare(
-            self._handle,
+            self._lib.handle,
             self._state,
             scratch_size,
             self._work_desc,
             self._stream.ptr,  # type: ignore
         )
         workspace_size_d = cutn.workspace_get_memory_size(
-            self._handle,
+            self._lib.handle,
             self._work_desc,
             cutn.WorksizePref.RECOMMENDED,
             cutn.Memspace.DEVICE,
@@ -160,7 +159,7 @@ class GeneralState:
 
         if workspace_size_d <= scratch_size:
             cutn.workspace_set_memory(
-                self._handle,
+                self._lib.handle,
                 self._work_desc,
                 cutn.Memspace.DEVICE,
                 cutn.WorkspaceKind.SCRATCH,
@@ -175,7 +174,7 @@ class GeneralState:
         else:
             self.destroy()
             raise MemoryError(
-                f"Insufficient workspace size on the GPU device {self._dev.id}"
+                f"Insufficient workspace size on the GPU device {self._lib.dev.id}"
             )
 
     def compute(self, on_host: bool = True) -> Union[cp.ndarray, np.ndarray]:
@@ -193,7 +192,7 @@ class GeneralState:
             (2,) * self._circuit.n_qubits, dtype="complex128", order="F"
         )
         cutn.state_compute(
-            self._handle,
+            self._lib.handle,
             self._state,
             self._work_desc,
             (state_vector.data.ptr,),
@@ -241,11 +240,11 @@ class GeneralOperator:
             "I": _formatted_tensor(np.asarray([[1, 0], [0, 1]]), 1),
         }
         self._logger = set_logger("GeneralOperator", loglevel)
-        self._handle = libhandle.handle
+        self._lib = libhandle
         qubits_dims = (2,) * num_qubits
         data_type = cq.cudaDataType.CUDA_C_64F
         self._operator = cutn.create_network_operator(
-            self._handle, num_qubits, qubits_dims, data_type
+            self._lib.handle, num_qubits, qubits_dims, data_type
         )
         self._logger.debug("Adding operator terms:")
         for pauli_string, coeff in operator._dict.items():
@@ -262,7 +261,7 @@ class GeneralOperator:
             )
 
             cutn.network_operator_append_product(
-                handle=self._handle,
+                handle=self._lib.handle,
                 tensor_network_operator=self._operator,
                 coefficient=numeric_coeff,
                 num_tensors=num_pauli,
@@ -308,8 +307,7 @@ class GeneralExpectationValue:
         Raises:
             MemoryError: If there is insufficient workspace size on a GPU device.
         """
-        self._handle = libhandle.handle
-        self._dev = libhandle.dev
+        self._lib = libhandle
         self._logger = set_logger("GeneralExpectationValue", loglevel)
 
         self._stream = None
@@ -317,7 +315,7 @@ class GeneralExpectationValue:
         self._work_desc = None
 
         self._expectation = cutn.create_expectation(
-            self._handle, state.state, operator.operator
+            self._lib.handle, state.state, operator.operator
         )
 
     def configure(self, attributes: Optional[dict] = None) -> GeneralExpectationValue:
@@ -345,7 +343,7 @@ class GeneralExpectationValue:
             attr_dtype = cutn.expectation_get_attribute_dtype(attr)
             attr_arr = np.asarray(val, dtype=attr_dtype)
             cutn.expectation_configure(
-                self._handle,
+                self._lib.handle,
                 self._expectation,
                 attr,
                 attr_arr.ctypes.data,
@@ -372,20 +370,20 @@ class GeneralExpectationValue:
         self._stream = (
             cp.cuda.Stream()
         )  # In current cuTN release it is unused (could be 0x0)
-        free_mem = self._dev.mem_info[0]
+        free_mem = self._lib.dev.mem_info[0]
         scratch_size = int(scratch_fraction * free_mem)
         self._scratch_space = cp.cuda.alloc(scratch_size)
         self._logger.debug(f"Allocated {scratch_size} bytes of scratch memory on GPU")
-        self._work_desc = cutn.create_workspace_descriptor(self._handle)
+        self._work_desc = cutn.create_workspace_descriptor(self._lib.handle)
         cutn.expectation_prepare(
-            self._handle,
+            self._lib.handle,
             self._expectation,
             scratch_size,
             self._work_desc,
             self._stream.ptr,  # type: ignore
         )
         workspace_size_d = cutn.workspace_get_memory_size(
-            self._handle,
+            self._lib.handle,
             self._work_desc,
             cutn.WorksizePref.RECOMMENDED,
             cutn.Memspace.DEVICE,
@@ -394,7 +392,7 @@ class GeneralExpectationValue:
 
         if workspace_size_d <= scratch_size:
             cutn.workspace_set_memory(
-                self._handle,
+                self._lib.handle,
                 self._work_desc,
                 cutn.Memspace.DEVICE,
                 cutn.WorkspaceKind.SCRATCH,
@@ -409,7 +407,7 @@ class GeneralExpectationValue:
         else:
             self.destroy()
             raise MemoryError(
-                f"Insufficient workspace size on the GPU device {self._dev.id}"
+                f"Insufficient workspace size on the GPU device {self._lib.dev.id}"
             )
 
     def compute(self) -> tuple[complex, complex]:
@@ -417,7 +415,7 @@ class GeneralExpectationValue:
         expectation_value = np.empty(1, dtype="complex128")
         state_norm = np.empty(1, dtype="complex128")
         cutn.expectation_compute(
-            self._handle,
+            self._lib.handle,
             self._expectation,
             self._work_desc,
             expectation_value.ctypes.data,

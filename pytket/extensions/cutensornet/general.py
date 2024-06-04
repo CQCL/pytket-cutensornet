@@ -52,7 +52,16 @@ class CuTensorNetHandle:
         self.dev = dev
         self.device_id = dev.id
 
-        self.handle = cutn.create()
+        self._handle = cutn.create()
+
+    @property
+    def handle(self) -> Any:
+        if self._is_destroyed:
+            raise RuntimeError(
+                "The cuTensorNet library handle is out of scope.",
+                "See the documentation of CuTensorNetHandle.",
+            )
+        return self._handle
 
     def destroy(self) -> None:
         """Destroys the memory handle, releasing memory.
@@ -60,7 +69,7 @@ class CuTensorNetHandle:
         Only call this method if you are initialising a ``CuTensorNetHandle`` outside
         a ``with CuTensorNetHandle() as libhandle`` statement.
         """
-        cutn.destroy(self.handle)
+        cutn.destroy(self._handle)
         self._is_destroyed = True
 
     def __enter__(self) -> CuTensorNetHandle:
