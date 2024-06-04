@@ -1,6 +1,6 @@
 from numpy.typing import NDArray
 from pytket.backends.backendresult import BackendResult
-from pytket.circuit import Qubit, Circuit  # type: ignore
+from pytket.circuit import Qubit, Circuit
 
 
 def _reorder_qlist(
