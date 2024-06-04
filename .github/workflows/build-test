@@ -61,6 +61,6 @@ fi
 
 if [[ "${MYPY}" = "mypy" ]]
 then
-    python -m pip install pytket
+    python -m pip install --pre -r ${GITHUB_WORKSPACE}/.github/workflows/mypy/requirements.txt
     ${GITHUB_WORKSPACE}/mypy-check ${GITHUB_WORKSPACE}
 fi
