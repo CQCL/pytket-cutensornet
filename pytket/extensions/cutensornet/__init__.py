@@ -14,6 +14,7 @@
 """Module for conversion from tket primitives to cuQuantum primitives."""
 
 from .backends import CuTensorNetBackend
+from .general import CuTensorNetHandle
 
 # _metadata.py is copied to the folder after installation.
 from ._metadata import __extension_version__, __extension_name__  # type: ignore

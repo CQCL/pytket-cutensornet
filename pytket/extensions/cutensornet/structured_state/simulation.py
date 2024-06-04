@@ -32,8 +32,8 @@ from pytket.architecture import Architecture
 from pytket.passes import DefaultMappingPass
 from pytket.predicates import CompilationUnit
 
-from pytket.extensions.cutensornet.general import set_logger
-from .general import CuTensorNetHandle, Config, StructuredState
+from pytket.extensions.cutensornet.general import CuTensorNetHandle, set_logger
+from .general import Config, StructuredState
 from .mps_gate import MPSxGate
 from .mps_mpo import MPSxMPO
 from .ttn_gate import TTNxGate
