@@ -8,7 +8,6 @@ try:
 except ImportError:
     warnings.warn("local settings failed to import cupy", ImportWarning)
 import numpy as np
-from sympy import Expr  # type: ignore
 from numpy.typing import NDArray
 from pytket.circuit import Circuit
 from pytket.extensions.cutensornet.general import CuTensorNetHandle, set_logger
@@ -249,10 +248,7 @@ class GeneralOperator:
         )
         self._logger.debug("Adding operator terms:")
         for pauli_string, coeff in operator._dict.items():
-            if isinstance(coeff, Expr):
-                numeric_coeff = complex(coeff.evalf())  # type: ignore
-            else:
-                numeric_coeff = complex(coeff)  # type: ignore
+            numeric_coeff = complex(coeff)  # type: ignore
             self._logger.debug(f"   {numeric_coeff}, {pauli_string}")
             num_pauli = len(pauli_string.map)
             num_modes = (1,) * num_pauli
