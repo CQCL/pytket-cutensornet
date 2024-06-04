@@ -22,7 +22,7 @@ import networkx as nx  # type: ignore
 from networkx.classes.reportviews import OutMultiEdgeView, OutMultiEdgeDataView  # type: ignore
 import numpy as np
 from numpy.typing import NDArray
-from pytket.utils import Graph
+from pytket.utils import Graph  # type: ignore
 from pytket.pauli import QubitPauliString
 from pytket.circuit import Circuit, Qubit
 from pytket.utils import permute_rows_cols_in_unitary
