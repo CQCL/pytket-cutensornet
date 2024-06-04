@@ -125,9 +125,6 @@ def test_generalised_toffoli_box(n_qubits: int) -> None:
     CnXPairwiseDecomposition().apply(ket_circ)
     Transform.OptimiseCliffords().apply(ket_circ)
 
-    # The ideal outcome on ket 0 input
-    output = perm[(False,) * n_qubits]
-
     with CuTensorNetHandle() as libhandle:
         state = GeneralState(ket_circ, libhandle)
         ket_net_vector = state.configure().prepare().compute()
