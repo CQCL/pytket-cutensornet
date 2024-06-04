@@ -2,13 +2,13 @@ import cmath
 import random
 import numpy as np
 import pytest
-from pytket.circuit import ToffoliBox, Qubit  # type: ignore
-from pytket.passes import DecomposeBoxes, CnXPairwiseDecomposition  # type: ignore
-from pytket.transform import Transform  # type: ignore
-from pytket.pauli import QubitPauliString, Pauli  # type: ignore
-from pytket.utils.operators import QubitPauliOperator  # type: ignore
-from pytket.circuit import Circuit  # type: ignore
-from pytket.extensions.cutensornet.general_state import (  # type: ignore
+from pytket.circuit import ToffoliBox, Qubit
+from pytket.passes import DecomposeBoxes, CnXPairwiseDecomposition
+from pytket.transform import Transform
+from pytket.pauli import QubitPauliString, Pauli
+from pytket.utils.operators import QubitPauliOperator
+from pytket.circuit import Circuit
+from pytket.extensions.cutensornet.general_state import (
     GeneralState,
     GeneralOperator,
     GeneralExpectationValue,

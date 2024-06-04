@@ -10,10 +10,10 @@ except ImportError:
 import numpy as np
 from sympy import Expr  # type: ignore
 from numpy.typing import NDArray
-from pytket.circuit import Circuit  # type: ignore
+from pytket.circuit import Circuit
 from pytket.extensions.cutensornet.general import set_logger
 from pytket.extensions.cutensornet.structured_state import CuTensorNetHandle
-from pytket.utils.operators import QubitPauliOperator  # type: ignore
+from pytket.utils.operators import QubitPauliOperator
 
 try:
     import cuquantum as cq  # type: ignore
