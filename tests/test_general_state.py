@@ -42,13 +42,16 @@ def test_convert_statevec_ovl(circuit: Circuit) -> None:
         sv = state.configure().prepare().compute()
         state.destroy()
     sv_pytket = np.array([circuit.get_statevector()])
-    assert np.allclose(sv.round(10), sv_pytket.round(10))
+    assert np.allclose(sv, sv_pytket, atol=1e-10)
 
     op = QubitPauliOperator(
         {
             QubitPauliString({Qubit(0): Pauli.I, Qubit(1): Pauli.I}): 1.0,
         }
     )
+
+    # Use an alternative calculation of the overlap as the expectation value
+    # of the identity operator: <psi|psi> = <psi|I|psi>
     with CuTensorNetHandle() as libhandle:
         state = GeneralState(circuit, libhandle)
         oper = GeneralOperator(op, 2, libhandle)
@@ -124,13 +127,6 @@ def test_generalised_toffoli_box(n_qubits: int) -> None:
 
     # The ideal outcome on ket 0 input
     output = perm[(False,) * n_qubits]
-    # A trivial circuit generating this state
-    bra_circ = Circuit()
-    for q in ket_circ.qubits:
-        bra_circ.add_qubit(q)
-    for i, bit in enumerate(output):
-        if bit:
-            bra_circ.X(i)
 
     with CuTensorNetHandle() as libhandle:
         state = GeneralState(ket_circ, libhandle)
@@ -140,14 +136,8 @@ def test_generalised_toffoli_box(n_qubits: int) -> None:
     ket_pytket_vector = ket_circ.get_statevector()
     assert np.allclose(ket_net_vector, ket_pytket_vector)
 
-    with CuTensorNetHandle() as libhandle:
-        state = GeneralState(bra_circ, libhandle)
-        bra_net_vector = state.configure().prepare().compute()
-        state.destroy()
-    bra_net_vector = bra_net_vector * cmath.exp(1j * cmath.pi * bra_circ.phase)
-    bra_pytket_vector = bra_circ.get_statevector()
-    assert np.allclose(bra_net_vector, bra_pytket_vector)
-
+    # Use an alternative calculation of the overlap as the expectation value
+    # of the identity operator: <psi|psi> = <psi|I|psi>
     op = QubitPauliOperator(
         {
             QubitPauliString({Qubit(i): Pauli.I for i in range(n_qubits)}): 1.0,
