@@ -1,6 +1,5 @@
 from __future__ import annotations
 import logging
-import math
 from typing import Union, Optional, Any
 import warnings
 
@@ -68,64 +67,30 @@ class GeneralState:
         self._state = cutn.create_state(
             self._handle, cutn.StatePurity.PURE, num_qubits, qubits_dims, data_type
         )
-        self._mutable_gates_map = {}
         self._gate_tensors = []
         for com in circuit.get_commands():
-            gate_unitary = com.op.get_unitary().astype("complex128", copy=False)
-            # Transpose is needed because of the way cuTN stores tensors.
-            # See https://github.com/NVIDIA/cuQuantum/discussions/124
-            # #discussioncomment-8683146 for details.
-            self._gate_tensors.append(
-                cp.asarray(gate_unitary)
-                .T.astype(dtype="complex128", order="F")
-                .reshape([2] * (2 * com.op.n_qubits), order="F")
-            )
-            gate_strides = 0  # Always 0?
+            gate_unitary = com.op.get_unitary()
+            self._gate_tensors.append(_formatted_tensor(gate_unitary, com.op.n_qubits))
             gate_qubit_indices = tuple(
                 self._circuit.qubits.index(qb) for qb in com.qubits
             )
-            gate_id = cutn.state_apply_tensor(
-                self._handle,
-                self._state,
-                com.op.n_qubits,
-                gate_qubit_indices,
-                self._gate_tensors[-1].data.ptr,
-                gate_strides,
-                1,
-                0,
-                1,
+
+            cutn.state_apply_tensor_operator(
+                handle=self._handle,
+                tensor_network_state=self._state,
+                num_state_modes=com.op.n_qubits,
+                state_modes=gate_qubit_indices,
+                tensor_data=self._gate_tensors[-1].data.ptr,
+                tensor_mode_strides=0,
+                immutable=1,
+                adjoint=0,
+                unitary=1,
             )
-            if com.opgroup is not None:
-                self._mutable_gates_map[com.opgroup] = gate_id
 
     @property
     def state(self) -> Any:
         """Returns tensor network state handle as Python :code:`int`."""
         return self._state
-
-    def update_gates(self, gates_update_map: dict[str, NDArray]) -> None:
-        """Updates gate unitaries in the tensor network state.
-
-        Args:
-            gates_update_map: Map from gate (Command) opgroup name to a corresponding
-             gate unitary.
-
-        Raises:
-            ValueError: If a gate's unitary is of a wrong size.
-        """
-        for gate_label, unitary in gates_update_map.items():
-            gate_id = self._mutable_gates_map[gate_label]
-            gate_n_qubits = math.log2(unitary.shape[0])
-            if not gate_n_qubits.is_integer():
-                raise ValueError(
-                    f"Gate {gate_label} unitary's number of rows is not a power of two."
-                )
-            gate_tensor = cp.asarray(unitary, dtype="complex128").reshape(
-                [2] * (2 * int(gate_n_qubits)), order="F"
-            )
-            cutn.state_update_tensor(
-                self._handle, self._state, gate_id, gate_tensor.data.ptr, 1
-            )
 
     def configure(self, attributes: Optional[dict] = None) -> GeneralState:
         """Configures tensor network state for future contraction.
@@ -137,12 +102,14 @@ class GeneralState:
             Self (to allow for chaining with other methods).
         """
         if attributes is None:
-            attributes = {"NUM_HYPER_SAMPLES": 8}
-        attribute_values = [val for val in attributes.values()]
-        attribute_lst = [
-            getattr(cutn.StateAttribute, attr) for attr in attributes.keys()
+            attributes = dict()
+        if "NUM_HYPER_SAMPLES" not in attributes:
+            attributes["NUM_HYPER_SAMPLES"] = 8
+        attribute_pairs = [
+            getattr(cutn.StateAttribute, v) for k, v in attributes.items()
         ]
-        for attr, val in zip(attribute_lst, attribute_values):
+
+        for attr, val in attribute_pairs:
             attr_dtype = cutn.state_get_attribute_dtype(attr)
             attr_arr = np.asarray(val, dtype=attr_dtype)
             cutn.state_configure(
@@ -269,15 +236,15 @@ class GeneralOperator:
         """
         # Mind the transpose for Y (same argument as in GeneralState)
         self._pauli = {
-            "X": cp.asarray([[0, 1], [1, 0]]).astype("complex128", order="F"),
-            "Y": cp.asarray([[0, -1j], [1j, 0]]).T.astype("complex128", order="F"),
-            "Z": cp.asarray([[1, 0], [0, -1]]).astype("complex128", order="F"),
-            "I": cp.asarray([[1, 0], [0, 1]]).astype("complex128", order="F"),
+            "X": _formatted_tensor(np.asarray([[0, 1], [1, 0]]), 1),
+            "Y": _formatted_tensor(np.asarray([[0, -1j], [1j, 0]]), 1),
+            "Z": _formatted_tensor(np.asarray([[1, 0], [0, -1]]), 1),
+            "I": _formatted_tensor(np.asarray([[1, 0], [0, 1]]), 1),
         }
         self._logger = set_logger("GeneralOperator", loglevel)
         self._handle = libhandle.handle
         qubits_dims = (2,) * num_qubits
-        data_type = cq.cudaDataType.CUDA_C_64F  # TODO: implement a config class?
+        data_type = cq.cudaDataType.CUDA_C_64F
         self._operator = cutn.create_network_operator(
             self._handle, num_qubits, qubits_dims, data_type
         )
@@ -294,15 +261,16 @@ class GeneralOperator:
             gate_data = tuple(
                 self._pauli[pauli.name].data.ptr for pauli in pauli_string.map.values()
             )
+
             cutn.network_operator_append_product(
-                self._handle,
-                self._operator,
-                numeric_coeff,
-                num_pauli,
-                num_modes,
-                state_modes,
-                0,
-                gate_data,
+                handle=self._handle,
+                tensor_network_operator=self._operator,
+                coefficient=numeric_coeff,
+                num_tensors=num_pauli,
+                num_state_modes=num_modes,
+                state_modes=state_modes,
+                tensor_mode_strides=0,
+                tensor_data=gate_data,
             )
 
     @property
@@ -329,7 +297,7 @@ class GeneralExpectationValue:
 
         Notes:
             State and Operator must have the same handle as ExpectationValue.
-            State (and Operator?) need to exist during the whole lifetime of
+            State and Operator need to exist during the whole lifetime of
              ExpectationValue.
 
         Args:
@@ -350,7 +318,7 @@ class GeneralExpectationValue:
         self._work_desc = None
 
         self._expectation = cutn.create_expectation(
-            self._handle, state._state, operator._operator
+            self._handle, state.state, operator.operator
         )
 
     def configure(self, attributes: Optional[dict] = None) -> GeneralExpectationValue:
@@ -367,12 +335,14 @@ class GeneralExpectationValue:
             Self (to allow for chaining with other methods).
         """
         if attributes is None:
-            attributes = {"OPT_NUM_HYPER_SAMPLES": 8}
-        attribute_values = [val for val in attributes.values()]
-        attribute_lst = [
-            getattr(cutn.ExpectationAttribute, attr) for attr in attributes.keys()
+            attributes = dict()
+        if "OPT_NUM_HYPER_SAMPLES" not in attributes:
+            attributes["OPT_NUM_HYPER_SAMPLES"] = 8
+        attribute_pairs = [
+            getattr(cutn.ExpectationAttribute, v) for k, v in attributes.items()
         ]
-        for attr, val in zip(attribute_lst, attribute_values):
+
+        for attr, val in attribute_pairs:
             attr_dtype = cutn.expectation_get_attribute_dtype(attr)
             attr_arr = np.asarray(val, dtype=attr_dtype)
             cutn.expectation_configure(
@@ -394,7 +364,7 @@ class GeneralExpectationValue:
 
         Args:
             scratch_fraction: Fraction of free memory on GPU to allocate as scratch
-             space.
+             space. Defaults to 0.5.
 
         Returns:
             Self (to allow for chaining with other methods).
@@ -463,4 +433,16 @@ class GeneralExpectationValue:
         if self._work_desc is not None:
             cutn.destroy_workspace_descriptor(self._work_desc)  # type: ignore
         cutn.destroy_expectation(self._expectation)
-        del self._scratch_space  # TODO is this the correct way?
+        del self._scratch_space
+
+
+def _formatted_tensor(matrix: NDArray, n_qubits: int) -> cp.ndarray:
+    """Convert a matrix to the tensor format accepted by NVIDIA's API."""
+
+    # Transpose is needed because of the way cuTN stores tensors.
+    # See https://github.com/NVIDIA/cuQuantum/discussions/124
+    # #discussioncomment-8683146 for details.
+    cupy_matrix = cp.asarray(matrix).T.astype(dtype="complex128", order="F")
+    # We also need to reshape since a matrix only has 2 bonds, but for an
+    # n-qubit gate we want 2^n bonds for input and another 2^n for output
+    return cupy_matrix.reshape([2] * (2 * n_qubits), order="F")
