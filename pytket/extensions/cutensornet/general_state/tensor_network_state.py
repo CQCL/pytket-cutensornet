@@ -232,7 +232,6 @@ class GeneralOperator:
             libhandle: cuTensorNet handle.
             loglevel: Internal logger output level.
         """
-        # Mind the transpose for Y (same argument as in GeneralState)
         self._pauli = {
             "X": _formatted_tensor(np.asarray([[0, 1], [1, 0]]), 1),
             "Y": _formatted_tensor(np.asarray([[0, -1j], [1j, 0]]), 1),
