@@ -233,12 +233,13 @@ class GeneralState:
             "X": _formatted_tensor(np.asarray([[0, 1], [1, 0]]), 1),
             "Y": _formatted_tensor(np.asarray([[0, -1j], [1j, 0]]), 1),
             "Z": _formatted_tensor(np.asarray([[1, 0], [0, -1]]), 1),
+            "I": _formatted_tensor(np.asarray([[1, 0], [0, 1]]), 1),
         }
         num_qubits = self._circuit.n_qubits
         qubits_dims = (2,) * num_qubits
         data_type = cq.cudaDataType.CUDA_C_64F
 
-        operator = cutn.create_network_operator(
+        tn_operator = cutn.create_network_operator(
             self._lib.handle, num_qubits, qubits_dims, data_type
         )
 
@@ -262,21 +263,20 @@ class GeneralState:
             qubit_pauli_map = {
                 q: pauli_tensors[pauli.name]
                 for q, pauli in pauli_string.map.items()
-                if pauli.name != "I"  # Identity operators can be omitted
             }
 
             num_pauli = len(qubit_pauli_map)
             num_modes = (1,) * num_pauli
             state_modes = tuple(
-                self._circuit.qubits.index(qb) for qb in qubit_pauli_map.keys()
+                (self._circuit.qubits.index(qb),) for qb in qubit_pauli_map.keys()
             )
             gate_data = tuple(
-                pauli_tensors[pauli.name].data.ptr for pauli in qubit_pauli_map.values()
+                tensor.data.ptr for tensor in qubit_pauli_map.values()
             )
 
             cutn.network_operator_append_product(
                 handle=self._lib.handle,
-                tensor_network_operator=operator,
+                tensor_network_operator=tn_operator,
                 coefficient=numeric_coeff,
                 num_tensors=num_pauli,
                 num_state_modes=num_modes,
@@ -288,7 +288,7 @@ class GeneralState:
         ######################################################
         # Configure the cuTensorNet expectation value object #
         ######################################################
-        expectation = cutn.create_expectation(self._lib.handle, self._state, operator)
+        expectation = cutn.create_expectation(self._lib.handle, self._state, tn_operator)
 
         if attributes is None:
             attributes = dict()
@@ -383,8 +383,8 @@ class GeneralState:
             #####################################################
             if self._work_desc is not None:
                 cutn.destroy_workspace_descriptor(self._work_desc)  # type: ignore
-            cutn.destroy_network_operator(operator)
             cutn.destroy_expectation(expectation)
+            cutn.destroy_network_operator(tn_operator)
             del self._scratch_space
 
     def destroy(self) -> None:
