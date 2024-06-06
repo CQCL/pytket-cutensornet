@@ -23,4 +23,4 @@ from .tensor_network_convert import (
     measure_qubits_state,
 )
 
-from .tensor_network_state import GeneralState, GeneralOperator, GeneralExpectationValue
+from .tensor_network_state import GeneralState

@@ -1,6 +1,6 @@
 from __future__ import annotations
 import logging
-from typing import Union, Optional, Any
+from typing import Union, Optional
 import warnings
 
 try:
@@ -22,7 +22,7 @@ except ImportError:
 
 
 class GeneralState:
-    """Handles cuTensorNet tensor network state object."""
+    """Wraps a cuTensorNet TN object for exact simulations via path optimisation"""
 
     def __init__(
         self,
@@ -31,6 +31,10 @@ class GeneralState:
         loglevel: int = logging.INFO,
     ) -> None:
         """Constructs a tensor network state representation from a pytket circuit.
+
+        Note:
+            The tensor network is *not* contracted until the appropriate methods
+            from this class are called.
 
         Note:
             Circuit should not contain boxes - only explicit gates with specific unitary
@@ -46,6 +50,9 @@ class GeneralState:
         """
         self._logger = set_logger("GeneralState", loglevel)
         self._circuit = circuit
+        # TODO: This is not strictly necessary; implicit SWAPs could be resolved by
+        # qubit relabelling, but it's only worth doing so if there are clear signs
+        # of inefficiency due to this.
         self._circuit.replace_implicit_wire_swaps()
         self._lib = libhandle
 
@@ -57,15 +64,15 @@ class GeneralState:
         self._logger.debug(f"Converting a quantum circuit with {num_qubits} qubits.")
         data_type = cq.cudaDataType.CUDA_C_64F  # for now let that be hard-coded
 
-        # These are only required when doing preparation and evaluation.
-        self._stream = None
-        self._scratch_space = None
-        self._work_desc = None
-
         self._state = cutn.create_state(
             self._lib.handle, cutn.StatePurity.PURE, num_qubits, qubits_dims, data_type
         )
         self._gate_tensors = []
+
+        # Append all gates to the TN
+        # TODO: we should add a check to verify that the commands are unitaries
+        # (e.g. don't accept measurements). Potentially, measurements at the end of
+        # the circuit can be ignored at the user's request.
         for com in circuit.get_commands():
             gate_unitary = com.op.get_unitary()
             self._gate_tensors.append(_formatted_tensor(gate_unitary, com.op.n_qubits))
@@ -85,20 +92,30 @@ class GeneralState:
                 unitary=1,
             )
 
-    @property
-    def state(self) -> Any:
-        """Returns tensor network state handle as Python :code:`int`."""
-        return self._state
-
-    def configure(self, attributes: Optional[dict] = None) -> GeneralState:
-        """Configures tensor network state for future contraction.
+    def get_statevector(
+        self,
+        attributes: Optional[dict] = None,
+        scratch_fraction: float = 0.5,
+        on_host: bool = True,
+    ) -> Union[cp.ndarray, np.ndarray]:
+        """Contracts the circuit and returns the final statevector.
 
         Args:
             attributes: A dict of cuTensorNet State attributes and their values.
-
+            scratch_fraction: Fraction of free memory on GPU to allocate as scratch
+                space. Defaults to `0.5`.
+            on_host: If :code:`True`, converts cupy :code:`ndarray` to numpy
+                :code:`ndarray`, copying it to host device (CPU).
+        Raises:
+            MemoryError: If there is insufficient workspace on GPU.
         Returns:
-            Self (to allow for chaining with other methods).
+            Either a :code:`cupy.ndarray` on a GPU, or a :code:`numpy.ndarray` on a
+            host device (CPU). Arrays are returned in a 1D shape.
         """
+
+        ####################################
+        # Configure the TN for contraction #
+        ####################################
         if attributes is None:
             attributes = dict()
         if "NUM_HYPER_SAMPLES" not in attributes:
@@ -117,134 +134,114 @@ class GeneralState:
                 attr_arr.ctypes.data,
                 attr_arr.dtype.itemsize,
             )
-        return self
 
-    def prepare(self, scratch_fraction: float = 0.5) -> GeneralState:
-        """Prepare tensor network state for future contraction.
+        try:
+            ######################################
+            # Allocate workspace for contraction #
+            ######################################
+            stream = cp.cuda.Stream()
+            free_mem = self._lib.dev.mem_info[0]
+            scratch_size = int(scratch_fraction * free_mem)
+            scratch_space = cp.cuda.alloc(scratch_size)
+            self._logger.debug(
+                f"Allocated {scratch_size} bytes of scratch memory on GPU"
+            )
+            work_desc = cutn.create_workspace_descriptor(self._lib.handle)
 
-        Allocates workspace memory necessary for contraction.
-
-        Raises:
-            MemoryError: If there is insufficient workspace on GPU.
-
-        Args:
-            scratch_fraction: Fraction of free memory on GPU to allocate as scratch
-             space.
-
-        Returns:
-            Self (to allow for chaining with other methods).
-        """
-        self._stream = (
-            cp.cuda.Stream()
-        )  # In current cuTN release it is unused (could be 0x0)
-        free_mem = self._lib.dev.mem_info[0]
-        scratch_size = int(scratch_fraction * free_mem)
-        self._scratch_space = cp.cuda.alloc(scratch_size)
-        self._logger.debug(f"Allocated {scratch_size} bytes of scratch memory on GPU")
-        self._work_desc = cutn.create_workspace_descriptor(self._lib.handle)
-        cutn.state_prepare(
-            self._lib.handle,
-            self._state,
-            scratch_size,
-            self._work_desc,
-            self._stream.ptr,  # type: ignore
-        )
-        workspace_size_d = cutn.workspace_get_memory_size(
-            self._lib.handle,
-            self._work_desc,
-            cutn.WorksizePref.RECOMMENDED,
-            cutn.Memspace.DEVICE,
-            cutn.WorkspaceKind.SCRATCH,
-        )
-
-        if workspace_size_d <= scratch_size:
-            cutn.workspace_set_memory(
+            cutn.state_prepare(
                 self._lib.handle,
-                self._work_desc,
+                self._state,
+                scratch_size,
+                work_desc,
+                stream.ptr,
+            )
+            workspace_size_d = cutn.workspace_get_memory_size(
+                self._lib.handle,
+                work_desc,
+                cutn.WorksizePref.RECOMMENDED,
                 cutn.Memspace.DEVICE,
                 cutn.WorkspaceKind.SCRATCH,
-                self._scratch_space.ptr,  # type: ignore
-                workspace_size_d,
-            )
-            self._logger.debug(
-                f"Set {workspace_size_d} bytes of workspace memory out of the allocated"
-                f" scratch space."
-            )
-            return self
-        else:
-            self.destroy()
-            raise MemoryError(
-                f"Insufficient workspace size on the GPU device {self._lib.dev.id}"
             )
 
-    def compute(self, on_host: bool = True) -> Union[cp.ndarray, np.ndarray]:
-        """Evaluates state vector.
+            if workspace_size_d <= scratch_size:
+                cutn.workspace_set_memory(
+                    self._lib.handle,
+                    work_desc,
+                    cutn.Memspace.DEVICE,
+                    cutn.WorkspaceKind.SCRATCH,
+                    scratch_space.ptr,
+                    workspace_size_d,
+                )
+                self._logger.debug(
+                    f"Set {workspace_size_d} bytes of workspace memory out of the"
+                    f" allocated scratch space."
+                )
 
-        Args:
-            on_host: If :code:`True`, converts cupy :code:`ndarray` to numpy
-                :code:`ndarray`, copying it to host device (CPU).
+            else:
+                raise MemoryError(
+                    f"Insufficient workspace size on the GPU device {self._lib.dev.id}"
+                )
 
-        Returns:
-            Either a :code:`cupy.ndarray` on a GPU, or a :code:`numpy.ndarray` on a
-            host device (CPU). Arrays are returned in a 1D shape.
-        """
-        state_vector = cp.empty(
-            (2,) * self._circuit.n_qubits, dtype="complex128", order="F"
-        )
-        cutn.state_compute(
-            self._lib.handle,
-            self._state,
-            self._work_desc,
-            (state_vector.data.ptr,),
-            self._stream.ptr,  # type: ignore
-        )
-        self._stream.synchronize()  # type: ignore
-        if on_host:
-            return cp.asnumpy(state_vector.flatten())
-        return state_vector.flatten()
+            ###################
+            # Contract the TN #
+            ###################
+            state_vector = cp.empty(
+                (2,) * self._circuit.n_qubits, dtype="complex128", order="F"
+            )
+            cutn.state_compute(
+                self._lib.handle,
+                self._state,
+                work_desc,
+                (state_vector.data.ptr,),
+                stream.ptr,
+            )
+            stream.synchronize()
+            if on_host:
+                return cp.asnumpy(state_vector.flatten())
+            return state_vector.flatten()
 
-    def destroy(self) -> None:
-        """Destroys tensor network state."""
-        if self._work_desc is not None:
-            cutn.destroy_workspace_descriptor(self._work_desc)  # type: ignore
-        cutn.destroy_state(self._state)
-        del self._scratch_space
+        finally:
+            cutn.destroy_workspace_descriptor(work_desc)  # type: ignore
+            del scratch_space
 
-
-class GeneralOperator:
-    """Handles tensor network operator."""
-
-    def __init__(
+    def expectation_value(
         self,
         operator: QubitPauliOperator,
-        num_qubits: int,
-        libhandle: CuTensorNetHandle,
-        loglevel: int = logging.INFO,
-    ) -> None:
-        """Constructs a tensor network operator.
-
-        From a list of Pauli strings and corresponding coefficients.
+        attributes: Optional[dict] = None,
+        scratch_fraction: float = 0.5,
+    ) -> float:
+        """Calculates the expectation value of the given operator.
 
         Args:
-            operator: The Pauli operator.
-            num_qubits: Number of qubits in a circuit for which operator is to be
-             defined.
-            libhandle: cuTensorNet handle.
-            loglevel: Internal logger output level.
+            operator: The operator whose expectation value is to be measured.
+            attributes: A dict of cuTensorNet Expectation attributes and their values.
+            scratch_fraction: Fraction of free memory on GPU to allocate as scratch
+                space. Defaults to `0.5`.
+
+        Raises:
+            ValueError: If the operator acts on qubits not present in the circuit.
+
+        Returns:
+            The expectation value.
         """
-        self._pauli = {
+
+        ############################################
+        # Generate the cuTensorNet operator object #
+        ############################################
+        pauli_tensors = {
             "X": _formatted_tensor(np.asarray([[0, 1], [1, 0]]), 1),
             "Y": _formatted_tensor(np.asarray([[0, -1j], [1j, 0]]), 1),
             "Z": _formatted_tensor(np.asarray([[1, 0], [0, -1]]), 1),
             "I": _formatted_tensor(np.asarray([[1, 0], [0, 1]]), 1),
         }
-        self._logger = set_logger("GeneralOperator", loglevel)
-        self._lib = libhandle
+        num_qubits = self._circuit.n_qubits
         qubits_dims = (2,) * num_qubits
         data_type = cq.cudaDataType.CUDA_C_64F
-        self._operator = cutn.create_network_operator(
+
+        tn_operator = cutn.create_network_operator(
             self._lib.handle, num_qubits, qubits_dims, data_type
         )
+
         self._logger.debug("Adding operator terms:")
         for pauli_string, coeff in operator._dict.items():
             if isinstance(coeff, Expr):
@@ -252,16 +249,30 @@ class GeneralOperator:
             else:
                 numeric_coeff = complex(coeff)  # type: ignore
             self._logger.debug(f"   {numeric_coeff}, {pauli_string}")
-            num_pauli = len(pauli_string.map)
+
+            # Raise an error if the operator acts on qubits that are not in the circuit
+            if any(q not in self._circuit.qubits for q in pauli_string.map.keys()):
+                raise ValueError(
+                    f"The operator is acting on qubits {pauli_string.map.keys()}, "
+                    "but some of these are not present in the circuit, whose set of "
+                    f"qubits is: {self._circuit.qubits}."
+                )
+
+            # Obtain the tensors corresponding to this operator
+            qubit_pauli_map = {
+                q: pauli_tensors[pauli.name] for q, pauli in pauli_string.map.items()
+            }
+
+            num_pauli = len(qubit_pauli_map)
             num_modes = (1,) * num_pauli
-            state_modes = tuple((qubit.index[0],) for qubit in pauli_string.map.keys())
-            gate_data = tuple(
-                self._pauli[pauli.name].data.ptr for pauli in pauli_string.map.values()
+            state_modes = tuple(
+                (self._circuit.qubits.index(qb),) for qb in qubit_pauli_map.keys()
             )
+            gate_data = tuple(tensor.data.ptr for tensor in qubit_pauli_map.values())
 
             cutn.network_operator_append_product(
                 handle=self._lib.handle,
-                tensor_network_operator=self._operator,
+                tensor_network_operator=tn_operator,
                 coefficient=numeric_coeff,
                 num_tensors=num_pauli,
                 num_state_modes=num_modes,
@@ -270,66 +281,13 @@ class GeneralOperator:
                 tensor_data=gate_data,
             )
 
-    @property
-    def operator(self) -> Any:
-        """Returns tensor network operator handle as Python :code:`int`."""
-        return self._operator
-
-    def destroy(self) -> None:
-        """Destroys tensor network operator."""
-        cutn.destroy_network_operator(self._operator)
-
-
-class GeneralExpectationValue:
-    """Handles a general tensor network operator expectation value."""
-
-    def __init__(
-        self,
-        state: GeneralState,
-        operator: GeneralOperator,
-        libhandle: CuTensorNetHandle,
-        loglevel: int = logging.INFO,
-    ) -> None:
-        """Initialises expectation value object and corresponding work space.
-
-        Notes:
-            State and Operator must have the same handle as ExpectationValue.
-            State and Operator need to exist during the whole lifetime of
-             ExpectationValue.
-
-        Args:
-            state: General tensor network state.
-            operator: General tensor network operator.
-            libhandle: cuTensorNet handle.
-            loglevel: Internal logger output level.
-
-        Raises:
-            MemoryError: If there is insufficient workspace size on a GPU device.
-        """
-        self._lib = libhandle
-        self._logger = set_logger("GeneralExpectationValue", loglevel)
-
-        self._stream = None
-        self._scratch_space = None
-        self._work_desc = None
-
-        self._expectation = cutn.create_expectation(
-            self._lib.handle, state.state, operator.operator
+        ######################################################
+        # Configure the cuTensorNet expectation value object #
+        ######################################################
+        expectation = cutn.create_expectation(
+            self._lib.handle, self._state, tn_operator
         )
 
-    def configure(self, attributes: Optional[dict] = None) -> GeneralExpectationValue:
-        """Configures expectation value for future contraction.
-
-        Args:
-            attributes: A map of cuTensorNet :code:`ExpectationAttribute` objects to
-                their values.
-
-        Note:
-            Currently :code:`ExpectationAttribute` has only one attribute.
-
-        Returns:
-            Self (to allow for chaining with other methods).
-        """
         if attributes is None:
             attributes = dict()
         if "OPT_NUM_HYPER_SAMPLES" not in attributes:
@@ -343,93 +301,92 @@ class GeneralExpectationValue:
             attr_arr = np.asarray(val, dtype=attr_dtype)
             cutn.expectation_configure(
                 self._lib.handle,
-                self._expectation,
+                expectation,
                 attr,
                 attr_arr.ctypes.data,
                 attr_arr.dtype.itemsize,
             )
-        return self
 
-    def prepare(self, scratch_fraction: float = 0.5) -> GeneralExpectationValue:
-        """Prepare tensor network state for future contraction.
+        try:
+            ######################################
+            # Allocate workspace for contraction #
+            ######################################
+            stream = cp.cuda.Stream()
+            free_mem = self._lib.dev.mem_info[0]
+            scratch_size = int(scratch_fraction * free_mem)
+            scratch_space = cp.cuda.alloc(scratch_size)
 
-        Allocates workspace memory necessary for contraction.
-
-        Raises:
-            MemoryError: If there is insufficient space on the GPU device.
-
-        Args:
-            scratch_fraction: Fraction of free memory on GPU to allocate as scratch
-             space. Defaults to 0.5.
-
-        Returns:
-            Self (to allow for chaining with other methods).
-        """
-        # TODO: need to figure out if this needs to be done explicitly at all
-        self._stream = (
-            cp.cuda.Stream()
-        )  # In current cuTN release it is unused (could be 0x0)
-        free_mem = self._lib.dev.mem_info[0]
-        scratch_size = int(scratch_fraction * free_mem)
-        self._scratch_space = cp.cuda.alloc(scratch_size)
-        self._logger.debug(f"Allocated {scratch_size} bytes of scratch memory on GPU")
-        self._work_desc = cutn.create_workspace_descriptor(self._lib.handle)
-        cutn.expectation_prepare(
-            self._lib.handle,
-            self._expectation,
-            scratch_size,
-            self._work_desc,
-            self._stream.ptr,  # type: ignore
-        )
-        workspace_size_d = cutn.workspace_get_memory_size(
-            self._lib.handle,
-            self._work_desc,
-            cutn.WorksizePref.RECOMMENDED,
-            cutn.Memspace.DEVICE,
-            cutn.WorkspaceKind.SCRATCH,
-        )
-
-        if workspace_size_d <= scratch_size:
-            cutn.workspace_set_memory(
+            self._logger.debug(
+                f"Allocated {scratch_size} bytes of scratch memory on GPU"
+            )
+            work_desc = cutn.create_workspace_descriptor(self._lib.handle)
+            cutn.expectation_prepare(
                 self._lib.handle,
-                self._work_desc,
+                expectation,
+                scratch_size,
+                work_desc,
+                stream.ptr,
+            )
+            workspace_size_d = cutn.workspace_get_memory_size(
+                self._lib.handle,
+                work_desc,
+                cutn.WorksizePref.RECOMMENDED,
                 cutn.Memspace.DEVICE,
                 cutn.WorkspaceKind.SCRATCH,
-                self._scratch_space.ptr,  # type: ignore
-                workspace_size_d,
-            )
-            self._logger.debug(
-                f"Set {workspace_size_d} bytes of workspace memory out of the allocated"
-                f" scratch space."
-            )
-            return self
-        else:
-            self.destroy()
-            raise MemoryError(
-                f"Insufficient workspace size on the GPU device {self._lib.dev.id}"
             )
 
-    def compute(self) -> tuple[complex, complex]:
-        """Computes expectation value."""
-        expectation_value = np.empty(1, dtype="complex128")
-        state_norm = np.empty(1, dtype="complex128")
-        cutn.expectation_compute(
-            self._lib.handle,
-            self._expectation,
-            self._work_desc,
-            expectation_value.ctypes.data,
-            state_norm.ctypes.data,
-            self._stream.ptr,  # type: ignore
-        )
-        self._stream.synchronize()  # type: ignore
-        return expectation_value.item(), state_norm.item()
+            if workspace_size_d <= scratch_size:
+                cutn.workspace_set_memory(
+                    self._lib.handle,
+                    work_desc,
+                    cutn.Memspace.DEVICE,
+                    cutn.WorkspaceKind.SCRATCH,
+                    scratch_space.ptr,
+                    workspace_size_d,
+                )
+                self._logger.debug(
+                    f"Set {workspace_size_d} bytes of workspace memory out of the"
+                    f" allocated scratch space."
+                )
+            else:
+                raise MemoryError(
+                    f"Insufficient workspace size on the GPU device {self._lib.dev.id}"
+                )
+
+            #################################
+            # Compute the expectation value #
+            #################################
+            expectation_value = np.empty(1, dtype="complex128")
+            state_norm = np.empty(1, dtype="complex128")
+            cutn.expectation_compute(
+                self._lib.handle,
+                expectation,
+                work_desc,
+                expectation_value.ctypes.data,
+                state_norm.ctypes.data,
+                stream.ptr,
+            )
+            stream.synchronize()
+
+            # Note: we can also return `state_norm.item()`, but this should be 1 since
+            # we are always running unitary circuits
+            assert np.isclose(state_norm.item(), 1.0)
+            # The expectation value is a real number
+            assert np.isclose(expectation_value.item().imag, 0.0)
+            return expectation_value.item().real  # type: ignore
+
+        finally:
+            #####################################################
+            # Destroy the Operator and ExpectationValue objects #
+            #####################################################
+            cutn.destroy_workspace_descriptor(work_desc)  # type: ignore
+            cutn.destroy_expectation(expectation)
+            cutn.destroy_network_operator(tn_operator)
+            del scratch_space
 
     def destroy(self) -> None:
-        """Destroys tensor network expectation value and workspace descriptor."""
-        if self._work_desc is not None:
-            cutn.destroy_workspace_descriptor(self._work_desc)  # type: ignore
-        cutn.destroy_expectation(self._expectation)
-        del self._scratch_space
+        """Destroys tensor network state."""
+        cutn.destroy_state(self._state)
 
 
 def _formatted_tensor(matrix: NDArray, n_qubits: int) -> cp.ndarray:
