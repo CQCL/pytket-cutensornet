@@ -64,11 +64,6 @@ class GeneralState:
         self._logger.debug(f"Converting a quantum circuit with {num_qubits} qubits.")
         data_type = cq.cudaDataType.CUDA_C_64F  # for now let that be hard-coded
 
-        # These are only required when doing preparation and evaluation.
-        self._stream = None
-        self._scratch_space = None
-        self._work_desc = None
-
         self._state = cutn.create_state(
             self._lib.handle, cutn.StatePurity.PURE, num_qubits, qubits_dims, data_type
         )
@@ -140,70 +135,74 @@ class GeneralState:
                 attr_arr.dtype.itemsize,
             )
 
-        ######################################
-        # Allocate workspace for contraction #
-        ######################################
-        self._stream = (
-            cp.cuda.Stream()
-        )  # In current cuTN release it is unused (could be 0x0)
-        free_mem = self._lib.dev.mem_info[0]
-        scratch_size = int(scratch_fraction * free_mem)
-        self._scratch_space = cp.cuda.alloc(scratch_size)
-        self._logger.debug(f"Allocated {scratch_size} bytes of scratch memory on GPU")
-        self._work_desc = cutn.create_workspace_descriptor(self._lib.handle)
+        try:
+            ######################################
+            # Allocate workspace for contraction #
+            ######################################
+            stream = cp.cuda.Stream()
+            free_mem = self._lib.dev.mem_info[0]
+            scratch_size = int(scratch_fraction * free_mem)
+            scratch_space = cp.cuda.alloc(scratch_size)
+            self._logger.debug(
+                f"Allocated {scratch_size} bytes of scratch memory on GPU"
+            )
+            work_desc = cutn.create_workspace_descriptor(self._lib.handle)
 
-        cutn.state_prepare(
-            self._lib.handle,
-            self._state,
-            scratch_size,
-            self._work_desc,
-            self._stream.ptr,  # type: ignore
-        )
-        workspace_size_d = cutn.workspace_get_memory_size(
-            self._lib.handle,
-            self._work_desc,
-            cutn.WorksizePref.RECOMMENDED,
-            cutn.Memspace.DEVICE,
-            cutn.WorkspaceKind.SCRATCH,
-        )
-
-        if workspace_size_d <= scratch_size:
-            cutn.workspace_set_memory(
+            cutn.state_prepare(
                 self._lib.handle,
-                self._work_desc,
+                self._state,
+                scratch_size,
+                work_desc,
+                stream.ptr,
+            )
+            workspace_size_d = cutn.workspace_get_memory_size(
+                self._lib.handle,
+                work_desc,
+                cutn.WorksizePref.RECOMMENDED,
                 cutn.Memspace.DEVICE,
                 cutn.WorkspaceKind.SCRATCH,
-                self._scratch_space.ptr,  # type: ignore
-                workspace_size_d,
-            )
-            self._logger.debug(
-                f"Set {workspace_size_d} bytes of workspace memory out of the"
-                f" allocated scratch space."
             )
 
-        else:
-            self.destroy()
-            raise MemoryError(
-                f"Insufficient workspace size on the GPU device {self._lib.dev.id}"
-            )
+            if workspace_size_d <= scratch_size:
+                cutn.workspace_set_memory(
+                    self._lib.handle,
+                    work_desc,
+                    cutn.Memspace.DEVICE,
+                    cutn.WorkspaceKind.SCRATCH,
+                    scratch_space.ptr,
+                    workspace_size_d,
+                )
+                self._logger.debug(
+                    f"Set {workspace_size_d} bytes of workspace memory out of the"
+                    f" allocated scratch space."
+                )
 
-        ###################
-        # Contract the TN #
-        ###################
-        state_vector = cp.empty(
-            (2,) * self._circuit.n_qubits, dtype="complex128", order="F"
-        )
-        cutn.state_compute(
-            self._lib.handle,
-            self._state,
-            self._work_desc,
-            (state_vector.data.ptr,),
-            self._stream.ptr,  # type: ignore
-        )
-        self._stream.synchronize()  # type: ignore
-        if on_host:
-            return cp.asnumpy(state_vector.flatten())
-        return state_vector.flatten()
+            else:
+                raise MemoryError(
+                    f"Insufficient workspace size on the GPU device {self._lib.dev.id}"
+                )
+
+            ###################
+            # Contract the TN #
+            ###################
+            state_vector = cp.empty(
+                (2,) * self._circuit.n_qubits, dtype="complex128", order="F"
+            )
+            cutn.state_compute(
+                self._lib.handle,
+                self._state,
+                work_desc,
+                (state_vector.data.ptr,),
+                stream.ptr,
+            )
+            stream.synchronize()
+            if on_host:
+                return cp.asnumpy(state_vector.flatten())
+            return state_vector.flatten()
+
+        finally:
+            cutn.destroy_workspace_descriptor(work_desc)  # type: ignore
+            del scratch_space
 
     def expectation_value(
         self,
@@ -261,8 +260,7 @@ class GeneralState:
 
             # Obtain the tensors corresponding to this operator
             qubit_pauli_map = {
-                q: pauli_tensors[pauli.name]
-                for q, pauli in pauli_string.map.items()
+                q: pauli_tensors[pauli.name] for q, pauli in pauli_string.map.items()
             }
 
             num_pauli = len(qubit_pauli_map)
@@ -270,9 +268,7 @@ class GeneralState:
             state_modes = tuple(
                 (self._circuit.qubits.index(qb),) for qb in qubit_pauli_map.keys()
             )
-            gate_data = tuple(
-                tensor.data.ptr for tensor in qubit_pauli_map.values()
-            )
+            gate_data = tuple(tensor.data.ptr for tensor in qubit_pauli_map.values())
 
             cutn.network_operator_append_product(
                 handle=self._lib.handle,
@@ -288,7 +284,9 @@ class GeneralState:
         ######################################################
         # Configure the cuTensorNet expectation value object #
         ######################################################
-        expectation = cutn.create_expectation(self._lib.handle, self._state, tn_operator)
+        expectation = cutn.create_expectation(
+            self._lib.handle, self._state, tn_operator
+        )
 
         if attributes is None:
             attributes = dict()
@@ -313,25 +311,25 @@ class GeneralState:
             ######################################
             # Allocate workspace for contraction #
             ######################################
-            self._stream = cp.cuda.Stream()
+            stream = cp.cuda.Stream()
             free_mem = self._lib.dev.mem_info[0]
             scratch_size = int(scratch_fraction * free_mem)
-            self._scratch_space = cp.cuda.alloc(scratch_size)
+            scratch_space = cp.cuda.alloc(scratch_size)
 
             self._logger.debug(
                 f"Allocated {scratch_size} bytes of scratch memory on GPU"
             )
-            self._work_desc = cutn.create_workspace_descriptor(self._lib.handle)
+            work_desc = cutn.create_workspace_descriptor(self._lib.handle)
             cutn.expectation_prepare(
                 self._lib.handle,
                 expectation,
                 scratch_size,
-                self._work_desc,
-                self._stream.ptr,  # type: ignore
+                work_desc,
+                stream.ptr,
             )
             workspace_size_d = cutn.workspace_get_memory_size(
                 self._lib.handle,
-                self._work_desc,
+                work_desc,
                 cutn.WorksizePref.RECOMMENDED,
                 cutn.Memspace.DEVICE,
                 cutn.WorkspaceKind.SCRATCH,
@@ -340,10 +338,10 @@ class GeneralState:
             if workspace_size_d <= scratch_size:
                 cutn.workspace_set_memory(
                     self._lib.handle,
-                    self._work_desc,
+                    work_desc,
                     cutn.Memspace.DEVICE,
                     cutn.WorkspaceKind.SCRATCH,
-                    self._scratch_space.ptr,  # type: ignore
+                    scratch_space.ptr,
                     workspace_size_d,
                 )
                 self._logger.debug(
@@ -363,12 +361,12 @@ class GeneralState:
             cutn.expectation_compute(
                 self._lib.handle,
                 expectation,
-                self._work_desc,
+                work_desc,
                 expectation_value.ctypes.data,
                 state_norm.ctypes.data,
-                self._stream.ptr,  # type: ignore
+                stream.ptr,
             )
-            self._stream.synchronize()  # type: ignore
+            stream.synchronize()
 
             # Note: we can also return `state_norm.item()`, but this should be 1 since
             # we are always running unitary circuits
@@ -381,18 +379,14 @@ class GeneralState:
             #####################################################
             # Destroy the Operator and ExpectationValue objects #
             #####################################################
-            if self._work_desc is not None:
-                cutn.destroy_workspace_descriptor(self._work_desc)  # type: ignore
+            cutn.destroy_workspace_descriptor(work_desc)  # type: ignore
             cutn.destroy_expectation(expectation)
             cutn.destroy_network_operator(tn_operator)
-            del self._scratch_space
+            del scratch_space
 
     def destroy(self) -> None:
         """Destroys tensor network state."""
-        if self._work_desc is not None:
-            cutn.destroy_workspace_descriptor(self._work_desc)  # type: ignore
         cutn.destroy_state(self._state)
-        del self._scratch_space
 
 
 def _formatted_tensor(matrix: NDArray, n_qubits: int) -> cp.ndarray:

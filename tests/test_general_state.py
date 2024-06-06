@@ -36,7 +36,6 @@ def test_convert_statevec_ovl(circuit: Circuit) -> None:
     with CuTensorNetHandle() as libhandle:
         state = GeneralState(circuit, libhandle)
         sv = state.get_statevector()
-        state.destroy()
     sv_pytket = np.array([circuit.get_statevector()])
     assert np.allclose(sv, sv_pytket, atol=1e-10)
 
@@ -51,7 +50,6 @@ def test_convert_statevec_ovl(circuit: Circuit) -> None:
     with CuTensorNetHandle() as libhandle:
         state = GeneralState(circuit, libhandle)
         ovl = state.expectation_value(op)
-        state.destroy()
     assert ovl == pytest.approx(1.0)
 
 
@@ -80,7 +78,6 @@ def test_toffoli_box_with_implicit_swaps() -> None:
     with CuTensorNetHandle() as libhandle:
         state = GeneralState(ket_circ, libhandle)
         ket_net_vector = state.get_statevector()
-        state.destroy()
 
     # Apply phase
     ket_net_vector = ket_net_vector * cmath.exp(1j * cmath.pi * ket_circ.phase)
@@ -119,7 +116,6 @@ def test_generalised_toffoli_box(n_qubits: int) -> None:
     with CuTensorNetHandle() as libhandle:
         state = GeneralState(ket_circ, libhandle)
         ket_net_vector = state.get_statevector()
-        state.destroy()
     ket_net_vector = ket_net_vector * cmath.exp(1j * cmath.pi * ket_circ.phase)
     ket_pytket_vector = ket_circ.get_statevector()
     assert np.allclose(ket_net_vector, ket_pytket_vector)
@@ -135,5 +131,4 @@ def test_generalised_toffoli_box(n_qubits: int) -> None:
     with CuTensorNetHandle() as libhandle:
         state = GeneralState(ket_circ, libhandle)
         ovl = state.expectation_value(op)
-        state.destroy()
     assert ovl == pytest.approx(1.0)
