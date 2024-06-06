@@ -16,7 +16,7 @@ import warnings
 from typing import Union
 from enum import Enum
 
-from random import random  # type: ignore
+from random import Random  # type: ignore
 import numpy as np  # type: ignore
 
 try:
@@ -89,6 +89,8 @@ class MPS(StructuredState):
         self._lib = libhandle
         self._cfg = config
         self._logger = set_logger("MPS", level=config.loglevel)
+        self._rng = Random()
+        self._rng.seed(self._cfg.seed)
         self.fidelity = 1.0
 
         n_tensors = len(qubits)
@@ -160,9 +162,54 @@ class MPS(StructuredState):
 
         Raises:
             RuntimeError: If the ``CuTensorNetHandle`` is out of scope.
-            RuntimeError: If gate acts on more than 2 qubits or acts on non-adjacent
+            ValueError: If the command introduced is not a unitary gate.
+            ValueError: If gate acts on more than 2 qubits or acts on non-adjacent
                 qubits.
-            RuntimeError: If physical bond dimension where gate is applied is not 2.
+        """
+        try:
+            unitary = gate.op.get_unitary()
+        except:
+            raise ValueError("The command introduced is not unitary.")
+
+        # Load the gate's unitary to the GPU memory
+        unitary = unitary.astype(dtype=self._cfg._complex_t, copy=False)
+        unitary = cp.asarray(unitary, dtype=self._cfg._complex_t)
+
+        self._logger.debug(f"Applying gate {gate}.")
+        if len(gate.qubits) not in [1, 2]:
+            raise ValueError(
+                "Gates must act on only 1 or 2 qubits! "
+                + f"This is not satisfied by {gate}."
+            )
+
+        self.apply_unitary(unitary, gate.qubits)
+
+        return self
+
+    def apply_unitary(
+        self, unitary: cp.ndarray, qubits: list[Qubit]
+    ) -> StructuredState:
+        """Applies the unitary to the specified qubits of the StructuredState.
+
+        Note:
+            It is assumed that the matrix provided by the user is unitary. If this is
+            not the case, the program will still run, but its behaviour is undefined.
+
+        Args:
+            unitary: The matrix to be applied as a CuPy ndarray. It should either be
+                a 2x2 matrix if acting on one qubit or a 4x4 matrix if acting on two.
+            qubits: The qubits the unitary acts on. Only one qubit and two qubit
+                unitaries are supported.
+
+        Returns:
+            ``self``, to allow for method chaining.
+
+        Raises:
+            RuntimeError: If the ``CuTensorNetHandle`` is out of scope.
+            ValueError: If the number of qubits provided is not one or two.
+            ValueError: If the size of the matrix does not match with the number of
+                qubits provided.
+            ValueError: If qubits are non-adjacent.
         """
         if self._lib._is_destroyed:
             raise RuntimeError(
@@ -170,38 +217,37 @@ class MPS(StructuredState):
                 "See the documentation of update_libhandle and CuTensorNetHandle.",
             )
 
-        positions = [self.qubit_position[q] for q in gate.qubits]
-        if any(self.get_physical_dimension(pos) != 2 for pos in positions):
-            raise RuntimeError(
-                "Gates can only be applied to tensors with physical"
-                + " bond dimension of 2."
-            )
-        self._logger.debug(f"Applying gate {gate}")
+        self._logger.debug(f"Applying unitary {unitary} on {qubits}.")
 
-        if len(positions) == 1:
-            self._apply_1q_gate(positions[0], gate.op)
+        if len(qubits) == 1:
+            if unitary.shape != (2, 2):
+                raise ValueError(
+                    "The unitary introduced acts on one qubit but it is not 2x2."
+                )
+
+            self._apply_1q_unitary(unitary, qubits[0])
             # NOTE: if the tensor was in canonical form, it remains being so,
             #   since it is guaranteed that the gate is unitary.
 
-        elif len(positions) == 2:
+        elif len(qubits) == 2:
+            if unitary.shape != (4, 4):
+                raise ValueError(
+                    "The unitary introduced acts on two qubits but it is not 4x4."
+                )
+
+            positions = [self.qubit_position[q] for q in qubits]
             dist = positions[1] - positions[0]
             # We explicitly allow both dist==1 or dist==-1 so that non-symmetric
             # gates such as CX can use the same Op for the two ways it can be in.
             if dist not in [1, -1]:
-                raise RuntimeError(
-                    "Gates must be applied to adjacent qubits! "
-                    + f"This is not satisfied by {gate}."
-                )
-            self._apply_2q_gate((positions[0], positions[1]), gate.op)
+                raise ValueError("Gates must be applied to adjacent qubits!")
+            self._apply_2q_unitary(unitary, qubits[0], qubits[1])
             # The tensors will in general no longer be in canonical form.
             self.canonical_form[positions[0]] = None
             self.canonical_form[positions[1]] = None
 
         else:
-            raise RuntimeError(
-                "Gates must act on only 1 or 2 qubits! "
-                + f"This is not satisfied by {gate}."
-            )
+            raise ValueError("Gates must act on only 1 or 2 qubits!")
 
         return self
 
@@ -215,6 +261,102 @@ class MPS(StructuredState):
             ``self``, to allow for method chaining.
         """
         self.tensors[0] *= scalar
+        return self
+
+    def apply_qubit_relabelling(self, qubit_map: dict[Qubit, Qubit]) -> MPS:
+        """Relabels each qubit ``q`` as ``qubit_map[q]``.
+
+        This does not apply any SWAP gate, nor it changes the internal structure of the
+        state. It simply changes the label of the physical bonds of the tensor network.
+
+        Args:
+            qubit_map: Dictionary mapping each qubit to its new label.
+
+        Returns:
+            ``self``, to allow for method chaining.
+
+        Raises:
+            ValueError: If any of the keys in ``qubit_map`` are not qubits in the state.
+        """
+        new_qubit_position = dict()
+        for q_orig, q_new in qubit_map.items():
+            # Check the qubit is in the state
+            if q_orig not in self.qubit_position:
+                raise ValueError(f"Qubit {q_orig} is not in the state.")
+            # Apply the relabelling for this qubit
+            new_qubit_position[q_new] = self.qubit_position[q_orig]
+
+        self.qubit_position = new_qubit_position
+        self._logger.debug(f"Relabelled qubits... {qubit_map}")
+        return self
+
+    def add_qubit(self, new_qubit: Qubit, position: int, state: int = 0) -> MPS:
+        """Adds a qubit at the specified position.
+
+        Args:
+            new_qubit: The identifier of the qubit to be added to the state.
+            position: The location the new qubit should be inserted at in the MPS.
+                Qubits on this and later indexed have their position shifted by 1.
+            state: Choose either ``0`` or ``1`` for the new qubit's state.
+                Defaults to ``0``.
+
+        Returns:
+            ``self``, to allow for method chaining.
+
+        Raises:
+            ValueError: If ``new_qubit`` already exists in the state.
+            ValueError: If ``position`` is negative or larger than ``len(self)``.
+            ValueError: If ``state`` is not ``0`` or ``1``.
+        """
+        options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
+
+        if new_qubit in self.qubit_position.keys():
+            raise ValueError(
+                f"Qubit {new_qubit} cannot be added, it already is in the MPS."
+            )
+        if position < 0 or position > len(self):
+            raise ValueError(f"Index {position} is not a valid position in the MPS.")
+        if state not in [0, 1]:
+            raise ValueError(
+                f"Cannot initialise qubit to state {state}. Only 0 or 1 are supported."
+            )
+
+        # Identify the dimension of the virtual bond where the new qubit will appear
+        if position == len(self):
+            dim = self.get_virtual_dimensions(len(self) - 1)[1]  # Rightmost bond
+        else:  # Otherwise, pick the left bond of the tensor currently in ``position``
+            dim = self.get_virtual_dimensions(position)[0]
+
+        # Create the tensor for I \otimes |state>
+        identity = cp.eye(dim, dtype=self._cfg._complex_t)
+        qubit_tensor = cp.zeros(2, dtype=self._cfg._complex_t)
+        qubit_tensor[state] = 1
+        # Apply the tensor product
+        new_tensor = cq.contract(
+            "lr,p->lrp",
+            identity,
+            qubit_tensor,
+            options=options,
+            optimize={"path": [(0, 1)]},
+        )
+
+        # Place this ``new_tensor`` in the MPS at ``position``,
+        # the previous tensors at ``position`` onwards are shifted to the right
+        orig_mps_len = len(self)  # Store it in variable, since this will change
+        self.tensors.insert(position, new_tensor)
+
+        # Update the dictionary tracking the canonical form
+        for pos in reversed(range(position, orig_mps_len)):
+            self.canonical_form[pos + 1] = self.canonical_form[pos]
+        # The canonical form of the new tensor is both LEFT and RIGHT, just choose one
+        self.canonical_form[position] = DirMPS.LEFT  # type: ignore
+
+        # Finally, update the dictionary tracking the qubit position
+        for q, pos in self.qubit_position.items():
+            if pos >= position:
+                self.qubit_position[q] += 1
+        self.qubit_position[new_qubit] = position
+
         return self
 
     def canonicalise(self, l_pos: int, r_pos: int) -> None:
@@ -445,26 +587,33 @@ class MPS(StructuredState):
         # modify the algorithm in `measure`. This may be done eventually if `copy`
         # is shown to be a bottleneck when sampling (which is likely).
         mps = self.copy()
-        return mps.measure(mps.get_qubits())
+        outcomes = mps.measure(mps.get_qubits())
+        # If the user sets a seed for the MPS, we'd like that every copy of the MPS
+        # produces the same sequence of samples, but samples within a sequence may be
+        # different from each other. Achieved by updating the state of `self._rng`.
+        self._rng.setstate(mps._rng.getstate())
 
-    def measure(self, qubits: set[Qubit]) -> dict[Qubit, int]:
-        """Applies a Z measurement on ``qubits``, updates the MPS and returns outcome.
+        return outcomes
+
+    def measure(self, qubits: set[Qubit], destructive: bool = True) -> dict[Qubit, int]:
+        """Applies a Z measurement on each of the ``qubits``.
 
         Notes:
-            After applying this function, ``self`` will contain the MPS of the projected
-            state over the non-measured qubits.
-
-            The resulting state has been normalised.
+            After applying this function, ``self`` will contain the normalised
+            projected state.
 
         Args:
             qubits: The subset of qubits to be measured.
+            destructive: If ``True``, the resulting state will not contain the
+                measured qubits. If ``False``, these qubits will remain in the
+                state. Defaults to ``True``.
 
         Returns:
             A dictionary mapping the given ``qubits`` to their measurement outcome,
             i.e. either ``0`` or ``1``.
 
         Raises:
-            ValueError: If an element in ``qubits`` is not a qubit in the MPS.
+            ValueError: If an element in ``qubits`` is not a qubit in the state.
         """
         result = dict()
 
@@ -508,7 +657,7 @@ class MPS(StructuredState):
             )
 
             # Throw a coin to decide measurement outcome
-            outcome = 0 if prob > random() else 1
+            outcome = 0 if prob > self._rng.random() else 1
             result[position_qubit_map[pos]] = outcome
             self._logger.debug(f"Outcome of qubit at {pos} is {outcome}.")
 
@@ -519,6 +668,11 @@ class MPS(StructuredState):
             )  # Normalise
 
             self._postselect_qubit(position_qubit_map[pos], postselection_tensor)
+
+            # If the measurement is not destructive, we must add the qubit back again
+            if not destructive:
+                qubit = position_qubit_map[pos]
+                self.add_qubit(qubit, pos, state=outcome)
 
         return result
 
@@ -879,6 +1033,16 @@ class MPS(StructuredState):
         new_mps.canonical_form = self.canonical_form.copy()
         new_mps.qubit_position = self.qubit_position.copy()
 
+        # If the user has set a seed, assume that they'd want every copy
+        # to behave in the same way, so we copy the RNG state
+        if self._cfg.seed is not None:
+            # Setting state (rather than just copying the seed) allows for the
+            # copy to continue from the same point in the sequence of random
+            # numbers as the original copy
+            new_mps._rng.setstate(self._rng.getstate())
+        # Otherwise, samples will be different between copies, since their
+        # self._rng will be initialised from system randomnes when seed=None.
+
         self._logger.debug(
             "Successfully copied an MPS "
             f"of size {new_mps.get_byte_size() / 2**20} MiB."
@@ -892,13 +1056,13 @@ class MPS(StructuredState):
         """
         return len(self.tensors)
 
-    def _apply_1q_gate(self, position: int, gate: Op) -> MPS:
+    def _apply_1q_unitary(self, unitary: cp.ndarray, qubit: Qubit) -> MPS:
         raise NotImplementedError(
             "MPS is a base class with no contraction algorithm implemented."
             + " You must use a subclass of MPS, such as MPSxGate or MPSxMPO."
         )
 
-    def _apply_2q_gate(self, positions: tuple[int, int], gate: Op) -> MPS:
+    def _apply_2q_unitary(self, unitary: cp.ndarray, q0: Qubit, q1: Qubit) -> MPS:
         raise NotImplementedError(
             "MPS is a base class with no contraction algorithm implemented."
             + " You must use a subclass of MPS, such as MPSxGate or MPSxMPO."
