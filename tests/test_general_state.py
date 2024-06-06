@@ -36,21 +36,23 @@ def test_convert_statevec_ovl(circuit: Circuit) -> None:
     with CuTensorNetHandle() as libhandle:
         state = GeneralState(circuit, libhandle)
         sv = state.get_statevector()
-    sv_pytket = np.array([circuit.get_statevector()])
-    assert np.allclose(sv, sv_pytket, atol=1e-10)
 
-    op = QubitPauliOperator(
-        {
-            QubitPauliString({Qubit(0): Pauli.I, Qubit(1): Pauli.I}): 1.0,
-        }
-    )
+        sv_pytket = np.array([circuit.get_statevector()])
+        assert np.allclose(sv, sv_pytket, atol=1e-10)
 
-    # Use an alternative calculation of the overlap as the expectation value
-    # of the identity operator: <psi|psi> = <psi|I|psi>
-    with CuTensorNetHandle() as libhandle:
+        op = QubitPauliOperator(
+            {
+                QubitPauliString({Qubit(0): Pauli.I, Qubit(1): Pauli.I}): 1.0,
+            }
+        )
+
+        # Use an alternative calculation of the overlap as the expectation value
+        # of the identity operator: <psi|psi> = <psi|I|psi>
         state = GeneralState(circuit, libhandle)
         ovl = state.expectation_value(op)
-    assert ovl == pytest.approx(1.0)
+        assert ovl == pytest.approx(1.0)
+
+    state.destroy()
 
 
 def test_toffoli_box_with_implicit_swaps() -> None:
@@ -78,6 +80,7 @@ def test_toffoli_box_with_implicit_swaps() -> None:
     with CuTensorNetHandle() as libhandle:
         state = GeneralState(ket_circ, libhandle)
         ket_net_vector = state.get_statevector()
+    state.destroy()
 
     # Apply phase
     ket_net_vector = ket_net_vector * cmath.exp(1j * cmath.pi * ket_circ.phase)
@@ -116,19 +119,21 @@ def test_generalised_toffoli_box(n_qubits: int) -> None:
     with CuTensorNetHandle() as libhandle:
         state = GeneralState(ket_circ, libhandle)
         ket_net_vector = state.get_statevector()
-    ket_net_vector = ket_net_vector * cmath.exp(1j * cmath.pi * ket_circ.phase)
-    ket_pytket_vector = ket_circ.get_statevector()
-    assert np.allclose(ket_net_vector, ket_pytket_vector)
 
-    # Use an alternative calculation of the overlap as the expectation value
-    # of the identity operator: <psi|psi> = <psi|I|psi>
-    op = QubitPauliOperator(
-        {
-            QubitPauliString({Qubit(i): Pauli.I for i in range(n_qubits)}): 1.0,
-        }
-    )
+        ket_net_vector = ket_net_vector * cmath.exp(1j * cmath.pi * ket_circ.phase)
+        ket_pytket_vector = ket_circ.get_statevector()
+        assert np.allclose(ket_net_vector, ket_pytket_vector)
 
-    with CuTensorNetHandle() as libhandle:
+        # Use an alternative calculation of the overlap as the expectation value
+        # of the identity operator: <psi|psi> = <psi|I|psi>
+        op = QubitPauliOperator(
+            {
+                QubitPauliString({Qubit(i): Pauli.I for i in range(n_qubits)}): 1.0,
+            }
+        )
+
         state = GeneralState(ket_circ, libhandle)
         ovl = state.expectation_value(op)
-    assert ovl == pytest.approx(1.0)
+        assert ovl == pytest.approx(1.0)
+
+    state.destroy()
