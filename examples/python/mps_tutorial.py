@@ -22,7 +22,6 @@ from pytket.extensions.cutensornet.structured_state import (
 #
 # In the case above, we are assigning an entry value `v` of a rank-3 tensor (one `[ ]` coordinate per bond). Each bond allows a different number of values for its indices; for instance `0 <= i < 4` would mean that the first bond of our tensor can take up to four different indices; we refer to this as the *dimension* of the bond. We refer to the bonds connecting different tensors in the MPS as *virtual bonds*; the maximum allowed value for the dimension of virtual bonds is often denoted by the greek letter `chi`. The open bonds are known as *physical bonds* and, in our case, each will correspond to a qubit; hence, they have dimension `2` -- the dimension of the vector space of a single qubit.
 # In essence, whenever we want to apply a gate to certain qubit we will connect a tensor (matrix) representing the gate to the corresponding physical bond and *contract* the network back to an MPS form (tensor contraction is a generalisation of matrix multiplication to multidimensional arrays). Whenever a two-qubit gate is applied, the entanglement information after contraction will be kept in the degrees of freedom of the virtual bonds. As such, the dimension of the virtual bonds will generally increase exponentially as we apply entangling gates, leading to large memory footprints of the tensors and, consequently, long runtime for tensor contraction. We provide functionalities to limit the growth of the dimension of the virtual bonds, keeping resource consumption in check. Read the *Approximate simulation* section on this notebook to learn more.
-# **NOTE**: MPS methods can only be applied to circuits that only contain gates that act between nearest-neighbours in a line. If your circuit does not satisfy this constraint, you can use the `prepare_circuit_mps` function (see the *Preparing the circuit* section); this will add multiple `SWAP` gates to the circuit that *need* to be simulated explicitly within the MPS, increasing the resources required considerably. In the future, we will support other tensor network state approaches that do not suffer so drastically from this restrictive connectivity.
 # **References**: To read more about MPS we recommend the following papers.
 # * For an introduction to MPS and its canonical form: https://arxiv.org/abs/1901.05824.
 # * For a description of the `MPSxGate` algorithm we provide: https://arxiv.org/abs/2002.07730.
@@ -146,39 +145,42 @@ other_state = other_circ.get_statevector()
 print("Is the inner product correct?")
 print(np.isclose(np.vdot(my_state, other_state), inner_product))
 
-# ### Preparing the circuit
-# If the circuit to be simulated contains gates that do not act between nearest neighbour qubits, an error message will be raised.
+# ### Two-qubit gates acting on non-adjacent qubits
+# Standard MPS algorithms only support simulation of two-qubit gates acting on neighbour qubits. In our implementation, however, two-qubit gates between arbitrary qubits may be applied, as shown below.
 
-bad_circ = Circuit(5)
-bad_circ.H(1)
-bad_circ.ZZPhase(0.3, 2, 3)
-bad_circ.CX(0, 1)
-bad_circ.Ry(0.8, 4)
-bad_circ.CZ(3, 4)
-bad_circ.XXPhase(0.7, 1, 2)
-bad_circ.TK2(0.1, 0.2, 0.4, 1, 4)
+circ = Circuit(5)
+circ.H(1)
+circ.ZZPhase(0.3, 1, 3)
+circ.CX(0, 2)
+circ.Ry(0.8, 4)
+circ.CZ(3, 4)
+circ.XXPhase(0.7, 1, 2)
+circ.TK2(0.1, 0.2, 0.4, 1, 4)
 
-render_circuit_jupyter(bad_circ)
+render_circuit_jupyter(circ)
 
 with CuTensorNetHandle() as libhandle:
-    try:
-        simulate(libhandle, bad_circ, SimulationAlgorithm.MPSxGate, Config())
-    except RuntimeError as e:
-        print(e)
+    mps = simulate(libhandle, circ, SimulationAlgorithm.MPSxGate, Config())
+    print("Did simulation succeed?")
+    print(mps.is_valid())
 
-# We can call `prepare_circuit_mps` to use `pytket` routing capabilities to guarantee that the circuit can be run using our MPS approaches.
+# **Note**: Even though two-qubit gates on non-adjacent qubits are simulable, the overhead on these is considerably larger than simulating gates on adjacent qubits. As a rule of thumb if the two qubits are `n` positions apart, the overhead is upper bounded by the cost of simulating `n-1` additional SWAP gates to move the leftmost qubit near the rightmost. In reality, the implementation we use is more nuanced than just applying SWAP gates, and the qubits don't actually change position.
+# When circuits are shallow, using our approach to simulate long-distance two-qubit gates is advantageous. In the case of deep circuits with many long-distance gates, it is sometimes beneficial to use TKET routing on the circuit, explicitly adding SWAP gates so that all two-qubit gates act on nearest neighbour qubits. Users may do this by calling `prepare_circuit_mps`, which is a wrapper of the corresponding TKET routing pass.
 
-prep_circ, qubit_map = prepare_circuit_mps(bad_circ)
-render_circuit_jupyter(prep_circ)
-# Print the correspondence between qubit names in `prep_circuit` and the original qubits from `circuit` at the output
-print(qubit_map)
+prepared_circ, qubit_map = prepare_circuit_mps(circ)
+render_circuit_jupyter(prepared_circ)
 
 # The circuit can now be simulated as usual.
 
 with CuTensorNetHandle() as libhandle:
-    prep_mps = simulate(libhandle, prep_circ, SimulationAlgorithm.MPSxGate, Config())
+    mps = simulate(libhandle, prepared_circ, SimulationAlgorithm.MPSxGate, Config())
     print("Did simulation succeed?")
-    print(prep_mps.is_valid())
+    print(mps.is_valid())
+
+# Notice that the qubits in the `prepared_circ` were renamed when applying `prepare_circuit_mps`. Implicit SWAPs may have been added to the circuit, meaning that the logical qubit held at the ``node[i]`` qubit at the beginning of the circuit may differ from the one it holds at the end; this information is captured by the `qubit_map` output. We recommend applying ``apply_qubit_relabelling`` on the MPS after simulation, relabelling the qubits according to these implicit SWAPs.
+
+print(qubit_map)
+mps.apply_qubit_relabelling(qubit_map)
 
 # # Approximate simulation
 # We provide two policies for approximate simulation; these are supported by both of our current MPS contraction algorithms:

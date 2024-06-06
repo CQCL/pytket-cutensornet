@@ -384,30 +384,25 @@ class TTNxGate(TTN):
         Our target is to assign a local truncation fidelity `f_i` to each bond `i` in
         the input lists so that the lower bound of the fidelity satisfies:
 
-            self.fidelity * prod(f_i) < self.fidelity * truncation_fidelity         (A)
+        real_fidelity > self.fidelity * prod(f_i) > self.fidelity * trunc_fidelity  (A)
 
         Let e_i = 1 - f_i, where we refer to `e_i` as the "truncation error at bond i".
-        We can use that when e_i is close to zero, the bound:
+        We can use that when 0 < e_i < 1, the bound:
 
             prod(1 - e_i)   >   1 - sum(e_i)                                        (B)
 
-        is fairly tight, with an inaccuracy of an additive O(e_i^2) term. Hence, for
-        simplicity we take prod(f_i) ~ 1 - sum(e_i). Let
+        is fairly tight, with an inaccuracy of an additive O(e_i^2) term. Hence, as long
+        as we satisfy
 
-            `admissible_error`   =   1 - `truncation_fidelity`                 (C)
+            1 - sum(e_i)    >    truncation_fidelity                                (C)
 
-        and assign each e_i = w_i * `admissible_error` where 0 < w_i < 1 is a weight
-        factor such that sum(w_i) = 1. Thus, if each bond `i` is truncated to a fidelity
+        the inqualities at (A) will be satisfied for our chosen f_i. Let
 
-            f_i = 1 - w_i * `admissible_error`                                      (D)
+            admissible_error   =   1 - truncation_fidelity                          (D)
 
-        then the total fidelity factor on the LHS of equation (A) should approximate
-        `truncation_fidelity`. There is risk of overshooting with truncation and
-        end up with a new `self.fidelity` slightly lower than the target, but this
-
-        should be fine in practice, since `self.fidelity` is a lower bound anyway.
-        Each of the `w_i` weight factors is assigned depending on the bond dimension,
-        with larger bonds given higher weight, so they are truncated more aggressively.
+        and assign each e_i = w_i * admissible_error where 0 < w_i < 1 is a weight
+        factor such that sum(w_i) = 1. With these choice, inequality (C) holds and,
+        consequently, so does (A).
 
         Args:
             bonds_from_q1_to_ancestor: A list of bonds (each as their RootPath address).

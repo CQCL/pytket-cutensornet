@@ -4,6 +4,7 @@ Changelog
 Unreleased
 ----------
 
+* New feature: MPS algorithms ``MPSxGate`` and ``MPSxMPO`` now support simulation of two-qubit gates acting on non-adjacent qubits.
 * New feature: ``add_qubit`` to add fresh qubits at specified positions in an ``MPS``.
 * New feature: added an option to ``measure`` to toggle destructive measurement on/off. Currently only supported for ``MPS``.
 * New feature: a seed can now be provided to ``Config`` objects, providing reproducibility across ``StructuredState`` simulations.

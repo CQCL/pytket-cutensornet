@@ -132,16 +132,17 @@ def simulate(
 
 
 def prepare_circuit_mps(circuit: Circuit) -> tuple[Circuit, dict[Qubit, Qubit]]:
-    """Transpiles the circuit for it to be ``MPS``-friendly.
+    """Adds SWAP gates to the circuit so that all gates act on adjacent qubits.
 
-    Returns an equivalent circuit with the appropriate structure to be simulated by
-    an ``MPS`` algorithm.
+    The qubits in the output circuit will be renamed. Implicit SWAPs may be added
+    to the circuit, meaning that the logical qubit held at the ``node[i]`` qubit
+    at the beginning of the circuit may differ from the one it holds at the end.
+    Consider applying ``apply_qubit_relabelling`` on the MPS after simulation.
 
     Note:
-        The qubits in the output circuit will be renamed. Implicit SWAPs may be added
-        to the circuit, meaning that the logical qubit held at the ``node[i]`` qubit
-        at the beginning of the circuit may differ from the one it holds at the end.
-        Consider applying ``apply_qubit_relabelling`` on the MPS after simulation.
+        This preprocessing is *not* required by the MPS algorithms we provide.
+        Shallow circuits tend to run faster if this preprocessing is *not* used.
+        In occassions, it has been shown to improve runtime for deep circuits.
 
     Args:
         circuit: The circuit to be simulated.

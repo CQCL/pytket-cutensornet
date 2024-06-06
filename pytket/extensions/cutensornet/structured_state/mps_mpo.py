@@ -192,21 +192,44 @@ class MPSxMPO(MPS):
         else:  # Implicit swap
             gate_bonds = "RLrl"
 
-        # Apply a QR decomposition on the gate_tensor to shape it as an MPO
-        L, R = tensor.decompose(
-            gate_bonds + "->lsL,rsR",
-            gate_tensor,
-            method=tensor.QRMethod(),
-            options=options,
+        # Apply SVD on the gate tensor to remove any zero singular values ASAP
+        svd_method = tensor.SVDMethod(
+            abs_cutoff=self._cfg.zero,
+            partition="U",  # Contract S directly into U (named L in this case)
         )
+        # Apply the SVD decomposition using the configuration defined above
+        L, S, R = tensor.decompose(
+            f"{gate_bonds}->lsL,rsR", gate_tensor, method=svd_method, options=options
+        )
+        assert S is None  # Due to "partition" option in SVDMethod
+        dim = L.shape[1]  # Dimension of the shared bond `s`
 
         # Add dummy bonds of dimension 1 to L and R so that they have the right shape
-        L = cp.reshape(L, (2, 1, 4, 2))
-        R = cp.reshape(R, (2, 4, 1, 2))
+        L = cp.reshape(L, (2, 1, dim, 2))
+        R = cp.reshape(R, (2, dim, 1, 2))
 
         # Store L and R
         self._mpo[l_pos].append(L)
         self._mpo[r_pos].append(R)
+        # If `l_pos` and `r_pos` are distant, add identity tensor on all
+        # intermediate positions
+        if r_pos - l_pos != 1:
+            # Identity between input/output at physical bonds
+            p_identity = cp.eye(2, dtype=self._cfg._complex_t)
+            # Identity between left/right virtual bonds
+            v_identity = cp.eye(dim, dtype=self._cfg._complex_t)
+            # Create a "crossing" tensor by applying tensor product of these
+            crossing = cq.contract(
+                "io,lr->ilro",
+                p_identity,
+                v_identity,
+                options=options,
+                optimize={"path": [(0, 1)]},
+            )
+        # Store the intermediate tensors
+        for pos in range(l_pos + 1, r_pos):
+            self._mpo[pos].append(crossing.copy())
+
         # And assign their global bonds
         shared_bond_id = self._new_bond_id()
         self._bond_ids[l_pos].append(
@@ -217,6 +240,17 @@ class MPSxMPO(MPS):
                 self._new_bond_id(),
             )
         )
+        for pos in range(l_pos + 1, r_pos):
+            next_shared_bond_id = self._new_bond_id()
+            self._bond_ids[pos].append(
+                (
+                    self._get_physical_bond(pos),
+                    shared_bond_id,
+                    next_shared_bond_id,
+                    self._new_bond_id(),
+                )
+            )
+            shared_bond_id = next_shared_bond_id
         self._bond_ids[r_pos].append(
             (
                 self._get_physical_bond(r_pos),
@@ -225,6 +259,7 @@ class MPSxMPO(MPS):
                 self._new_bond_id(),
             )
         )
+
         return self
 
     def get_physical_dimension(self, position: int) -> int:
