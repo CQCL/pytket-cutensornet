@@ -60,7 +60,7 @@ def simulate(
     """Simulates the circuit and returns the ``StructuredState`` of the final state.
 
     Note:
-        A ``libhandle`` should be created via a ``with CuTensorNet() as libhandle:``
+        A ``libhandle`` is created via a ``with CuTensorNetHandle() as libhandle:``
         statement. The device where the ``StructuredState`` is stored will match the one
         specified by the library handle.
 

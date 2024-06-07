@@ -22,7 +22,7 @@ except ImportError:
 
 
 class GeneralState:
-    """Wraps a cuTensorNet TN object for exact simulations via path optimisation"""
+    """Wrapper of cuTensorNet object for exact simulations via path optimisation."""
 
     def __init__(
         self,
@@ -30,22 +30,22 @@ class GeneralState:
         libhandle: CuTensorNetHandle,
         loglevel: int = logging.INFO,
     ) -> None:
-        """Constructs a tensor network state representation from a pytket circuit.
+        """Constructs a tensor network representating a pytket circuit.
+
+        The resulting object stores the *uncontracted* tensor network.
 
         Note:
-            The tensor network is *not* contracted until the appropriate methods
-            from this class are called.
+            A ``libhandle`` is created via a ``with CuTensorNetHandle() as libhandle:``
+            statement. The device where the ``GeneralState`` is stored will match the
+            one specified by the library handle.
 
         Note:
-            Circuit should not contain boxes - only explicit gates with specific unitary
-            matrix representation available in pytket.
-
-        Note:
-            If present, implicit wire swaps are replaced with explicit SWAP gates.
+            The ``circuit`` must not contain any ``CircBox`` or non-unitary command.
+            Internally, implicit wire swaps are replaced with explicit SWAP gates.
 
         Args:
             circuit: A pytket circuit to be converted to a tensor network.
-            libhandle: cuTensorNet handle.
+            libhandle: An instance of a ``CuTensorNetHandle``.
             loglevel: Internal logger output level.
         """
         self._logger = set_logger("GeneralState", loglevel)
@@ -101,15 +101,16 @@ class GeneralState:
         """Contracts the circuit and returns the final statevector.
 
         Args:
-            attributes: A dict of cuTensorNet State attributes and their values.
-            scratch_fraction: Fraction of free memory on GPU to allocate as scratch
-                space. Defaults to `0.5`.
-            on_host: If :code:`True`, converts cupy :code:`ndarray` to numpy
-                :code:`ndarray`, copying it to host device (CPU).
+            attributes: Optional. A dict of cuTensorNet `StateAttribute` keys and
+                their values.
+            scratch_fraction: Optional. Fraction of free memory on GPU to allocate as
+                scratch space.
+            on_host: Optional. If ``True``, converts cupy ``ndarray`` to numpy
+                ``ndarray``, copying it to host device (CPU).
         Raises:
             MemoryError: If there is insufficient workspace on GPU.
         Returns:
-            Either a :code:`cupy.ndarray` on a GPU, or a :code:`numpy.ndarray` on a
+            Either a ``cupy.ndarray`` on a GPU, or a ``numpy.ndarray`` on a
             host device (CPU). Arrays are returned in a 1D shape.
         """
 
@@ -217,9 +218,10 @@ class GeneralState:
 
         Args:
             operator: The operator whose expectation value is to be measured.
-            attributes: A dict of cuTensorNet Expectation attributes and their values.
-            scratch_fraction: Fraction of free memory on GPU to allocate as scratch
-                space. Defaults to `0.5`.
+            attributes: Optional. A dict of cuTensorNet `ExpectationAttribute` keys
+                and their values.
+            scratch_fraction: Optional. Fraction of free memory on GPU to allocate as
+                 scratch space.
 
         Raises:
             ValueError: If the operator acts on qubits not present in the circuit.
@@ -387,7 +389,13 @@ class GeneralState:
             del scratch_space
 
     def destroy(self) -> None:
-        """Destroys tensor network state."""
+        """Destroy the tensor network and free up GPU memory.
+
+        Note:
+            Users are required to call `destroy()` when done using a
+            `GeneralState` object. GPU memory deallocation is not
+            guaranteed otherwise.
+        """
         cutn.destroy_state(self._state)
 
 

@@ -1,7 +1,14 @@
-Full tensor network (general state) contraction
-===============================================
+General state (exact) simulation
+================================
 
 .. automodule:: pytket.extensions.cutensornet.general_state
+
+.. autoclass:: pytket.extensions.cutensornet.general_state.GeneralState()
+
+    .. automethod:: __init__
+    .. automethod:: get_statevector
+    .. automethod:: expectation_value
+    .. automethod:: destroy
 
 cuQuantum `contract` API interface
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -16,14 +23,6 @@ cuQuantum `contract` API interface
 
 .. autofunction:: pytket.extensions.cutensornet.general_state.tk_to_tensor_network
 
-cuQuantum `high-level` API interface
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-.. autoclass:: pytket.extensions.cutensornet.general_state.GeneralState
-
-.. autoclass:: pytket.extensions.cutensornet.general_state.GeneralOperator
-
-.. autoclass:: pytket.extensions.cutensornet.general_state.GeneralExpectationValue
 
 Pytket backend
 ~~~~~~~~~~~~~~
