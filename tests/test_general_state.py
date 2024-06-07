@@ -15,6 +15,8 @@ from pytket.extensions.cutensornet.structured_state import CuTensorNetHandle
 @pytest.mark.parametrize(
     "circuit",
     [
+        pytest.lazy_fixture("q5_empty"),  # type: ignore
+        pytest.lazy_fixture("q8_empty"),  # type: ignore
         pytest.lazy_fixture("q2_x0"),  # type: ignore
         pytest.lazy_fixture("q2_x1"),  # type: ignore
         pytest.lazy_fixture("q2_v0"),  # type: ignore
@@ -28,8 +30,14 @@ from pytket.extensions.cutensornet.structured_state import CuTensorNetHandle
         pytest.lazy_fixture("q2_lcu3"),  # type: ignore
         pytest.lazy_fixture("q3_v0cx02"),  # type: ignore
         pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
+        pytest.lazy_fixture("q3_toffoli_box_with_implicit_swaps"),  # type: ignore
         pytest.lazy_fixture("q4_lcu1"),  # type: ignore
         pytest.lazy_fixture("q4_multicontrols"),  # type: ignore
+        pytest.lazy_fixture("q4_with_creates"),  # type: ignore
+        pytest.lazy_fixture("q5_h0s1rz2ry3tk4tk13"),  # type: ignore
+        pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
+        pytest.lazy_fixture("q6_qvol"),  # type: ignore
+        pytest.lazy_fixture("q8_x0h2v5z6"),  # type: ignore
     ],
 )
 def test_convert_statevec_ovl(circuit: Circuit) -> None:
@@ -37,16 +45,16 @@ def test_convert_statevec_ovl(circuit: Circuit) -> None:
         state = GeneralState(circuit, libhandle)
         sv = state.get_statevector()
 
-        sv_pytket = np.array([circuit.get_statevector()])
+        sv_pytket = circuit.get_statevector()
         assert np.allclose(sv, sv_pytket, atol=1e-10)
 
         op = QubitPauliOperator(
             {
-                QubitPauliString({Qubit(0): Pauli.I, Qubit(1): Pauli.I}): 1.0,
+                QubitPauliString({q: Pauli.I for q in circuit.qubits}): 1.0,
             }
         )
 
-        # Use an alternative calculation of the overlap as the expectation value
+        # Calculate the inner product as the expectation value
         # of the identity operator: <psi|psi> = <psi|I|psi>
         state = GeneralState(circuit, libhandle)
         ovl = state.expectation_value(op)
@@ -81,9 +89,6 @@ def test_toffoli_box_with_implicit_swaps() -> None:
         state = GeneralState(ket_circ, libhandle)
         ket_net_vector = state.get_statevector()
     state.destroy()
-
-    # Apply phase
-    ket_net_vector = ket_net_vector * cmath.exp(1j * cmath.pi * ket_circ.phase)
 
     # Compare to pytket statevector
     ket_pytket_vector = ket_circ.get_statevector()
@@ -120,15 +125,14 @@ def test_generalised_toffoli_box(n_qubits: int) -> None:
         state = GeneralState(ket_circ, libhandle)
         ket_net_vector = state.get_statevector()
 
-        ket_net_vector = ket_net_vector * cmath.exp(1j * cmath.pi * ket_circ.phase)
         ket_pytket_vector = ket_circ.get_statevector()
         assert np.allclose(ket_net_vector, ket_pytket_vector)
 
-        # Use an alternative calculation of the overlap as the expectation value
+        # Calculate the inner product as the expectation value
         # of the identity operator: <psi|psi> = <psi|I|psi>
         op = QubitPauliOperator(
             {
-                QubitPauliString({Qubit(i): Pauli.I for i in range(n_qubits)}): 1.0,
+                QubitPauliString({q: Pauli.I for q in ket_circ.qubits}): 1.0,
             }
         )
 
