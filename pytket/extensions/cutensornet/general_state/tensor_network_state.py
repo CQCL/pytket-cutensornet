@@ -84,11 +84,14 @@ class GeneralState:
         self._gate_tensors = []
 
         # Append all gates to the TN
-        # TODO: we should add a check to verify that the commands are unitaries
-        # (e.g. don't accept measurements). Potentially, measurements at the end of
-        # the circuit can be ignored at the user's request.
         for com in self._circuit.get_commands():
-            gate_unitary = com.op.get_unitary()
+            try:
+                gate_unitary = com.op.get_unitary()
+            except:
+                raise ValueError(
+                    "All commands in the circuit must be unitary gates. The circuit "
+                    f"contains {com}; no unitary matrix could be retrived for it."
+                )
             self._gate_tensors.append(_formatted_tensor(gate_unitary, com.op.n_qubits))
             gate_qubit_indices = tuple(
                 self._circuit.qubits.index(qb) for qb in com.qubits
