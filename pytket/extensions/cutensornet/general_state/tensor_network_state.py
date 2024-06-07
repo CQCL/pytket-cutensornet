@@ -119,8 +119,6 @@ class GeneralState:
         ####################################
         if attributes is None:
             attributes = dict()
-        if "NUM_HYPER_SAMPLES" not in attributes:
-            attributes["NUM_HYPER_SAMPLES"] = 8
         attribute_pairs = [
             (getattr(cutn.StateAttribute, k), v) for k, v in attributes.items()
         ]
@@ -295,8 +293,6 @@ class GeneralState:
 
         if attributes is None:
             attributes = dict()
-        if "OPT_NUM_HYPER_SAMPLES" not in attributes:
-            attributes["OPT_NUM_HYPER_SAMPLES"] = 8
         attribute_pairs = [
             (getattr(cutn.ExpectationAttribute, k), v) for k, v in attributes.items()
         ]
