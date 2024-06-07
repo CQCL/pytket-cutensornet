@@ -212,7 +212,7 @@ class GeneralState:
         operator: QubitPauliOperator,
         attributes: Optional[dict] = None,
         scratch_fraction: float = 0.5,
-    ) -> float:
+    ) -> complex:
         """Calculates the expectation value of the given operator.
 
         Args:
@@ -374,9 +374,8 @@ class GeneralState:
             # Note: we can also return `state_norm.item()`, but this should be 1 since
             # we are always running unitary circuits
             assert np.isclose(state_norm.item(), 1.0)
-            # The expectation value is a real number
-            assert np.isclose(expectation_value.item().imag, 0.0)
-            return expectation_value.item().real  # type: ignore
+
+            return expectation_value.item()  # type: ignore
 
         finally:
             #####################################################

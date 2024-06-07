@@ -181,14 +181,14 @@ def test_sv_generalised_toffoli_box(n_qubits: int) -> None:
         ),
         QubitPauliOperator(
             {
-                QubitPauliString({Qubit(0): Pauli.X, Qubit(1): Pauli.Y}): 3.5,
+                QubitPauliString({Qubit(0): Pauli.X, Qubit(1): Pauli.Y}): 3.5 + 0.3j,
             }
         ),
         QubitPauliOperator(
             {
                 QubitPauliString({Qubit(0): Pauli.Z}): 0.25,
-                QubitPauliString({Qubit(1): Pauli.Y}): 0.33,
-                QubitPauliString({Qubit(0): Pauli.X, Qubit(1): Pauli.X}): 0.42,
+                QubitPauliString({Qubit(1): Pauli.Y}): 0.33j,
+                QubitPauliString({Qubit(0): Pauli.X, Qubit(1): Pauli.X}): 0.42 + 0.1j,
             }
         ),
     ],
