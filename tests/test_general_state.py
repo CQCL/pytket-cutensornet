@@ -1,4 +1,3 @@
-import cmath
 import random
 import numpy as np
 import pytest
@@ -7,7 +6,7 @@ from pytket.passes import DecomposeBoxes, CnXPairwiseDecomposition
 from pytket.transform import Transform
 from pytket.pauli import QubitPauliString, Pauli
 from pytket.utils.operators import QubitPauliOperator
-from pytket.circuit import Circuit, OpType
+from pytket.circuit import Circuit
 from pytket.extensions.cutensornet.general_state import GeneralState
 from pytket.extensions.cutensornet.structured_state import CuTensorNetHandle
 
