@@ -49,7 +49,7 @@ class GeneralState:
             loglevel: Internal logger output level.
         """
         self._logger = set_logger("GeneralState", loglevel)
-        self._circuit = circuit
+        self._circuit = circuit.copy()
         # TODO: This is not strictly necessary; implicit SWAPs could be resolved by
         # qubit relabelling, but it's only worth doing so if there are clear signs
         # of inefficiency due to this.
@@ -196,9 +196,12 @@ class GeneralState:
                 stream.ptr,
             )
             stream.synchronize()
+            sv = state_vector.flatten()
             if on_host:
-                return cp.asnumpy(state_vector.flatten())
-            return state_vector.flatten()
+                sv = cp.asnumpy(sv)
+            # Apply the phase from the circuit
+            sv *= np.exp(1j * np.pi * self._circuit.phase)
+            return sv
 
         finally:
             cutn.destroy_workspace_descriptor(work_desc)  # type: ignore
