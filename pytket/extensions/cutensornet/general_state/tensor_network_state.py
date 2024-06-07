@@ -58,7 +58,7 @@ class GeneralState:
 
         libhandle.print_device_properties(self._logger)
 
-        num_qubits = circuit.n_qubits
+        num_qubits = self._circuit.n_qubits
         dim = 2  # We are always dealing with qubits, not qudits
         qubits_dims = (dim,) * num_qubits  # qubit size
         self._logger.debug(f"Converting a quantum circuit with {num_qubits} qubits.")
@@ -73,7 +73,7 @@ class GeneralState:
         # TODO: we should add a check to verify that the commands are unitaries
         # (e.g. don't accept measurements). Potentially, measurements at the end of
         # the circuit can be ignored at the user's request.
-        for com in circuit.get_commands():
+        for com in self._circuit.get_commands():
             gate_unitary = com.op.get_unitary()
             self._gate_tensors.append(_formatted_tensor(gate_unitary, com.op.n_qubits))
             gate_qubit_indices = tuple(
