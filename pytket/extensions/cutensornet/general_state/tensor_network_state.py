@@ -499,8 +499,10 @@ class GeneralState:
             )
             stream.synchronize()
 
-            # TODO: Convert the data in `samples` to an OutcomeArray
-            return None
+            # Convert the data in `samples` to an `OutcomeArray`
+            # `samples` is a 2D numpy array `samples[SampleId][QubitId]`, which is
+            # the transpose of what `OutcomeArray.from_readouts` expects
+            return OutcomeArray.from_readouts(samples.T)
 
         finally:
             #####################################################
