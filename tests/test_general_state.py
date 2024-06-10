@@ -204,3 +204,40 @@ def test_expectation_value(circuit: Circuit, observable: QubitPauliOperator) -> 
 
     assert np.isclose(exp_val, exp_val_tket)
     state.destroy()
+
+
+@pytest.mark.parametrize(
+    "circuit",
+    [
+        pytest.lazy_fixture("q5_empty"),  # type: ignore
+        pytest.lazy_fixture("q8_empty"),  # type: ignore
+        pytest.lazy_fixture("q2_x0"),  # type: ignore
+        pytest.lazy_fixture("q2_x1"),  # type: ignore
+        pytest.lazy_fixture("q2_v0"),  # type: ignore
+        pytest.lazy_fixture("q2_x0cx01"),  # type: ignore
+        pytest.lazy_fixture("q2_x1cx10x1"),  # type: ignore
+        pytest.lazy_fixture("q2_x0cx01cx10"),  # type: ignore
+        pytest.lazy_fixture("q2_v0cx01cx10"),  # type: ignore
+        pytest.lazy_fixture("q2_hadamard_test"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu1"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu2"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu3"),  # type: ignore
+        pytest.lazy_fixture("q3_v0cx02"),  # type: ignore
+        pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
+        pytest.lazy_fixture("q3_toffoli_box_with_implicit_swaps"),  # type: ignore
+        pytest.lazy_fixture("q4_lcu1"),  # type: ignore
+        pytest.lazy_fixture("q4_multicontrols"),  # type: ignore
+        pytest.lazy_fixture("q4_with_creates"),  # type: ignore
+        pytest.lazy_fixture("q5_h0s1rz2ry3tk4tk13"),  # type: ignore
+        pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
+        pytest.lazy_fixture("q6_qvol"),  # type: ignore
+        pytest.lazy_fixture("q8_x0h2v5z6"),  # type: ignore
+    ],
+)
+def test_sampler(circuit: Circuit) -> None:
+
+    with CuTensorNetHandle() as libhandle:
+        state = GeneralState(circuit, libhandle)
+        shots = state.sample(100)
+
+    state.destroy()
