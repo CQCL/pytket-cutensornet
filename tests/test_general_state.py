@@ -236,8 +236,18 @@ def test_expectation_value(circuit: Circuit, observable: QubitPauliOperator) -> 
 )
 def test_sampler(circuit: Circuit) -> None:
 
+    n_shots = 100000
+
+    # Get the statevector so that we can calculate theoretical probabilities
+    sv_pytket = circuit.get_statevector()
+
     with CuTensorNetHandle() as libhandle:
         state = GeneralState(circuit, libhandle)
-        shots = state.sample(100)
+        shots = state.sample(n_shots)
+
+    for out, count in shots.counts().items():
+        outcome = out.to_intlist()[0]  # Unpack from singleton OutcomeArray
+        prob = abs(sv_pytket[outcome])**2  # Theoretical probability
+        assert np.isclose(count / n_shots, prob, atol=0.01)
 
     state.destroy()
