@@ -402,14 +402,15 @@ class GeneralState:
             cutn.destroy_network_operator(tn_operator)
             del scratch_space
 
-
-    def sample(self, n_shots: int) -> OutcomeArray:
-        """Obtain samples from the circuit.
-        """
+    def sample(
+        self,
+        n_shots: int,
+        attributes: Optional[dict] = None,
+        scratch_fraction: float = 0.5,
+    ) -> OutcomeArray:
+        """Obtain samples from the circuit."""
 
         num_qubits = self._circuit.n_qubits
-        qubits_dims = (2,) * num_qubits
-        data_type = cq.cudaDataType.CUDA_C_64F
 
         ############################################
         # Configure the cuTensorNet sampler object #
@@ -417,7 +418,7 @@ class GeneralState:
         sampler = cutn.create_sampler(
             handle=self._lib.handle,
             tensor_network_state=self._state,
-            num_modes_to_sample=num_qubits, # TODO: may be smaller if not all qubits are measured
+            num_modes_to_sample=num_qubits,  # TODO: may be smaller if not all qubits are measured
             modes_to_sample=0,  # TODO: if not all qubits are measured, these need to be specified
         )
 
@@ -487,14 +488,14 @@ class GeneralState:
             ###########################
             # Sample from the circuit #
             ###########################
-            samples = np.empty((num_qubits, n_shots), dtype='int64', order='F')
+            samples = np.empty((num_qubits, n_shots), dtype="int64", order="F")
             cutn.sampler_sample(
                 self._lib.handle,
                 sampler,
                 n_shots,
                 work_desc,
                 samples.ctypes.data,
-                stream.ptr
+                stream.ptr,
             )
             stream.synchronize()
 
@@ -508,8 +509,6 @@ class GeneralState:
             cutn.destroy_workspace_descriptor(work_desc)  # type: ignore
             cutn.destroy_sampler(sampler)
             del scratch_space
-
-
 
     def destroy(self) -> None:
         """Destroy the tensor network and free up GPU memory.
