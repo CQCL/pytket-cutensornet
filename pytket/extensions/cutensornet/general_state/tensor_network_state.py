@@ -26,6 +26,7 @@ from sympy import Expr  # type: ignore
 from numpy.typing import NDArray
 from pytket.circuit import Circuit
 from pytket.extensions.cutensornet.general import CuTensorNetHandle, set_logger
+from pytket.utils import OutcomeArray
 from pytket.utils.operators import QubitPauliOperator
 
 try:
@@ -400,6 +401,115 @@ class GeneralState:
             cutn.destroy_expectation(expectation)
             cutn.destroy_network_operator(tn_operator)
             del scratch_space
+
+
+    def sample(self, n_shots: int) -> OutcomeArray:
+        """Obtain samples from the circuit.
+        """
+
+        num_qubits = self._circuit.n_qubits
+        qubits_dims = (2,) * num_qubits
+        data_type = cq.cudaDataType.CUDA_C_64F
+
+        ############################################
+        # Configure the cuTensorNet sampler object #
+        ############################################
+        sampler = cutn.create_sampler(
+            handle=self._lib.handle,
+            tensor_network_state=self._state,
+            num_modes_to_sample=num_qubits, # TODO: may be smaller if not all qubits are measured
+            modes_to_sample=0,  # TODO: if not all qubits are measured, these need to be specified
+        )
+
+        if attributes is None:
+            attributes = dict()
+        attribute_pairs = [
+            (getattr(cutn.SamplerAttribute, k), v) for k, v in attributes.items()
+        ]
+
+        for attr, val in attribute_pairs:
+            attr_dtype = cutn.sampler_get_attribute_dtype(attr)
+            attr_arr = np.asarray(val, dtype=attr_dtype)
+            cutn.sampler_configure(
+                self._lib.handle,
+                sampler,
+                attr,
+                attr_arr.ctypes.data,
+                attr_arr.dtype.itemsize,
+            )
+
+        try:
+            ######################################
+            # Allocate workspace for contraction #
+            ######################################
+            stream = cp.cuda.Stream()
+            free_mem = self._lib.dev.mem_info[0]
+            scratch_size = int(scratch_fraction * free_mem)
+            scratch_space = cp.cuda.alloc(scratch_size)
+
+            self._logger.debug(
+                f"Allocated {scratch_size} bytes of scratch memory on GPU"
+            )
+            work_desc = cutn.create_workspace_descriptor(self._lib.handle)
+            cutn.sampler_prepare(
+                self._lib.handle,
+                sampler,
+                scratch_size,
+                work_desc,
+                stream.ptr,
+            )
+            workspace_size_d = cutn.workspace_get_memory_size(
+                self._lib.handle,
+                work_desc,
+                cutn.WorksizePref.RECOMMENDED,
+                cutn.Memspace.DEVICE,
+                cutn.WorkspaceKind.SCRATCH,
+            )
+
+            if workspace_size_d <= scratch_size:
+                cutn.workspace_set_memory(
+                    self._lib.handle,
+                    work_desc,
+                    cutn.Memspace.DEVICE,
+                    cutn.WorkspaceKind.SCRATCH,
+                    scratch_space.ptr,
+                    workspace_size_d,
+                )
+                self._logger.debug(
+                    f"Set {workspace_size_d} bytes of workspace memory out of the"
+                    f" allocated scratch space."
+                )
+            else:
+                raise MemoryError(
+                    f"Insufficient workspace size on the GPU device {self._lib.dev.id}"
+                )
+
+            ###########################
+            # Sample from the circuit #
+            ###########################
+            samples = np.empty((num_qubits, n_shots), dtype='int64', order='F')
+            cutn.sampler_sample(
+                self._lib.handle,
+                sampler,
+                n_shots,
+                work_desc,
+                samples.ctypes.data,
+                stream.ptr
+            )
+            stream.synchronize()
+
+            # TODO: Convert the data in `samples` to an OutcomeArray
+            return None
+
+        finally:
+            #####################################################
+            # Destroy the Operator and ExpectationValue objects #
+            #####################################################
+            cutn.destroy_workspace_descriptor(work_desc)  # type: ignore
+            cutn.destroy_sampler(sampler)
+            del scratch_space
+
+
 
     def destroy(self) -> None:
         """Destroy the tensor network and free up GPU memory.
