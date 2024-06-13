@@ -233,7 +233,8 @@ def test_expectation_value(circuit: Circuit, observable: QubitPauliOperator) -> 
         pytest.lazy_fixture("q8_x0h2v5z6"),  # type: ignore
     ],
 )
-def test_sampler(circuit: Circuit) -> None:
+@pytest.mark.parametrize("measure_all", [True, False])  # Measure all or a subset
+def test_sampler(circuit: Circuit, measure_all: bool) -> None:
 
     n_shots = 100000
 
@@ -241,9 +242,15 @@ def test_sampler(circuit: Circuit) -> None:
     sv_pytket = circuit.get_statevector()
 
     # Add measurements to qubits
+    if measure_all:
+        num_measured = circuit.n_qubits
+    else:
+        num_measured = circuit.n_qubits // 2
+
     for i, q in enumerate(circuit.qubits):
-        circuit.add_bit(Bit(i))
-        circuit.Measure(q, Bit(i))
+        if i < num_measured:  # Skip the least significant qubits
+            circuit.add_bit(Bit(i))
+            circuit.Measure(q, Bit(i))
 
     # Sample using our library
     with CuTensorNetHandle() as libhandle:
@@ -254,7 +261,19 @@ def test_sampler(circuit: Circuit) -> None:
     for bit_tuple, count in results.get_counts().items():
         # Convert bitstring (Tuple[int,...]) to integer base 10
         outcome = sum(bit << i for i, bit in enumerate(reversed(bit_tuple)))
-        prob = abs(sv_pytket[outcome]) ** 2  # Theoretical probability
+
+        # Calculate the theoretical probabilities
+        if measure_all:
+            prob = abs(sv_pytket[outcome]) ** 2
+        else:
+            # Obtain all compatible basis states (bitstring encoded as int)
+            non_measured = circuit.n_qubits - num_measured
+            compatible = [
+                (outcome << non_measured) + offset for offset in range(2**non_measured)
+            ]
+            # The probability is the sum of that of all compatible basis states
+            prob = sum(abs(sv_pytket[v]) ** 2 for v in compatible)
+
         assert np.isclose(count / n_shots, prob, atol=0.01)
 
     state.destroy()
