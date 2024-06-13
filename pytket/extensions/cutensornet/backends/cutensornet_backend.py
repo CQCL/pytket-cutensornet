@@ -265,7 +265,7 @@ class CuTensorNetBackend(Backend):
             operator,
             post_selection=post_selection,
             valid_check=valid_check,
-        )
+        ).real
 
     # TODO: this should be optionally parallelised with MPI
     #  (both wrt Pauli strings and contraction itself).
@@ -323,7 +323,7 @@ class CuTensorNetBackend(Backend):
                 *element_network.cuquantum_interleaved
             )
             element += element_term
-        return element.real
+        return element
 
     def get_circuit_overlap(
         self,
