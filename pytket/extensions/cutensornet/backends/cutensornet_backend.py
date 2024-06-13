@@ -312,7 +312,7 @@ class CuTensorNetBackend(Backend):
             )  # This needed because dagger does not work with post selection
 
         for qos, coeff in operator._dict.items():
-            element_value_network = ExpectationValueTensorNetwork(
+            element_network = ExpectationValueTensorNetwork(
                 bra_network, qos, ket_network
             )
             if isinstance(coeff, Expr):
@@ -320,7 +320,7 @@ class CuTensorNetBackend(Backend):
             else:
                 numeric_coeff = complex(coeff)  # type: ignore
             element_term = numeric_coeff * cq.contract(
-                *element_value_network.cuquantum_interleaved
+                *element_network.cuquantum_interleaved
             )
             element += element_term
         return element.real
