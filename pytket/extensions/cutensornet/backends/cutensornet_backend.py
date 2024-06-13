@@ -298,7 +298,7 @@ class CuTensorNetBackend(Backend):
         element = 0
 
         bra_network = TensorNetwork(circuit_bra)
-        ket_network = TensorNetwork(circuit_ket)
+        ket_network = TensorNetwork(circuit_ket).dagger()
 
         if post_selection is not None:
             post_select_qubits = list(post_selection.keys())
