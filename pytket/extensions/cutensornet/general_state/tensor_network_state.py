@@ -46,8 +46,9 @@ class GeneralState:
         libhandle: CuTensorNetHandle,
         loglevel: int = logging.INFO,
     ) -> None:
-        """Constructs a tensor network representating a pytket circuit.
+        """Constructs a tensor network for the output state of a pytket circuit.
 
+        The qubits are assumed to be initialised in the ``|0>`` state.
         The resulting object stores the *uncontracted* tensor network.
 
         Note:
@@ -57,7 +58,6 @@ class GeneralState:
 
         Note:
             The ``circuit`` must not contain any ``CircBox`` or non-unitary command.
-            Internally, implicit wire swaps are replaced with explicit SWAP gates.
 
         Args:
             circuit: A pytket circuit to be converted to a tensor network.
@@ -67,13 +67,12 @@ class GeneralState:
         self._logger = set_logger("GeneralState", loglevel)
         self._lib = libhandle
         libhandle.print_device_properties(self._logger)
-        # TODO: This is not strictly necessary; implicit SWAPs could be resolved by
-        # qubit relabelling, but it's only worth doing so if there are clear signs
-        # of inefficiency due to this.
-        circ = circuit.copy()
-        circ.replace_implicit_wire_swaps()
+
         # Remove end-of-circuit measurements and keep track of them separately
-        self._circuit, self._measurements = _extract_measurements(circ)
+        # It also resolves implicit sawps
+        self._circuit, self._measurements = _remove_meas_and_implicit_swaps(circuit)
+        #
+        self._qubit_idx_map = {q: i for i, q in enumerate(sorted(self._circuit.qubits))}
 
         num_qubits = self._circuit.n_qubits
         dim = 2  # We are always dealing with qubits, not qudits
@@ -96,9 +95,7 @@ class GeneralState:
                     f"contains {com}; no unitary matrix could be retrived for it."
                 )
             self._gate_tensors.append(_formatted_tensor(gate_unitary, com.op.n_qubits))
-            gate_qubit_indices = tuple(
-                self._circuit.qubits.index(qb) for qb in com.qubits
-            )
+            gate_qubit_indices = tuple(self._qubit_idx_map[qb] for qb in com.qubits)
 
             cutn.state_apply_tensor_operator(
                 handle=self._lib.handle,
@@ -289,7 +286,7 @@ class GeneralState:
             num_pauli = len(qubit_pauli_map)
             num_modes = (1,) * num_pauli
             state_modes = tuple(
-                (self._circuit.qubits.index(qb),) for qb in qubit_pauli_map.keys()
+                (self._qubit_idx_map[qb],) for qb in qubit_pauli_map.keys()
             )
             gate_data = tuple(tensor.data.ptr for tensor in qubit_pauli_map.values())
 
@@ -417,7 +414,7 @@ class GeneralState:
         # and it is essential that the elements in the same index of either list
         # match according to the self._measurements map. We guarantee this here.
         qbit_list, cbit_list = zip(*self._measurements.items())
-        measured_modes = tuple(self._circuit.qubits.index(qb) for qb in qbit_list)
+        measured_modes = tuple(self._qubit_idx_map[qb] for qb in qbit_list)
 
         ############################################
         # Configure the cuTensorNet sampler object #
@@ -550,8 +547,9 @@ def _formatted_tensor(matrix: NDArray, n_qubits: int) -> cp.ndarray:
     return cupy_matrix.reshape([2] * (2 * n_qubits), order="F")
 
 
-def _extract_measurements(circ: Circuit) -> Tuple[Circuit, Dict[Qubit, Bit]]:
-    """Convert a pytket Circuit to a MyCircuit object and a measurement map.
+def _remove_meas_and_implicit_swaps(circ: Circuit) -> Tuple[Circuit, Dict[Qubit, Bit]]:
+    """Convert a pytket Circuit to an equivalent circuit with no measurements or
+    implicit swaps. The measurements are returned as a map between qubits and bits.
 
     Only supports end-of-circuit measurements, which are removed from the returned
     circuit and added to the dictionary.
@@ -559,20 +557,26 @@ def _extract_measurements(circ: Circuit) -> Tuple[Circuit, Dict[Qubit, Bit]]:
     pure_circ = Circuit()
     for q in circ.qubits:
         pure_circ.add_qubit(q)
+    q_perm = circ.implicit_qubit_permutation()
+
     measure_map = dict()
-    # Track measured Qubits/used Bits to identify mid-circuit measurement
-    measured_units = set()
+    # Track measured Qubits to identify mid-circuit measurement
+    measured_qubits = set()
 
     for command in circ:
-        for u in command.args:
-            if u in measured_units:
+        cmd_qubits = [q_perm[q] for q in command.qubits]
+
+        for q in cmd_qubits:
+            if q in measured_qubits:
                 raise ValueError("Circuit contains a mid-circuit measurement")
 
         if command.op.type == OpType.Measure:
-            measure_map[command.args[0]] = command.args[1]
-            measured_units.add(command.args[0])
-            measured_units.add(command.args[1])
+            measure_map[cmd_qubits[0]] = command.bits[0]
+            measured_qubits.add(cmd_qubits[0])
         else:
-            pure_circ.add_gate(command.op, command.args)
+            if command.bits:
+                raise ValueError("Circuit contains an operation on a bit")
+            pure_circ.add_gate(command.op, cmd_qubits)
 
+    pure_circ.add_phase(circ.phase)
     return pure_circ, measure_map  # type: ignore
