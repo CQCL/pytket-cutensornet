@@ -1,12 +1,11 @@
 import random
 import numpy as np
 import pytest
-from pytket.circuit import ToffoliBox, Qubit
+from pytket.circuit import Circuit, ToffoliBox, Qubit, Bit
 from pytket.passes import DecomposeBoxes, CnXPairwiseDecomposition
 from pytket.transform import Transform
 from pytket.pauli import QubitPauliString, Pauli
 from pytket.utils.operators import QubitPauliOperator
-from pytket.circuit import Circuit
 from pytket.extensions.cutensornet.general_state import GeneralState
 from pytket.extensions.cutensornet.structured_state import CuTensorNetHandle
 
@@ -241,13 +240,21 @@ def test_sampler(circuit: Circuit) -> None:
     # Get the statevector so that we can calculate theoretical probabilities
     sv_pytket = circuit.get_statevector()
 
+    # Add measurements to qubits
+    for i, q in enumerate(circuit.qubits):
+        circuit.add_bit(Bit(i))
+        circuit.Measure(q, Bit(i))
+
+    # Sample using our library
     with CuTensorNetHandle() as libhandle:
         state = GeneralState(circuit, libhandle)
-        shots = state.sample(n_shots)
+        results = state.sample(n_shots)
 
-    for out, count in shots.counts().items():
-        outcome = out.to_intlist()[0]  # Unpack from singleton OutcomeArray
-        prob = abs(sv_pytket[outcome])**2  # Theoretical probability
+    # Verify distribution matches theoretical probabilities
+    for bit_tuple, count in results.get_counts().items():
+        # Convert bitstring (Tuple[int,...]) to integer base 10
+        outcome = sum(bit << i for i, bit in enumerate(reversed(bit_tuple)))
+        prob = abs(sv_pytket[outcome]) ** 2  # Theoretical probability
         assert np.isclose(count / n_shots, prob, atol=0.01)
 
     state.destroy()

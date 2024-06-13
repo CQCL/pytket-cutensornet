@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 import logging
-from typing import Union, Optional
+from typing import Union, Optional, Tuple, Dict
 import warnings
 
 try:
@@ -24,10 +24,11 @@ except ImportError:
 import numpy as np
 from sympy import Expr  # type: ignore
 from numpy.typing import NDArray
-from pytket.circuit import Circuit
+from pytket.circuit import Circuit, Qubit, Bit, OpType
 from pytket.extensions.cutensornet.general import CuTensorNetHandle, set_logger
 from pytket.utils import OutcomeArray
 from pytket.utils.operators import QubitPauliOperator
+from pytket.backends.backendresult import BackendResult
 
 try:
     import cuquantum as cq  # type: ignore
@@ -64,14 +65,15 @@ class GeneralState:
             loglevel: Internal logger output level.
         """
         self._logger = set_logger("GeneralState", loglevel)
-        self._circuit = circuit.copy()
+        self._lib = libhandle
+        libhandle.print_device_properties(self._logger)
         # TODO: This is not strictly necessary; implicit SWAPs could be resolved by
         # qubit relabelling, but it's only worth doing so if there are clear signs
         # of inefficiency due to this.
-        self._circuit.replace_implicit_wire_swaps()
-        self._lib = libhandle
-
-        libhandle.print_device_properties(self._logger)
+        circ = circuit.copy()
+        circ.replace_implicit_wire_swaps()
+        # Remove end-of-circuit measurements and keep track of them separately
+        self._circuit, self._measurements = _extract_measurements(circ)
 
         num_qubits = self._circuit.n_qubits
         dim = 2  # We are always dealing with qubits, not qudits
@@ -407,19 +409,25 @@ class GeneralState:
         n_shots: int,
         attributes: Optional[dict] = None,
         scratch_fraction: float = 0.5,
-    ) -> OutcomeArray:
+    ) -> BackendResult:
         """Obtain samples from the circuit."""
 
-        num_qubits = self._circuit.n_qubits
+        num_measurements = len(self._measurements)
+        # We will need both a list of the qubits and a list of the classical bits
+        # and it is essential that the elements in the same index of either list
+        # match according to the self._measurements map. We guarantee this here.
+        qbit_list, cbit_list = zip(*self._measurements.items())
+        measured_modes = tuple(self._circuit.qubits.index(qb) for qb in qbit_list)
 
         ############################################
         # Configure the cuTensorNet sampler object #
         ############################################
+
         sampler = cutn.create_sampler(
             handle=self._lib.handle,
             tensor_network_state=self._state,
-            num_modes_to_sample=num_qubits,  # TODO: may be smaller if not all qubits are measured
-            modes_to_sample=0,  # TODO: if not all qubits are measured, these need to be specified
+            num_modes_to_sample=num_measurements,
+            modes_to_sample=measured_modes,
         )
 
         if attributes is None:
@@ -488,7 +496,7 @@ class GeneralState:
             ###########################
             # Sample from the circuit #
             ###########################
-            samples = np.empty((num_qubits, n_shots), dtype="int64", order="F")
+            samples = np.empty((num_measurements, n_shots), dtype="int64", order="F")
             cutn.sampler_sample(
                 self._lib.handle,
                 sampler,
@@ -502,7 +510,14 @@ class GeneralState:
             # Convert the data in `samples` to an `OutcomeArray`
             # `samples` is a 2D numpy array `samples[SampleId][QubitId]`, which is
             # the transpose of what `OutcomeArray.from_readouts` expects
-            return OutcomeArray.from_readouts(samples.T)
+            shots = OutcomeArray.from_readouts(samples.T)
+            # We need to specify which bits correspond to which columns in the shots
+            # table. Since cuTensorNet promises that the ordering of outcomes is
+            # determined by the ordering we provided as `measured_modes`, which in
+            # turn corresponds to the ordering of qubits in `qbit_list`, the fact that
+            # `cbit_list` has the appropriate order in relation to `self._measurements`
+            # determines this defines the ordering of classical bits we intend.
+            return BackendResult(c_bits=cbit_list, shots=shots)
 
         finally:
             #####################################################
@@ -533,3 +548,31 @@ def _formatted_tensor(matrix: NDArray, n_qubits: int) -> cp.ndarray:
     # We also need to reshape since a matrix only has 2 bonds, but for an
     # n-qubit gate we want 2^n bonds for input and another 2^n for output
     return cupy_matrix.reshape([2] * (2 * n_qubits), order="F")
+
+
+def _extract_measurements(circ: Circuit) -> Tuple[Circuit, Dict[Qubit, Bit]]:
+    """Convert a pytket Circuit to a MyCircuit object and a measurement map.
+
+    Only supports end-of-circuit measurements, which are removed from the returned
+    circuit and added to the dictionary.
+    """
+    pure_circ = Circuit()
+    for q in circ.qubits:
+        pure_circ.add_qubit(q)
+    measure_map = dict()
+    # Track measured Qubits/used Bits to identify mid-circuit measurement
+    measured_units = set()
+
+    for command in circ:
+        for u in command.args:
+            if u in measured_units:
+                raise ValueError("Circuit contains a mid-circuit measurement")
+
+        if command.op.type == OpType.Measure:
+            measure_map[command.args[0]] = command.args[1]
+            measured_units.add(command.args[0])
+            measured_units.add(command.args[1])
+        else:
+            pure_circ.add_gate(command.op, command.args)
+
+    return pure_circ, measure_map  # type: ignore
