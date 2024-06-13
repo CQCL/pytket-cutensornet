@@ -407,7 +407,19 @@ class GeneralState:
         attributes: Optional[dict] = None,
         scratch_fraction: float = 0.5,
     ) -> BackendResult:
-        """Obtain samples from the circuit."""
+        """Obtains samples from the measurements at the end of the circuit.
+
+        Args:
+            n_shots: The number of samples to obtain.
+            attributes: Optional. A dict of cuTensorNet `SamplerAttribute` keys and
+                their values.
+            scratch_fraction: Optional. Fraction of free memory on GPU to allocate as
+                scratch space.
+        Raises:
+            MemoryError: If there is insufficient workspace on GPU.
+        Returns:
+            A pytket ``BackendResult`` with the data from the shots.
+        """
 
         num_measurements = len(self._measurements)
         # We will need both a list of the qubits and a list of the classical bits
