@@ -238,8 +238,6 @@ class CuTensorNetBackend(Backend):
             handle_list.append(handle)
         return handle_list
 
-    # TODO: this should be optionally parallelised with MPI
-    #  (both wrt Pauli strings and contraction itself).
     def get_operator_expectation_value(
         self,
         state_circuit: Circuit,
@@ -261,13 +259,46 @@ class CuTensorNetBackend(Backend):
         Returns:
             Expectation value.
         """
+        return self.get_matrix_element(
+            state_circuit,
+            state_circuit,
+            operator,
+            post_selection=post_selection,
+            valid_check=valid_check,
+        )
+
+    # TODO: this should be optionally parallelised with MPI
+    #  (both wrt Pauli strings and contraction itself).
+    def get_matrix_element(
+        self,
+        circuit_bra: Circuit,
+        circuit_ket: Circuit,
+        operator: QubitPauliOperator,
+        post_selection: Optional[dict[Qubit, int]] = None,
+        valid_check: bool = True,
+    ) -> float:
+        """Calculates a general matrix element using cuTensorNet contraction.
+
+        Has an option to do post selection on an ancilla register.
+
+        Args:
+            circuit_bra: Circuit representing bra state.
+            circuit_ket: Circuit representing ket state.
+            operator: Operator which matrix element is to be calculated.
+            valid_check: Whether to perform circuit validity check.
+            post_selection: Dictionary of qubits to post select where the key is
+                qubit and the value is bit outcome.
+
+        Returns:
+            Matrix element.
+        """
         if valid_check:
-            self._check_all_circuits([state_circuit])
+            self._check_all_circuits([circuit_bra, circuit_ket])
 
-        expectation = 0
+        element = 0
 
-        ket_network = TensorNetwork(state_circuit)
-        bra_network = ket_network.dagger()
+        bra_network = TensorNetwork(circuit_bra)
+        ket_network = TensorNetwork(circuit_ket)
 
         if post_selection is not None:
             post_select_qubits = list(post_selection.keys())
@@ -281,18 +312,18 @@ class CuTensorNetBackend(Backend):
             )  # This needed because dagger does not work with post selection
 
         for qos, coeff in operator._dict.items():
-            expectation_value_network = ExpectationValueTensorNetwork(
+            element_value_network = ExpectationValueTensorNetwork(
                 bra_network, qos, ket_network
             )
             if isinstance(coeff, Expr):
                 numeric_coeff = complex(coeff.evalf())  # type: ignore
             else:
                 numeric_coeff = complex(coeff)  # type: ignore
-            expectation_term = numeric_coeff * cq.contract(
-                *expectation_value_network.cuquantum_interleaved
+            element_term = numeric_coeff * cq.contract(
+                *element_value_network.cuquantum_interleaved
             )
-            expectation += expectation_term
-        return expectation.real
+            element += element_term
+        return element.real
 
     def get_circuit_overlap(
         self,
