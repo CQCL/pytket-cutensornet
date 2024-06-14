@@ -71,7 +71,9 @@ class GeneralState:
         # Remove end-of-circuit measurements and keep track of them separately
         # It also resolves implicit sawps
         self._circuit, self._measurements = _remove_meas_and_implicit_swaps(circuit)
-        #
+        # Identify each qubit with the index of  the bond that represents it in the
+        # tensor network stored in this GeneralState. Qubits are sorted in increasing
+        # lexicographical order, which is the TKET standard.
         self._qubit_idx_map = {q: i for i, q in enumerate(sorted(self._circuit.qubits))}
 
         num_qubits = self._circuit.n_qubits
