@@ -1,0 +1,37 @@
+name: build with nix
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch: {}
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  build:
+    strategy:
+      matrix:
+        os: ['ubuntu-24.04']
+    runs-on: ${{matrix.os}}
+    steps:
+    - uses: actions/checkout@v4
+    - uses: cachix/install-nix-action@V27
+    - uses: cachix/cachix-action@v15
+      with:
+        name: tket
+    - name: Build pytket-cutensornet
+      run: nix build
+  test:
+    needs: build
+    runs-on: nixos-gpu
+    steps:
+    - uses: actions/checkout@v4
+    - uses: cachix/install-nix-action@V27
+    - uses: cachix/cachix-action@v15
+      with:
+        name: tket
+        authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+    - name: Test pytket-cutensornet
+      run: nix run .#tests
