@@ -1,0 +1,36 @@
+diff --git a/cupy_backends/cuda/libs/_cnvrtc.pxi b/cupy_backends/cuda/libs/_cnvrtc.pxi
+index 9f02b5522..3e0ef9da9 100644
+--- a/cupy_backends/cuda/libs/_cnvrtc.pxi
++++ b/cupy_backends/cuda/libs/_cnvrtc.pxi
+@@ -114,30 +114,5 @@ cdef void _initialize() except *:
+ cdef SoftLink _get_softlink():
+     cdef int runtime_version
+     cdef str prefix = 'nvrtc'
+-    cdef object libname = None
+-
+-    if CUPY_CUDA_VERSION != 0:
+-        runtime_version = runtime._getCUDAMajorVersion()
+-        if runtime_version == 11:
+-            # CUDA 11.x (11.2+)
+-            if _sys.platform == 'linux':
+-                libname = 'libnvrtc.so.11.2'
+-            else:
+-                libname = 'nvrtc64_112_0.dll'
+-        elif runtime_version == 12:
+-            # CUDA 12.x
+-            if _sys.platform == 'linux':
+-                libname = 'libnvrtc.so.12'
+-            else:
+-                libname = 'nvrtc64_120_0.dll'
+-    elif CUPY_HIP_VERSION != 0:
+-        runtime_version = runtime.runtimeGetVersion()
+-        prefix = 'hiprtc'
+-        if runtime_version < 5_00_00000:
+-            # ROCm 4.x
+-            libname = 'libamdhip64.so.4'
+-        elif runtime_version < 6_00_00000:
+-            # ROCm 5.x
+-            libname = 'libamdhip64.so.5'
+-
++    cdef object libname = '@cuda_bundle@/lib/libnvrtc.so'
+     return SoftLink(libname, prefix, mandatory=True)

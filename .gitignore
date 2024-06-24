@@ -10,3 +10,7 @@ obj
 docs/extensions
 .ipynb_checkpoints
 pytket/extensions/cutensornet/_metadata.py
+# nix artifacts
+result
+.direnv
+.envrc
