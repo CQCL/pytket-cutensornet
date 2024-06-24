@@ -7,7 +7,7 @@ let
     };
     aarch64-linux = fetchzip {
       url = "https://developer.download.nvidia.com/compute/cutensor/redist/libcutensor/linux-sbsa/libcutensor-linux-sbsa-2.0.1.2-archive.tar.xz";
-      sha256 = ""; #TODO
+      sha256 = sha256:vTEQ7uJYrEC1Q55DgCO5/PXTm0f34ndqezotnqq6E00=;
     };
   };
 in pkgs.stdenv.mkDerivation {

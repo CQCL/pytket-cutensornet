@@ -6,8 +6,8 @@ let
       sha256 = sha256:+CuYbJ2Sac3kmzdrJQLvdl2oGehx3b6kQqcyHksYxyU=;
     };
     aarch64-linux = fetchzip {
-      url = "https://developer.download.nvidia.com/compute/cusparselt/redist/libcusparse_lt/linux-spsa/libcusparse_lt-linux-spsa-0.6.1.0-archive.tar.xz";
-      sha256 = ""; #TODO
+      url = "https://developer.download.nvidia.com/compute/cusparselt/redist/libcusparse_lt/linux-sbsa/libcusparse_lt-linux-sbsa-0.6.1.0-archive.tar.xz";
+      sha256 = sha256:dcWXaXT9Q0370QEcYLnnmHRSppU1yn9VR4w9hzV+7jU=;
     };
   };
 in pkgs.stdenv.mkDerivation {
