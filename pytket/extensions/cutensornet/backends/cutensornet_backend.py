@@ -14,24 +14,18 @@
 
 """Methods to allow tket circuits to be run on the cuTensorNet simulator."""
 
-import warnings
 from abc import abstractmethod
 
-try:
-    import cuquantum as cq  # type: ignore
-except ImportError:
-    warnings.warn("local settings failed to import cutensornet", ImportWarning)
-from logging import warning
 from typing import List, Union, Optional, Sequence
 from uuid import uuid4
-import numpy as np
 from pytket.circuit import Circuit, OpType
 from pytket.backends import ResultHandle, CircuitStatus, StatusEnum, CircuitNotRunError
 from pytket.backends.backend import KwargTypes, Backend, BackendResult
 from pytket.backends.backendinfo import BackendInfo
 from pytket.backends.resulthandle import _ResultIdTuple
+from pytket.extensions.cutensornet import CuTensorNetHandle
 from pytket.extensions.cutensornet.general_state import (
-    tk_to_tensor_network,
+    GeneralState,
 )
 from pytket.predicates import (  # type: ignore
     Predicate,
@@ -208,32 +202,21 @@ class CuTensorNetStateBackend(_CuTensorNetBaseBackend):
 
         Returns:
             Results handle objects.
-
-        Raises:
-            TypeError: If global phase is dependent on a symbolic parameter.
         """
         circuit_list = list(circuits)
         if valid_check:
             self._check_all_circuits(circuit_list)
         handle_list = []
-        for circuit in circuit_list:
-            state_tnet = tk_to_tensor_network(circuit)
-            state = cq.contract(*state_tnet).flatten()
-            try:  # This constraint (from pytket-Qulacs) seems reasonable?
-                phase = float(circuit.phase)
-                coeff = np.exp(phase * np.pi * 1j)
-                state *= coeff  # type: ignore
-            except TypeError:
-                warning(
-                    "Global phase is dependent on a symbolic parameter, so cannot "
-                    "adjust for phase"
-                )
-            res_qubits = [qb for qb in sorted(circuit.qubits)]
-            handle = ResultHandle(str(uuid4()))
-            self._cache[handle] = {
-                "result": BackendResult(q_bits=res_qubits, state=state)
-            }
-            handle_list.append(handle)
+        with CuTensorNetHandle() as libhandle:
+            for circuit in circuit_list:
+                tn = GeneralState(circuit, libhandle)
+                sv = tn.get_statevector()
+                res_qubits = [qb for qb in sorted(circuit.qubits)]
+                handle = ResultHandle(str(uuid4()))
+                self._cache[handle] = {
+                    "result": BackendResult(q_bits=res_qubits, state=sv)
+                }
+                handle_list.append(handle)
         return handle_list
 
 
@@ -279,36 +262,32 @@ class CuTensorNetShotsBackend(_CuTensorNetBaseBackend):
         Args:
             circuits: List of circuits to be submitted.
             n_shots: Number of shots in case of shot-based calculation.
+                Optionally, this can be a list of shots specifying the number of shots
+                for each circuit separately.
             valid_check: Whether to check for circuit correctness.
 
         Returns:
             Results handle objects.
-
-        Raises:
-            TypeError: If global phase is dependent on a symbolic parameter.
         """
+        if n_shots is None:
+            raise ValueError(
+                "You must specify n_shots when using CuTensorNetShotsBackend."
+            )
+        if type(n_shots) == int:
+            all_shots = [n_shots] * len(circuits)
+        else:
+            all_shots = n_shots  # type: ignore
+
         circuit_list = list(circuits)
         if valid_check:
             self._check_all_circuits(circuit_list)
         handle_list = []
-        for circuit in circuit_list:
-            state_tnet = tk_to_tensor_network(circuit)
-            state = cq.contract(*state_tnet).flatten()
-            try:  # This constraint (from pytket-Qulacs) seems reasonable?
-                phase = float(circuit.phase)
-                coeff = np.exp(phase * np.pi * 1j)
-                state *= coeff  # type: ignore
-            except TypeError:
-                warning(
-                    "Global phase is dependent on a symbolic parameter, so cannot "
-                    "adjust for phase"
-                )
-            res_qubits = [qb for qb in sorted(circuit.qubits)]
-            handle = ResultHandle(str(uuid4()))
-            self._cache[handle] = {
-                "result": BackendResult(q_bits=res_qubits, state=state)
-            }
-            handle_list.append(handle)
+        with CuTensorNetHandle() as libhandle:
+            for circuit, circ_shots in zip(circuit_list, all_shots):
+                tn = GeneralState(circuit, libhandle)
+                handle = ResultHandle(str(uuid4()))
+                self._cache[handle] = {"result": tn.sample(circ_shots)}
+                handle_list.append(handle)
         return handle_list
 
 
