@@ -5,7 +5,10 @@ from pytket.passes import CliffordSimp  # type: ignore
 from pytket.pauli import QubitPauliString, Pauli  # type: ignore
 from pytket.utils.operators import QubitPauliOperator
 from pytket import Qubit  # type: ignore
-from pytket.extensions.cutensornet.backends import CuTensorNetStateBackend
+from pytket.extensions.cutensornet.backends import (
+    CuTensorNetStateBackend,
+    CuTensorNetShotsBackend,
+)
 
 
 def test_bell() -> None:
@@ -20,6 +23,18 @@ def test_bell() -> None:
     )
 
 
+def test_sampler_bell() -> None:
+    c = Circuit(2, 2)
+    c.H(0)
+    c.CX(0, 1)
+    c.measure_all()
+    b = CuTensorNetShotsBackend()
+    c = b.get_compiled_circuit(c)
+    res = b.run_circuit(c, n_shots=10, seed=3)
+    assert res.get_shots().shape == (10, 2)
+    assert res.get_counts() == {(0, 0): 5, (1, 1): 5}
+
+
 def test_basisorder() -> None:
     c = Circuit(2)
     c.X(1)
@@ -29,6 +44,17 @@ def test_basisorder() -> None:
     r = b.get_result(h)
     assert np.allclose(r.get_state(), np.asarray([0, 1, 0, 0]))
     assert np.allclose(r.get_state(basis=BasisOrder.dlo), np.asarray([0, 0, 1, 0]))
+
+
+def test_sampler_basisorder() -> None:
+    c = Circuit(2, 2)
+    c.X(1)
+    c.measure_all()
+    b = CuTensorNetShotsBackend()
+    c = b.get_compiled_circuit(c)
+    res = b.run_circuit(c, n_shots=10, seed=0)
+    assert res.get_counts() == {(0, 1): 10}
+    assert res.get_counts(basis=BasisOrder.dlo) == {(1, 0): 10}
 
 
 def test_implicit_perm() -> None:
