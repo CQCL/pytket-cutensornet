@@ -66,7 +66,9 @@ def test_compilation_pass() -> None:
 
 def test_invalid_measures() -> None:
     c = Circuit(2)
-    c.H(0).CX(0, 1).measure_all()
+    c.H(0).CX(0, 1)
+    c.measure_all()  # Invalid mid-circuit measurement
+    c.H(0)
     b = CuTensorNetStateBackend()
     c = b.get_compiled_circuit(c)
     assert not (b.valid_circuit(c))
