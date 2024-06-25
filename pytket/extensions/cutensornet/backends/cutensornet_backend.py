@@ -30,7 +30,6 @@ from pytket.backends import ResultHandle, CircuitStatus, StatusEnum, CircuitNotR
 from pytket.backends.backend import KwargTypes, Backend, BackendResult
 from pytket.backends.backendinfo import BackendInfo
 from pytket.backends.resulthandle import _ResultIdTuple
-from .._metadata import __extension_version__, __extension_name__
 from pytket.extensions.cutensornet.general_state import (
     tk_to_tensor_network,
 )
@@ -50,9 +49,10 @@ from pytket.passes import (  # type: ignore
     FullPeepholeOptimise,
     CustomPass,
 )
+from .._metadata import __extension_version__, __extension_name__
 
 
-class CuTensorNetBackend(Backend):
+class _CuTensorNetBaseBackend(Backend):
     """A pytket Backend wrapping around the ``GeneralState`` simulator."""
 
     _persistent_handles = False
@@ -161,7 +161,7 @@ class CuTensorNetBackend(Backend):
         ...
 
 
-class CuTensorNetStateBackend(CuTensorNetBackend):
+class CuTensorNetStateBackend(_CuTensorNetBaseBackend):
     """A pytket Backend using ``GeneralState`` to obtain state vectors."""
 
     _supports_state = True
@@ -235,7 +235,7 @@ class CuTensorNetStateBackend(CuTensorNetBackend):
         return handle_list
 
 
-class CuTensorNetShotsBackend(CuTensorNetBackend):
+class CuTensorNetShotsBackend(_CuTensorNetBaseBackend):
     """A pytket Backend using ``GeneralState`` to obtain shots."""
 
     _supports_shots = True
