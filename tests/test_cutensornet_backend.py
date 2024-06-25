@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from pytket.circuit import Circuit, BasisOrder, Unitary1qBox, OpType  # type: ignore
+from pytket.circuit import Circuit, BasisOrder, ToffoliBox, DummyBox, OpType  # type: ignore
 from pytket.passes import CliffordSimp  # type: ignore
 from pytket.pauli import QubitPauliString, Pauli  # type: ignore
 from pytket.utils.operators import QubitPauliOperator
@@ -51,17 +51,35 @@ def test_implicit_perm() -> None:
 
 
 def test_compilation_pass() -> None:
+    perm = {
+        (False, False): (True, True),
+        (False, True): (False, False),
+        (True, False): (True, False),
+        (True, True): (False, True),
+    }
+
     b = CuTensorNetStateBackend()
     for opt_level in range(3):
         c = Circuit(2)
         c.CX(0, 1)
         u = np.asarray([[0, 1], [-1j, 0]])
-        c.add_unitary1qbox(Unitary1qBox(u), 1)
+        c.add_toffolibox(ToffoliBox(perm), [0, 1])  # type: ignore
         c.CX(0, 1)
         c.add_gate(OpType.CRz, 0.35, [1, 0])
-        assert not (b.valid_circuit(c))
+
+        assert b.valid_circuit(c)  # Already valid before decomposition
         c = b.get_compiled_circuit(c, optimisation_level=opt_level)
         assert b.valid_circuit(c)
+
+
+def test_unitarity_predicate() -> None:
+    b = CuTensorNetStateBackend()
+    c = Circuit(2)
+    c.CX(0, 1)
+    c.add_dummybox(DummyBox(2, 0, c.get_resources()), [0, 1], [])  # type: ignore
+    c.CX(0, 1)
+    c.add_gate(OpType.CRz, 0.35, [1, 0])
+    assert not b.valid_circuit(c)
 
 
 def test_invalid_measures() -> None:

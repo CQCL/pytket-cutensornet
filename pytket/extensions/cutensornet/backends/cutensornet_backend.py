@@ -25,7 +25,7 @@ from logging import warning
 from typing import List, Union, Optional, Sequence
 from uuid import uuid4
 import numpy as np
-from pytket.circuit import Circuit
+from pytket.circuit import Circuit, OpType
 from pytket.backends import ResultHandle, CircuitStatus, StatusEnum, CircuitNotRunError
 from pytket.backends.backend import KwargTypes, Backend, BackendResult
 from pytket.backends.backendinfo import BackendInfo
@@ -39,6 +39,7 @@ from pytket.predicates import (  # type: ignore
     NoClassicalControlPredicate,
     NoMidMeasurePredicate,
     NoBarriersPredicate,
+    UserDefinedPredicate,
 )
 from pytket.passes import (  # type: ignore
     BasePass,
@@ -80,6 +81,7 @@ class _CuTensorNetBaseBackend(Backend):
             NoClassicalControlPredicate(),
             NoMidMeasurePredicate(),
             NoBarriersPredicate(),
+            UserDefinedPredicate(_check_all_unitary_or_measurements),
         ]
         return preds
 
@@ -308,3 +310,14 @@ class CuTensorNetShotsBackend(_CuTensorNetBaseBackend):
             }
             handle_list.append(handle)
         return handle_list
+
+
+def _check_all_unitary_or_measurements(circuit: Circuit) -> bool:
+    """Auxiliary function for custom predicate"""
+    try:
+        for cmd in circuit:
+            if cmd.op.type != OpType.Measure:
+                cmd.op.get_unitary()
+        return True
+    except:
+        return False
