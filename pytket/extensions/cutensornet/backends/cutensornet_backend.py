@@ -23,7 +23,7 @@ from pytket.backends import ResultHandle, CircuitStatus, StatusEnum, CircuitNotR
 from pytket.backends.backend import KwargTypes, Backend, BackendResult
 from pytket.backends.backendinfo import BackendInfo
 from pytket.backends.resulthandle import _ResultIdTuple
-from pytket.extensions.cutensornet import CuTensorNetHandle
+from pytket.extensions.cutensornet.general import CuTensorNetHandle
 from pytket.extensions.cutensornet.general_state import (
     GeneralState,
 )
