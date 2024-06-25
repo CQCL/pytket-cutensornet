@@ -671,7 +671,6 @@ def get_operator_expectation_value(
     state_circuit: Circuit,
     operator: QubitPauliOperator,
     post_selection: Optional[dict[Qubit, int]] = None,
-    valid_check: bool = True,
 ) -> float:
     """Calculates expectation value of an operator using cuTensorNet contraction.
 
@@ -680,7 +679,6 @@ def get_operator_expectation_value(
     Args:
         state_circuit: Circuit representing state.
         operator: Operator which expectation value is to be calculated.
-        valid_check: Whether to perform circuit validity check.
         post_selection: Dictionary of qubits to post select where the key is
             qubit and the value is bit outcome.
 
@@ -721,14 +719,12 @@ def get_operator_expectation_value(
 def get_circuit_overlap(
     circuit_ket: Circuit,
     circuit_bra: Optional[Circuit] = None,
-    valid_check: bool = True,
 ) -> float:
     """Calculates an overlap of two states represented by two circuits.
 
     Args:
         circuit_bra: Circuit representing the bra state.
         circuit_ket: Circuit representing the ket state.
-        valid_check: Whether to perform circuit validity check.
 
     Returns:
         Overlap value.
