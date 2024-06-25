@@ -198,6 +198,7 @@ class CuTensorNetStateBackend(_CuTensorNetBaseBackend):
         Args:
             circuits: List of circuits to be submitted.
             n_shots: Number of shots in case of shot-based calculation.
+                This should be ``None``, since this backend does not support shots.
             valid_check: Whether to check for circuit correctness.
 
         Returns:

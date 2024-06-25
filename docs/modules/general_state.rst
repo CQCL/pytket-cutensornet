@@ -20,13 +20,17 @@ cuQuantum `contract` API interface
 
 .. autoclass:: pytket.extensions.cutensornet.general_state.ExpectationValueTensorNetwork
 
+.. autofunction:: pytket.extensions.cutensornet.general_state.tk_to_tensor_network
+
 .. autofunction:: pytket.extensions.cutensornet.general_state.measure_qubits_state
 
-.. autofunction:: pytket.extensions.cutensornet.general_state.tk_to_tensor_network
+.. autofunction:: pytket.extensions.cutensornet.general_state.get_operator_expectation_value
+
+.. autofunction:: pytket.extensions.cutensornet.general_state.get_circuit_overlap
 
 
 Pytket backend
 ~~~~~~~~~~~~~~
 
 .. automodule:: pytket.extensions.cutensornet
-    :members: CuTensorNetBackend
+    :members: CuTensorNetStateBackend, CuTensorNetShotsBackend
