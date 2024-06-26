@@ -19,7 +19,9 @@ For an example of its use, see the ``examples/`` folder at
 https://github.com/CQCL/pytket-cutensornet.
 """
 
-from .general import CuTensorNetHandle, Config, StructuredState
+from pytket.extensions.cutensornet import CuTensorNetHandle
+
+from .general import Config, StructuredState
 from .simulation import SimulationAlgorithm, simulate, prepare_circuit_mps
 
 from .mps import DirMPS, MPS

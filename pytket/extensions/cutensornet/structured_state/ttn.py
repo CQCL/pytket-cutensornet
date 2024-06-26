@@ -33,9 +33,9 @@ except ImportError:
 from pytket.circuit import Command, Qubit
 from pytket.pauli import QubitPauliString
 
-from pytket.extensions.cutensornet.general import set_logger
+from pytket.extensions.cutensornet.general import CuTensorNetHandle, set_logger
 
-from .general import CuTensorNetHandle, Config, StructuredState, Tensor
+from .general import Config, StructuredState, Tensor
 
 
 class DirTTN(IntEnum):

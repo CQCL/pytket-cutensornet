@@ -11,10 +11,16 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-"""Module for conversion from tket primitives to cuQuantum primitives."""
+"""Module for simulating circuits with no predetermined tensor network structure."""
 
-from .backends import CuTensorNetBackend
-from .general import CuTensorNetHandle
+from .utils import circuit_statevector_postselect
 
-# _metadata.py is copied to the folder after installation.
-from ._metadata import __extension_version__, __extension_name__  # type: ignore
+from .tensor_network_convert import (
+    TensorNetwork,
+    PauliOperatorTensorNetwork,
+    ExpectationValueTensorNetwork,
+    tk_to_tensor_network,
+    measure_qubits_state,
+)
+
+from .tensor_network_state import GeneralState

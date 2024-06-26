@@ -16,10 +16,6 @@ Simulation
 
     .. automethod:: __init__
 
-.. autoclass:: pytket.extensions.cutensornet.structured_state.CuTensorNetHandle
-
-    .. automethod:: destroy
-
 
 Classes
 ~~~~~~~

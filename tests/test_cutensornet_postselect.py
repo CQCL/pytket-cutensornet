@@ -5,11 +5,13 @@ from pytket.circuit import Qubit, Circuit  # type: ignore
 from pytket.pauli import Pauli, QubitPauliString  # type: ignore
 from pytket.utils import QubitPauliOperator
 from pytket.extensions.cutensornet.backends import CuTensorNetBackend
-from pytket.extensions.cutensornet.tensor_network_convert import (  # type: ignore
+from pytket.extensions.cutensornet.general_state.tensor_network_convert import (  # type: ignore
     TensorNetwork,
     measure_qubits_state,
 )
-from pytket.extensions.cutensornet.utils import circuit_statevector_postselect
+from pytket.extensions.cutensornet.general_state.utils import (
+    circuit_statevector_postselect,
+)
 
 
 @pytest.mark.parametrize(

@@ -26,58 +26,14 @@ try:
     import cupy as cp  # type: ignore
 except ImportError:
     warnings.warn("local settings failed to import cupy", ImportWarning)
-try:
-    import cuquantum.cutensornet as cutn  # type: ignore
-except ImportError:
-    warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
+from pytket.extensions.cutensornet import CuTensorNetHandle
 
 # An alias for the CuPy type used for tensors
 try:
     Tensor = cp.ndarray
 except NameError:
     Tensor = Any
-
-
-class CuTensorNetHandle:
-    """Initialise the cuTensorNet library with automatic workspace memory
-    management.
-
-    Note:
-        Always use as ``with CuTensorNetHandle() as libhandle:`` so that cuTensorNet
-        handles are automatically destroyed at the end of execution.
-
-    Attributes:
-        handle (int): The cuTensorNet library handle created by this initialisation.
-        device_id (int): The ID of the device (GPU) where cuTensorNet is initialised.
-            If not provided, defaults to ``cp.cuda.Device()``.
-    """
-
-    def __init__(self, device_id: Optional[int] = None):
-        self._is_destroyed = False
-
-        # Make sure CuPy uses the specified device
-        cp.cuda.Device(device_id).use()
-
-        dev = cp.cuda.Device()
-        self.device_id = int(dev)
-
-        self.handle = cutn.create()
-
-    def destroy(self) -> None:
-        """Destroys the memory handle, releasing memory.
-
-        Only call this method if you are initialising a ``CuTensorNetHandle`` outside
-        a ``with CuTensorNetHandle() as libhandle`` statement.
-        """
-        cutn.destroy(self.handle)
-        self._is_destroyed = True
-
-    def __enter__(self) -> CuTensorNetHandle:
-        return self
-
-    def __exit__(self, exc_type: Any, exc_value: Any, exc_tb: Any) -> None:
-        self.destroy()
 
 
 class Config:

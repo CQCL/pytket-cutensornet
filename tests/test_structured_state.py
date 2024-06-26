@@ -21,7 +21,9 @@ from pytket.extensions.cutensornet.structured_state import (
     SimulationAlgorithm,
 )
 from pytket.extensions.cutensornet.structured_state.ttn import RootPath
-from pytket.extensions.cutensornet.utils import circuit_statevector_postselect
+from pytket.extensions.cutensornet.general_state.utils import (
+    circuit_statevector_postselect,
+)
 
 
 def test_libhandle_manager() -> None:
