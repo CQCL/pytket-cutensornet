@@ -269,7 +269,8 @@ def test_sampler(circuit: Circuit, measure_all: bool) -> None:
             # Obtain all compatible basis states (bitstring encoded as int)
             non_measured = circuit.n_qubits - num_measured
             compatible = [
-                (outcome << non_measured) + offset for offset in range(2**non_measured)
+                (outcome << non_measured) + offset
+                for offset in range(2**non_measured)
             ]
             # The probability is the sum of that of all compatible basis states
             prob = sum(abs(sv_pytket[v]) ** 2 for v in compatible)
