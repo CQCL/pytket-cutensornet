@@ -531,9 +531,9 @@ class GeneralState:
             return BackendResult(c_bits=cbit_list, shots=shots)
 
         finally:
-            #####################################################
+            ##############################
             # Destroy the Sampler object #
-            #####################################################
+            ##############################
             cutn.destroy_workspace_descriptor(work_desc)  # type: ignore
             cutn.destroy_sampler(sampler)
             del scratch_space

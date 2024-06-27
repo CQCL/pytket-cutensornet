@@ -14,34 +14,26 @@
 
 """Methods to allow tket circuits to be run on the cuTensorNet simulator."""
 
-import warnings
+from abc import abstractmethod
 
-try:
-    import cuquantum as cq  # type: ignore
-except ImportError:
-    warnings.warn("local settings failed to import cutensornet", ImportWarning)
-from logging import warning
 from typing import List, Union, Optional, Sequence
 from uuid import uuid4
-import numpy as np
-from sympy import Expr  # type: ignore
-from pytket.circuit import Circuit, OpType, Qubit  # type: ignore
+from pytket.circuit import Circuit, OpType
 from pytket.backends import ResultHandle, CircuitStatus, StatusEnum, CircuitNotRunError
 from pytket.backends.backend import KwargTypes, Backend, BackendResult
 from pytket.backends.backendinfo import BackendInfo
 from pytket.backends.resulthandle import _ResultIdTuple
+from pytket.extensions.cutensornet.general import CuTensorNetHandle
 from pytket.extensions.cutensornet.general_state import (
-    TensorNetwork,
-    ExpectationValueTensorNetwork,
-    tk_to_tensor_network,
-    measure_qubits_state,
+    GeneralState,
 )
-from pytket.passes import auto_rebase_pass
 from pytket.predicates import (  # type: ignore
     Predicate,
-    GateSetPredicate,
-    NoClassicalBitsPredicate,
     NoSymbolsPredicate,
+    NoClassicalControlPredicate,
+    NoMidMeasurePredicate,
+    NoBarriersPredicate,
+    UserDefinedPredicate,
 )
 from pytket.passes import (  # type: ignore
     BasePass,
@@ -50,66 +42,16 @@ from pytket.passes import (  # type: ignore
     RemoveRedundancies,
     SynthesiseTket,
     FullPeepholeOptimise,
+    CustomPass,
 )
-from pytket.utils.operators import QubitPauliOperator
+from .._metadata import __extension_version__, __extension_name__
 
 
-class CuTensorNetBackend(Backend):
-    """A pytket Backend wrapping around the cuTensorNet simulator."""
+class _CuTensorNetBaseBackend(Backend):
+    """A pytket Backend wrapping around the ``GeneralState`` simulator."""
 
-    _supports_state = True
-    _supports_expectation = True
     _persistent_handles = False
-    _GATE_SET = {
-        OpType.X,
-        OpType.Y,
-        OpType.Z,
-        OpType.S,
-        OpType.Sdg,
-        OpType.T,
-        OpType.Tdg,
-        OpType.V,
-        OpType.Vdg,
-        OpType.SX,
-        OpType.SXdg,
-        OpType.H,
-        OpType.Rx,
-        OpType.Ry,
-        OpType.Rz,
-        OpType.U1,
-        OpType.U2,
-        OpType.U3,
-        OpType.TK1,
-        OpType.TK2,
-        OpType.CX,
-        OpType.CY,
-        OpType.CZ,
-        OpType.CH,
-        OpType.CV,
-        OpType.CVdg,
-        OpType.CSX,
-        OpType.CSXdg,
-        OpType.CRz,
-        OpType.CRy,
-        OpType.CRx,
-        OpType.CU1,
-        OpType.CU3,
-        OpType.CCX,
-        OpType.ECR,
-        OpType.SWAP,
-        OpType.CSWAP,
-        OpType.ISWAP,
-        OpType.XXPhase,
-        OpType.YYPhase,
-        OpType.ZZPhase,
-        OpType.ZZMax,
-        OpType.ESWAP,
-        OpType.PhasedX,
-        OpType.FSim,
-        OpType.Sycamore,
-    }
 
-    # TODO: add self._backend_info?
     def __init__(self) -> None:
         """Constructs a new cuTensorNet backend object."""
         super().__init__()
@@ -117,13 +59,6 @@ class CuTensorNetBackend(Backend):
     @property
     def _result_id_type(self) -> _ResultIdTuple:
         return (str,)
-
-    # TODO: return some info? Should it return self._backend_info instantiated on
-    #  construction?
-    @property
-    def backend_info(self) -> Optional[BackendInfo]:
-        """Returns information on the backend."""
-        return None
 
     @property
     def required_predicates(self) -> List[Predicate]:
@@ -136,21 +71,22 @@ class CuTensorNetBackend(Backend):
             List of required predicates.
         """
         preds = [
-            NoClassicalBitsPredicate(),
             NoSymbolsPredicate(),
-            GateSetPredicate(self._GATE_SET),
+            NoClassicalControlPredicate(),
+            NoMidMeasurePredicate(),
+            NoBarriersPredicate(),
+            UserDefinedPredicate(_check_all_unitary_or_measurements),
         ]
         return preds
 
     def rebase_pass(self) -> BasePass:
-        """Defines rebasing method.
-
-        Returns:
-            Automatic rebase pass object based on the backend gate set.
+        """This method returns a dummy pass that does nothing, since there is
+        no need to rebase. It is provided by requirement of a child of Backend,
+        but it should not be included in the documentation.
         """
-        return auto_rebase_pass(self._GATE_SET)
+        return CustomPass(lambda circ: circ)  # Do nothing
 
-    def default_compilation_pass(self, optimisation_level: int = 1) -> BasePass:
+    def default_compilation_pass(self, optimisation_level: int = 0) -> BasePass:
         """Returns a default compilation pass.
 
         A suggested compilation pass that will guarantee the resulting circuit
@@ -162,7 +98,7 @@ class CuTensorNetBackend(Backend):
                 compilation. Level 0 just solves the device constraints without
                 optimising. Level 1 additionally performs some light optimisations.
                 Level 2 adds more intensive optimisations that can increase compilation
-                time for large circuits. Defaults to 1.
+                time for large circuits. Defaults to 0.
         Returns:
             Compilation pass guaranteeing required predicates.
         """
@@ -171,6 +107,9 @@ class CuTensorNetBackend(Backend):
             DecomposeBoxes(),
             RemoveRedundancies(),
         ]  # Decompose boxes into basic gates
+
+        # NOTE: these are the standard passes used in TKET backends. I haven't
+        # benchmarked what's their effect on the simulation time.
         if optimisation_level == 1:
             seq.append(SynthesiseTket())  # Optional fast optimisation
         elif optimisation_level == 2:
@@ -191,6 +130,7 @@ class CuTensorNetBackend(Backend):
             return CircuitStatus(StatusEnum.COMPLETED)
         raise CircuitNotRunError(handle)
 
+    @abstractmethod
     def process_circuits(
         self,
         circuits: Sequence[Circuit],
@@ -214,108 +154,157 @@ class CuTensorNetBackend(Backend):
         Raises:
             TypeError: If global phase is dependent on a symbolic parameter.
         """
+        ...
+
+
+class CuTensorNetStateBackend(_CuTensorNetBaseBackend):
+    """A pytket Backend using ``GeneralState`` to obtain state vectors."""
+
+    _supports_state = True
+
+    def __init__(self) -> None:
+        """Constructs a new cuTensorNet backend object."""
+        super().__init__()
+
+    @property
+    def backend_info(self) -> Optional[BackendInfo]:
+        """Returns information on the backend."""
+        return BackendInfo(
+            name="CuTensorNetStateBackend",
+            architecture=None,
+            device_name="NVIDIA GPU",
+            version=__extension_name__ + "==" + __extension_version__,
+            # The only constraint to the gateset is that they must be unitary matrices
+            # or end-of-circuit measurements. These constraints are already specified
+            # in the required_predicates of the backend. The empty set for gateset is
+            # meant to be interpreted as "all gates".
+            # TODO: list all gates in a programmatic way?
+            gate_set=set(),
+            misc={"characterisation": None},
+        )
+
+    def process_circuits(
+        self,
+        circuits: Sequence[Circuit],
+        n_shots: Optional[Union[int, Sequence[int]]] = None,
+        valid_check: bool = True,
+        **kwargs: KwargTypes,
+    ) -> List[ResultHandle]:
+        """Submits circuits to the backend for running.
+
+        The results will be stored in the backend's result cache to be retrieved by the
+        corresponding get_<data> method.
+
+        Args:
+            circuits: List of circuits to be submitted.
+            n_shots: Number of shots in case of shot-based calculation.
+                This should be ``None``, since this backend does not support shots.
+            valid_check: Whether to check for circuit correctness.
+
+        Returns:
+            Results handle objects.
+        """
         circuit_list = list(circuits)
         if valid_check:
             self._check_all_circuits(circuit_list)
         handle_list = []
-        for circuit in circuit_list:
-            state_tnet = tk_to_tensor_network(circuit)
-            state = cq.contract(*state_tnet).flatten()
-            try:  # This constraint (from pytket-Qulacs) seems reasonable?
-                phase = float(circuit.phase)
-                coeff = np.exp(phase * np.pi * 1j)
-                state *= coeff  # type: ignore
-            except TypeError:
-                warning(
-                    "Global phase is dependent on a symbolic parameter, so cannot "
-                    "adjust for phase"
-                )
-            res_qubits = [qb for qb in sorted(circuit.qubits)]
-            handle = ResultHandle(str(uuid4()))
-            self._cache[handle] = {
-                "result": BackendResult(q_bits=res_qubits, state=state)
-            }
-            handle_list.append(handle)
+        with CuTensorNetHandle() as libhandle:
+            for circuit in circuit_list:
+                tn = GeneralState(circuit, libhandle)
+                sv = tn.get_statevector()
+                res_qubits = [qb for qb in sorted(circuit.qubits)]
+                handle = ResultHandle(str(uuid4()))
+                self._cache[handle] = {
+                    "result": BackendResult(q_bits=res_qubits, state=sv)
+                }
+                handle_list.append(handle)
         return handle_list
 
-    # TODO: this should be optionally parallelised with MPI
-    #  (both wrt Pauli strings and contraction itself).
-    def get_operator_expectation_value(
-        self,
-        state_circuit: Circuit,
-        operator: QubitPauliOperator,
-        post_selection: Optional[dict[Qubit, int]] = None,
-        valid_check: bool = True,
-    ) -> float:
-        """Calculates expectation value of an operator using cuTensorNet contraction.
 
-        Has an option to do post selection on an ancilla register.
+class CuTensorNetShotsBackend(_CuTensorNetBaseBackend):
+    """A pytket Backend using ``GeneralState`` to obtain shots."""
+
+    _supports_shots = True
+    _supports_counts = True
+
+    def __init__(self) -> None:
+        """Constructs a new cuTensorNet backend object."""
+        super().__init__()
+
+    @property
+    def backend_info(self) -> Optional[BackendInfo]:
+        """Returns information on the backend."""
+        return BackendInfo(
+            name="CuTensorNetShotsBackend",
+            architecture=None,
+            device_name="NVIDIA GPU",
+            version=__extension_name__ + "==" + __extension_version__,
+            # The only constraint to the gateset is that they must be unitary matrices
+            # or end-of-circuit measurements. These constraints are already specified
+            # in the required_predicates of the backend. The empty set for gateset is
+            # meant to be interpreted as "all gates".
+            # TODO: list all gates in a programmatic way?
+            gate_set=set(),
+            misc={"characterisation": None},
+        )
+
+    def process_circuits(
+        self,
+        circuits: Sequence[Circuit],
+        n_shots: Optional[Union[int, Sequence[int]]] = None,
+        valid_check: bool = True,
+        **kwargs: KwargTypes,
+    ) -> List[ResultHandle]:
+        """Submits circuits to the backend for running.
+
+        The results will be stored in the backend's result cache to be retrieved by the
+        corresponding get_<data> method.
 
         Args:
-            state_circuit: Circuit representing state.
-            operator: Operator which expectation value is to be calculated.
-            valid_check: Whether to perform circuit validity check.
-            post_selection: Dictionary of qubits to post select where the key is
-                qubit and the value is bit outcome.
+            circuits: List of circuits to be submitted.
+            n_shots: Number of shots in case of shot-based calculation.
+                Optionally, this can be a list of shots specifying the number of shots
+                for each circuit separately.
+            valid_check: Whether to check for circuit correctness.
 
         Returns:
-            Expectation value.
+            Results handle objects.
         """
-        if valid_check:
-            self._check_all_circuits([state_circuit])
-
-        expectation = 0
-
-        ket_network = TensorNetwork(state_circuit)
-        bra_network = ket_network.dagger()
-
-        if post_selection is not None:
-            post_select_qubits = list(post_selection.keys())
-            if set(post_select_qubits).issubset(operator.all_qubits):
-                raise ValueError(
-                    "Post selection qubit must not be a subset of operator qubits"
-                )
-            ket_network = measure_qubits_state(ket_network, post_selection)
-            bra_network = measure_qubits_state(
-                bra_network, post_selection
-            )  # This needed because dagger does not work with post selection
-
-        for qos, coeff in operator._dict.items():
-            expectation_value_network = ExpectationValueTensorNetwork(
-                bra_network, qos, ket_network
+        if "seed" in kwargs and kwargs["seed"] is not None:
+            # Current CuTensorNet does not support seeds for Sampler. I created
+            # a feature request in their repository.
+            raise NotImplementedError(
+                "The backend does not currently support user-defined seeds."
             )
-            if isinstance(coeff, Expr):
-                numeric_coeff = complex(coeff.evalf())  # type: ignore
-            else:
-                numeric_coeff = complex(coeff)  # type: ignore
-            expectation_term = numeric_coeff * cq.contract(
-                *expectation_value_network.cuquantum_interleaved
+
+        if n_shots is None:
+            raise ValueError(
+                "You must specify n_shots when using CuTensorNetShotsBackend."
             )
-            expectation += expectation_term
-        return expectation.real
+        if type(n_shots) == int:
+            all_shots = [n_shots] * len(circuits)
+        else:
+            all_shots = n_shots  # type: ignore
 
-    def get_circuit_overlap(
-        self,
-        circuit_ket: Circuit,
-        circuit_bra: Optional[Circuit] = None,
-        valid_check: bool = True,
-    ) -> float:
-        """Calculates an overlap of two states represented by two circuits.
-
-        Args:
-            circuit_bra: Circuit representing the bra state.
-            circuit_ket: Circuit representing the ket state.
-            valid_check: Whether to perform circuit validity check.
-
-        Returns:
-            Overlap value.
-        """
-        if circuit_bra is None:
-            circuit_bra = circuit_ket
+        circuit_list = list(circuits)
         if valid_check:
-            self._check_all_circuits([circuit_bra, circuit_ket])
+            self._check_all_circuits(circuit_list)
+        handle_list = []
+        with CuTensorNetHandle() as libhandle:
+            for circuit, circ_shots in zip(circuit_list, all_shots):
+                tn = GeneralState(circuit, libhandle)
+                handle = ResultHandle(str(uuid4()))
+                self._cache[handle] = {"result": tn.sample(circ_shots)}
+                handle_list.append(handle)
+        return handle_list
 
-        ket_net = TensorNetwork(circuit_ket)
-        overlap_net_interleaved = ket_net.vdot(TensorNetwork(circuit_bra))
-        overlap: float = cq.contract(*overlap_net_interleaved)
-        return overlap
+
+def _check_all_unitary_or_measurements(circuit: Circuit) -> bool:
+    """Auxiliary function for custom predicate"""
+    try:
+        for cmd in circuit:
+            if cmd.op.type != OpType.Measure:
+                cmd.op.get_unitary()
+        return True
+    except:
+        return False

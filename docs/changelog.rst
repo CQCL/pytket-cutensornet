@@ -4,7 +4,14 @@ Changelog
 Unreleased
 ----------
 
+* API breaking changes
+    * Renamed ``CuTensorNetBackend`` to ``CuTensorNetStateBackend``.
+    * Moved ``get_operator_expectation_value`` and ``get_circuit_overlap`` from ``backends`` submodule to ``general_state`` submodule.
+    * **Warning** ``TensorNetwork`` object will soon be deprecated in favour of the new ``GeneralState``.
+
+
 * New API: ``GeneralState`` for exact simulation of circuits via contraction-path optimisation. Currently supports ``get_statevector()``, ``expectation_value()`` and ``sample()``.
+* New feature: ``CuTensorNetShotsBackend`` for simulation of circuit shots.
 * New feature: ``add_qubit`` to add fresh qubits at specified positions in an ``MPS``.
 * New feature: added an option to ``measure`` to toggle destructive measurement on/off. Currently only supported for ``MPS``.
 * New feature: a seed can now be provided to ``Config`` objects, providing reproducibility across ``StructuredState`` simulations.
