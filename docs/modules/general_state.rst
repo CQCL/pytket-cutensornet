@@ -8,6 +8,7 @@ General state (exact) simulation
     .. automethod:: __init__
     .. automethod:: get_statevector
     .. automethod:: expectation_value
+    .. automethod:: sample
     .. automethod:: destroy
 
 cuQuantum `contract` API interface

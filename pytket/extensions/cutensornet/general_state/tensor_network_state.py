@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 import logging
-from typing import Union, Optional
+from typing import Union, Optional, Tuple, Dict
 import warnings
 
 try:
@@ -24,9 +24,11 @@ except ImportError:
 import numpy as np
 from sympy import Expr  # type: ignore
 from numpy.typing import NDArray
-from pytket.circuit import Circuit
+from pytket.circuit import Circuit, Qubit, Bit, OpType
 from pytket.extensions.cutensornet.general import CuTensorNetHandle, set_logger
+from pytket.utils import OutcomeArray
 from pytket.utils.operators import QubitPauliOperator
+from pytket.backends.backendresult import BackendResult
 
 try:
     import cuquantum as cq  # type: ignore
@@ -44,8 +46,9 @@ class GeneralState:
         libhandle: CuTensorNetHandle,
         loglevel: int = logging.INFO,
     ) -> None:
-        """Constructs a tensor network representating a pytket circuit.
+        """Constructs a tensor network for the output state of a pytket circuit.
 
+        The qubits are assumed to be initialised in the ``|0>`` state.
         The resulting object stores the *uncontracted* tensor network.
 
         Note:
@@ -55,7 +58,6 @@ class GeneralState:
 
         Note:
             The ``circuit`` must not contain any ``CircBox`` or non-unitary command.
-            Internally, implicit wire swaps are replaced with explicit SWAP gates.
 
         Args:
             circuit: A pytket circuit to be converted to a tensor network.
@@ -63,14 +65,16 @@ class GeneralState:
             loglevel: Internal logger output level.
         """
         self._logger = set_logger("GeneralState", loglevel)
-        self._circuit = circuit.copy()
-        # TODO: This is not strictly necessary; implicit SWAPs could be resolved by
-        # qubit relabelling, but it's only worth doing so if there are clear signs
-        # of inefficiency due to this.
-        self._circuit.replace_implicit_wire_swaps()
         self._lib = libhandle
-
         libhandle.print_device_properties(self._logger)
+
+        # Remove end-of-circuit measurements and keep track of them separately
+        # It also resolves implicit swaps
+        self._circuit, self._measurements = _remove_meas_and_implicit_swaps(circuit)
+        # Identify each qubit with the index of  the bond that represents it in the
+        # tensor network stored in this GeneralState. Qubits are sorted in increasing
+        # lexicographical order, which is the TKET standard.
+        self._qubit_idx_map = {q: i for i, q in enumerate(sorted(self._circuit.qubits))}
 
         num_qubits = self._circuit.n_qubits
         dim = 2  # We are always dealing with qubits, not qudits
@@ -93,9 +97,7 @@ class GeneralState:
                     f"contains {com}; no unitary matrix could be retrived for it."
                 )
             self._gate_tensors.append(_formatted_tensor(gate_unitary, com.op.n_qubits))
-            gate_qubit_indices = tuple(
-                self._circuit.qubits.index(qb) for qb in com.qubits
-            )
+            gate_qubit_indices = tuple(self._qubit_idx_map[qb] for qb in com.qubits)
 
             cutn.state_apply_tensor_operator(
                 handle=self._lib.handle,
@@ -286,7 +288,7 @@ class GeneralState:
             num_pauli = len(qubit_pauli_map)
             num_modes = (1,) * num_pauli
             state_modes = tuple(
-                (self._circuit.qubits.index(qb),) for qb in qubit_pauli_map.keys()
+                (self._qubit_idx_map[qb],) for qb in qubit_pauli_map.keys()
             )
             gate_data = tuple(tensor.data.ptr for tensor in qubit_pauli_map.values())
 
@@ -401,6 +403,141 @@ class GeneralState:
             cutn.destroy_network_operator(tn_operator)
             del scratch_space
 
+    def sample(
+        self,
+        n_shots: int,
+        attributes: Optional[dict] = None,
+        scratch_fraction: float = 0.5,
+    ) -> BackendResult:
+        """Obtains samples from the measurements at the end of the circuit.
+
+        Args:
+            n_shots: The number of samples to obtain.
+            attributes: Optional. A dict of cuTensorNet `SamplerAttribute` keys and
+                their values.
+            scratch_fraction: Optional. Fraction of free memory on GPU to allocate as
+                scratch space.
+        Raises:
+            MemoryError: If there is insufficient workspace on GPU.
+        Returns:
+            A pytket ``BackendResult`` with the data from the shots.
+        """
+
+        num_measurements = len(self._measurements)
+        # We will need both a list of the qubits and a list of the classical bits
+        # and it is essential that the elements in the same index of either list
+        # match according to the self._measurements map. We guarantee this here.
+        qbit_list, cbit_list = zip(*self._measurements.items())
+        measured_modes = tuple(self._qubit_idx_map[qb] for qb in qbit_list)
+
+        ############################################
+        # Configure the cuTensorNet sampler object #
+        ############################################
+
+        sampler = cutn.create_sampler(
+            handle=self._lib.handle,
+            tensor_network_state=self._state,
+            num_modes_to_sample=num_measurements,
+            modes_to_sample=measured_modes,
+        )
+
+        if attributes is None:
+            attributes = dict()
+        attribute_pairs = [
+            (getattr(cutn.SamplerAttribute, k), v) for k, v in attributes.items()
+        ]
+
+        for attr, val in attribute_pairs:
+            attr_dtype = cutn.sampler_get_attribute_dtype(attr)
+            attr_arr = np.asarray(val, dtype=attr_dtype)
+            cutn.sampler_configure(
+                self._lib.handle,
+                sampler,
+                attr,
+                attr_arr.ctypes.data,
+                attr_arr.dtype.itemsize,
+            )
+
+        try:
+            ######################################
+            # Allocate workspace for contraction #
+            ######################################
+            stream = cp.cuda.Stream()
+            free_mem = self._lib.dev.mem_info[0]
+            scratch_size = int(scratch_fraction * free_mem)
+            scratch_space = cp.cuda.alloc(scratch_size)
+
+            self._logger.debug(
+                f"Allocated {scratch_size} bytes of scratch memory on GPU"
+            )
+            work_desc = cutn.create_workspace_descriptor(self._lib.handle)
+            cutn.sampler_prepare(
+                self._lib.handle,
+                sampler,
+                scratch_size,
+                work_desc,
+                stream.ptr,
+            )
+            workspace_size_d = cutn.workspace_get_memory_size(
+                self._lib.handle,
+                work_desc,
+                cutn.WorksizePref.RECOMMENDED,
+                cutn.Memspace.DEVICE,
+                cutn.WorkspaceKind.SCRATCH,
+            )
+
+            if workspace_size_d <= scratch_size:
+                cutn.workspace_set_memory(
+                    self._lib.handle,
+                    work_desc,
+                    cutn.Memspace.DEVICE,
+                    cutn.WorkspaceKind.SCRATCH,
+                    scratch_space.ptr,
+                    workspace_size_d,
+                )
+                self._logger.debug(
+                    f"Set {workspace_size_d} bytes of workspace memory out of the"
+                    f" allocated scratch space."
+                )
+            else:
+                raise MemoryError(
+                    f"Insufficient workspace size on the GPU device {self._lib.dev.id}"
+                )
+
+            ###########################
+            # Sample from the circuit #
+            ###########################
+            samples = np.empty((num_measurements, n_shots), dtype="int64", order="F")
+            cutn.sampler_sample(
+                self._lib.handle,
+                sampler,
+                n_shots,
+                work_desc,
+                samples.ctypes.data,
+                stream.ptr,
+            )
+            stream.synchronize()
+
+            # Convert the data in `samples` to an `OutcomeArray`
+            # `samples` is a 2D numpy array `samples[SampleId][QubitId]`, which is
+            # the transpose of what `OutcomeArray.from_readouts` expects
+            shots = OutcomeArray.from_readouts(samples.T)
+            # We need to specify which bits correspond to which columns in the shots
+            # table. Since cuTensorNet promises that the ordering of outcomes is
+            # determined by the ordering we provided as `measured_modes`, which in
+            # turn corresponds to the ordering of qubits in `qbit_list`, the fact that
+            # `cbit_list` has the appropriate order in relation to `self._measurements`
+            # determines this defines the ordering of classical bits we intend.
+            return BackendResult(c_bits=cbit_list, shots=shots)
+
+        finally:
+            #####################################################
+            # Destroy the Sampler object #
+            #####################################################
+            cutn.destroy_workspace_descriptor(work_desc)  # type: ignore
+            cutn.destroy_sampler(sampler)
+            del scratch_space
+
     def destroy(self) -> None:
         """Destroy the tensor network and free up GPU memory.
 
@@ -422,3 +559,38 @@ def _formatted_tensor(matrix: NDArray, n_qubits: int) -> cp.ndarray:
     # We also need to reshape since a matrix only has 2 bonds, but for an
     # n-qubit gate we want 2^n bonds for input and another 2^n for output
     return cupy_matrix.reshape([2] * (2 * n_qubits), order="F")
+
+
+def _remove_meas_and_implicit_swaps(circ: Circuit) -> Tuple[Circuit, Dict[Qubit, Bit]]:
+    """Convert a pytket Circuit to an equivalent circuit with no measurements or
+    implicit swaps. The measurements are returned as a map between qubits and bits.
+
+    Only supports end-of-circuit measurements, which are removed from the returned
+    circuit and added to the dictionary.
+    """
+    pure_circ = Circuit()
+    for q in circ.qubits:
+        pure_circ.add_qubit(q)
+    q_perm = circ.implicit_qubit_permutation()
+
+    measure_map = dict()
+    # Track measured Qubits to identify mid-circuit measurement
+    measured_qubits = set()
+
+    for command in circ:
+        cmd_qubits = [q_perm[q] for q in command.qubits]
+
+        for q in cmd_qubits:
+            if q in measured_qubits:
+                raise ValueError("Circuit contains a mid-circuit measurement")
+
+        if command.op.type == OpType.Measure:
+            measure_map[cmd_qubits[0]] = command.bits[0]
+            measured_qubits.add(cmd_qubits[0])
+        else:
+            if command.bits:
+                raise ValueError("Circuit contains an operation on a bit")
+            pure_circ.add_gate(command.op, cmd_qubits)
+
+    pure_circ.add_phase(circ.phase)
+    return pure_circ, measure_map  # type: ignore

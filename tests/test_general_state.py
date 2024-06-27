@@ -1,12 +1,11 @@
 import random
 import numpy as np
 import pytest
-from pytket.circuit import ToffoliBox, Qubit
+from pytket.circuit import Circuit, ToffoliBox, Qubit, Bit
 from pytket.passes import DecomposeBoxes, CnXPairwiseDecomposition
 from pytket.transform import Transform
 from pytket.pauli import QubitPauliString, Pauli
 from pytket.utils.operators import QubitPauliOperator
-from pytket.circuit import Circuit
 from pytket.extensions.cutensornet.general_state import GeneralState
 from pytket.extensions.cutensornet.structured_state import CuTensorNetHandle
 
@@ -203,4 +202,79 @@ def test_expectation_value(circuit: Circuit, observable: QubitPauliOperator) -> 
         exp_val = state.expectation_value(observable)
 
     assert np.isclose(exp_val, exp_val_tket)
+    state.destroy()
+
+
+@pytest.mark.parametrize(
+    "circuit",
+    [
+        pytest.lazy_fixture("q5_empty"),  # type: ignore
+        pytest.lazy_fixture("q8_empty"),  # type: ignore
+        pytest.lazy_fixture("q2_x0"),  # type: ignore
+        pytest.lazy_fixture("q2_x1"),  # type: ignore
+        pytest.lazy_fixture("q2_v0"),  # type: ignore
+        pytest.lazy_fixture("q2_x0cx01"),  # type: ignore
+        pytest.lazy_fixture("q2_x1cx10x1"),  # type: ignore
+        pytest.lazy_fixture("q2_x0cx01cx10"),  # type: ignore
+        pytest.lazy_fixture("q2_v0cx01cx10"),  # type: ignore
+        pytest.lazy_fixture("q2_hadamard_test"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu1"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu2"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu3"),  # type: ignore
+        pytest.lazy_fixture("q3_v0cx02"),  # type: ignore
+        pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
+        pytest.lazy_fixture("q3_toffoli_box_with_implicit_swaps"),  # type: ignore
+        pytest.lazy_fixture("q4_lcu1"),  # type: ignore
+        pytest.lazy_fixture("q4_multicontrols"),  # type: ignore
+        pytest.lazy_fixture("q4_with_creates"),  # type: ignore
+        pytest.lazy_fixture("q5_h0s1rz2ry3tk4tk13"),  # type: ignore
+        pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
+        pytest.lazy_fixture("q6_qvol"),  # type: ignore
+        pytest.lazy_fixture("q8_x0h2v5z6"),  # type: ignore
+    ],
+)
+@pytest.mark.parametrize("measure_all", [True, False])  # Measure all or a subset
+def test_sampler(circuit: Circuit, measure_all: bool) -> None:
+
+    n_shots = 100000
+
+    # Get the statevector so that we can calculate theoretical probabilities
+    sv_pytket = circuit.get_statevector()
+
+    # Add measurements to qubits
+    if measure_all:
+        num_measured = circuit.n_qubits
+    else:
+        num_measured = circuit.n_qubits // 2
+
+    for i, q in enumerate(circuit.qubits):
+        if i < num_measured:  # Skip the least significant qubits
+            circuit.add_bit(Bit(i))
+            circuit.Measure(q, Bit(i))
+
+    # Sample using our library
+    with CuTensorNetHandle() as libhandle:
+        state = GeneralState(circuit, libhandle)
+        results = state.sample(n_shots)
+
+    # Verify distribution matches theoretical probabilities
+    for bit_tuple, count in results.get_counts().items():
+        # Convert bitstring (Tuple[int,...]) to integer base 10
+        outcome = sum(bit << i for i, bit in enumerate(reversed(bit_tuple)))
+
+        # Calculate the theoretical probabilities
+        if measure_all:
+            prob = abs(sv_pytket[outcome]) ** 2
+        else:
+            # Obtain all compatible basis states (bitstring encoded as int)
+            non_measured = circuit.n_qubits - num_measured
+            compatible = [
+                (outcome << non_measured) + offset
+                for offset in range(2**non_measured)
+            ]
+            # The probability is the sum of that of all compatible basis states
+            prob = sum(abs(sv_pytket[v]) ** 2 for v in compatible)
+
+        assert np.isclose(count / n_shots, prob, atol=0.01)
+
     state.destroy()
