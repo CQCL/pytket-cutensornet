@@ -69,7 +69,7 @@ class GeneralState:
         libhandle.print_device_properties(self._logger)
 
         # Remove end-of-circuit measurements and keep track of them separately
-        # It also resolves implicit sawps
+        # It also resolves implicit swaps
         self._circuit, self._measurements = _remove_meas_and_implicit_swaps(circuit)
         # Identify each qubit with the index of  the bond that represents it in the
         # tensor network stored in this GeneralState. Qubits are sorted in increasing
@@ -531,9 +531,9 @@ class GeneralState:
             return BackendResult(c_bits=cbit_list, shots=shots)
 
         finally:
-            #####################################################
-            # Destroy the Operator and ExpectationValue objects #
-            #####################################################
+            ##############################
+            # Destroy the Sampler object #
+            ##############################
             cutn.destroy_workspace_descriptor(work_desc)  # type: ignore
             cutn.destroy_sampler(sampler)
             del scratch_space

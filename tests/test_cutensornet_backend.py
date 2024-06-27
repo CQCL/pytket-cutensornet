@@ -2,9 +2,6 @@ import numpy as np
 import pytest
 from pytket.circuit import Circuit, BasisOrder, ToffoliBox, DummyBox, OpType  # type: ignore
 from pytket.passes import CliffordSimp  # type: ignore
-from pytket.pauli import QubitPauliString, Pauli  # type: ignore
-from pytket.utils.operators import QubitPauliOperator
-from pytket import Qubit  # type: ignore
 from pytket.extensions.cutensornet.backends import (
     CuTensorNetStateBackend,
     CuTensorNetShotsBackend,
@@ -88,7 +85,6 @@ def test_compilation_pass() -> None:
     for opt_level in range(3):
         c = Circuit(2)
         c.CX(0, 1)
-        u = np.asarray([[0, 1], [-1j, 0]])
         c.add_toffolibox(ToffoliBox(perm), [0, 1])  # type: ignore
         c.CX(0, 1)
         c.add_gate(OpType.CRz, 0.35, [1, 0])
