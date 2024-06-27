@@ -270,6 +270,13 @@ class CuTensorNetShotsBackend(_CuTensorNetBaseBackend):
         Returns:
             Results handle objects.
         """
+        if "seed" in kwargs and kwargs["seed"] is not None:
+            # Current CuTensorNet does not support seeds for Sampler. I created
+            # a feature request in their repository.
+            raise NotImplementedError(
+                "The backend does not currently support user-defined seeds."
+            )
+
         if n_shots is None:
             raise ValueError(
                 "You must specify n_shots when using CuTensorNetShotsBackend."
