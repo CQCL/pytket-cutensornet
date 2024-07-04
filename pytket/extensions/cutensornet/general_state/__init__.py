@@ -21,6 +21,8 @@ from .tensor_network_convert import (
     ExpectationValueTensorNetwork,
     tk_to_tensor_network,
     measure_qubits_state,
+    get_operator_expectation_value,
+    get_circuit_overlap,
 )
 
 from .tensor_network_state import GeneralState

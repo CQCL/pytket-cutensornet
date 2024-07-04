@@ -13,7 +13,7 @@
 # limitations under the License.
 """Module for conversion from tket primitives to cuQuantum primitives."""
 
-from .backends import CuTensorNetBackend
+from .backends import CuTensorNetStateBackend, CuTensorNetShotsBackend
 from .general import CuTensorNetHandle
 
 # _metadata.py is copied to the folder after installation.
