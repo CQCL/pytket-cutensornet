@@ -26,58 +26,14 @@ try:
     import cupy as cp  # type: ignore
 except ImportError:
     warnings.warn("local settings failed to import cupy", ImportWarning)
-try:
-    import cuquantum.cutensornet as cutn  # type: ignore
-except ImportError:
-    warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
+from pytket.extensions.cutensornet import CuTensorNetHandle
 
 # An alias for the CuPy type used for tensors
 try:
     Tensor = cp.ndarray
 except NameError:
     Tensor = Any
-
-
-class CuTensorNetHandle:
-    """Initialise the cuTensorNet library with automatic workspace memory
-    management.
-
-    Note:
-        Always use as ``with CuTensorNetHandle() as libhandle:`` so that cuTensorNet
-        handles are automatically destroyed at the end of execution.
-
-    Attributes:
-        handle (int): The cuTensorNet library handle created by this initialisation.
-        device_id (int): The ID of the device (GPU) where cuTensorNet is initialised.
-            If not provided, defaults to ``cp.cuda.Device()``.
-    """
-
-    def __init__(self, device_id: Optional[int] = None):
-        self._is_destroyed = False
-
-        # Make sure CuPy uses the specified device
-        cp.cuda.Device(device_id).use()
-
-        dev = cp.cuda.Device()
-        self.device_id = int(dev)
-
-        self.handle = cutn.create()
-
-    def destroy(self) -> None:
-        """Destroys the memory handle, releasing memory.
-
-        Only call this method if you are initialising a ``CuTensorNetHandle`` outside
-        a ``with CuTensorNetHandle() as libhandle`` statement.
-        """
-        cutn.destroy(self.handle)
-        self._is_destroyed = True
-
-    def __enter__(self) -> CuTensorNetHandle:
-        return self
-
-    def __exit__(self, exc_type: Any, exc_value: Any, exc_tb: Any) -> None:
-        self.destroy()
 
 
 class Config:
@@ -87,6 +43,7 @@ class Config:
         self,
         chi: Optional[int] = None,
         truncation_fidelity: Optional[float] = None,
+        seed: Optional[int] = None,
         float_precision: Type[Any] = np.float64,
         value_of_zero: float = 1e-16,
         leaf_size: int = 8,
@@ -110,6 +67,11 @@ class Config:
                 ``|<psi|phi>|^2 >= trucantion_fidelity``, where ``|psi>`` and ``|phi>``
                 are the states before and after truncation (both normalised).
                 If not provided, it will default to its maximum value 1.
+            seed: Seed for the random number generator. Setting a seed provides
+                reproducibility across simulations using ``StructuredState``, in the
+                sense that they will produce the same sequence of measurement outcomes.
+                Crucially, consecutive samples taken from the same ``StructuredState``
+                can still be different from each other.
             float_precision: The floating point precision used in tensor calculations;
                 choose from ``numpy`` types: ``np.float64`` or ``np.float32``.
                 Complex numbers are represented using two of such
@@ -184,6 +146,8 @@ class Config:
                 UserWarning,
             )
 
+        self.seed = seed
+
         if leaf_size >= 65:  # Imposed to avoid bond ID collisions
             # More than 20 qubits is already unreasonable for a leaf anyway
             raise ValueError("Maximum allowed leaf_size is 65.")
@@ -199,6 +163,7 @@ class Config:
         return Config(
             chi=self.chi,
             truncation_fidelity=self.truncation_fidelity,
+            seed=self.seed,
             float_precision=self._real_t,  # type: ignore
             value_of_zero=self.zero,
             leaf_size=self.leaf_size,

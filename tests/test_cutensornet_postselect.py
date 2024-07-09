@@ -4,12 +4,15 @@ import pytest
 from pytket.circuit import Qubit, Circuit  # type: ignore
 from pytket.pauli import Pauli, QubitPauliString  # type: ignore
 from pytket.utils import QubitPauliOperator
-from pytket.extensions.cutensornet.backends import CuTensorNetBackend
-from pytket.extensions.cutensornet.tensor_network_convert import (  # type: ignore
+from pytket.extensions.cutensornet.backends import CuTensorNetStateBackend
+from pytket.extensions.cutensornet.general_state.tensor_network_convert import (  # type: ignore
     TensorNetwork,
     measure_qubits_state,
+    get_operator_expectation_value,
 )
-from pytket.extensions.cutensornet.utils import circuit_statevector_postselect
+from pytket.extensions.cutensornet.general_state.utils import (
+    circuit_statevector_postselect,
+)
 
 
 @pytest.mark.parametrize(
@@ -88,9 +91,9 @@ def test_expectation_value_postselect_2q(
     op_matrix = op.to_sparse_matrix(1).todense()
     sv = np.array([circuit_statevector_postselect(circuit_2q, postselect_dict)]).T
     sv_exp = (sv.conj().T @ op_matrix @ sv)[0, 0]
-    b = CuTensorNetBackend()
+    b = CuTensorNetStateBackend()
     c = b.get_compiled_circuit(circuit_2q)
-    ten_exp = b.get_operator_expectation_value(c.copy(), op, postselect_dict)
+    ten_exp = get_operator_expectation_value(c.copy(), op, postselect_dict)
     assert np.isclose(ten_exp, sv_exp)
 
 
@@ -111,9 +114,9 @@ def test_expectation_value_postselect_4q_lcu(circuit_lcu_4q: Circuit) -> None:
     sv = np.array(
         [circuit_statevector_postselect(circuit_lcu_4q, postselect_dict.copy())]
     ).T
-    b = CuTensorNetBackend()
+    b = CuTensorNetStateBackend()
     c = b.get_compiled_circuit(circuit_lcu_4q)
     sv = sv * np.exp(1j * np.pi * c.phase)
     sv_exp = (sv.conj().T @ op_matrix @ sv)[0, 0]
-    ten_exp = b.get_operator_expectation_value(c.copy(), op, postselect_dict)
+    ten_exp = get_operator_expectation_value(c.copy(), op, postselect_dict)
     assert np.isclose(ten_exp, sv_exp)

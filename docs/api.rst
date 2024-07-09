@@ -1,6 +1,11 @@
 API documentation
 -----------------
 
+.. autoclass:: pytket.extensions.cutensornet.CuTensorNetHandle
+
+    .. automethod:: destroy
+
+
 .. toctree::
-    modules/fullTN.rst
+    modules/general_state.rst
     modules/structured_state.rst

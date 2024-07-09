@@ -16,6 +16,7 @@ import warnings
 from typing import Optional, Union
 from enum import IntEnum
 
+from random import Random  # type: ignore
 import math  # type: ignore
 import numpy as np  # type: ignore
 
@@ -32,9 +33,9 @@ except ImportError:
 from pytket.circuit import Command, Qubit
 from pytket.pauli import QubitPauliString
 
-from pytket.extensions.cutensornet.general import set_logger
+from pytket.extensions.cutensornet.general import CuTensorNetHandle, set_logger
 
-from .general import CuTensorNetHandle, Config, StructuredState, Tensor
+from .general import Config, StructuredState, Tensor
 
 
 class DirTTN(IntEnum):
@@ -127,6 +128,9 @@ class TTN(StructuredState):
         self._lib = libhandle
         self._cfg = config
         self._logger = set_logger("TTN", level=config.loglevel)
+        self._rng = Random()
+        self._rng.seed(self._cfg.seed)
+
         self.fidelity = 1.0
         self.nodes: dict[RootPath, TreeNode] = dict()
         self.qubit_position: dict[Qubit, tuple[RootPath, int]] = dict()
@@ -892,6 +896,16 @@ class TTN(StructuredState):
         new_ttn.fidelity = self.fidelity
         new_ttn.nodes = {path: node.copy() for path, node in self.nodes.items()}
         new_ttn.qubit_position = self.qubit_position.copy()
+
+        # If the user has set a seed, assume that they'd want every copy
+        # to behave in the same way, so we copy the RNG state
+        if self._cfg.seed is not None:
+            # Setting state (rather than just copying the seed) allows for the
+            # copy to continue from the same point in the sequence of random
+            # numbers as the original copy
+            new_ttn._rng.setstate(self._rng.getstate())
+        # Otherwise, samples will be different between copies, since their
+        # self._rng will be initialised from system randomnes when seed=None.
 
         self._logger.debug(
             "Successfully copied a TTN "

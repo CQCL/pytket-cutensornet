@@ -14,19 +14,28 @@
 
 """Tools to convert tket circuit to tensor network to be contracted with cuTensorNet."""
 
+import warnings
+
+try:
+    import cuquantum as cq  # type: ignore
+except ImportError:
+    warnings.warn("local settings failed to import cutensornet", ImportWarning)
+
 from collections import defaultdict
 import logging
 from logging import Logger
-from typing import List, Tuple, Union, Any, DefaultDict
+from typing import List, Tuple, Union, Any, DefaultDict, Optional
 import networkx as nx  # type: ignore
 from networkx.classes.reportviews import OutMultiEdgeView, OutMultiEdgeDataView  # type: ignore
 import numpy as np
 from numpy.typing import NDArray
-from pytket import Qubit  # type: ignore
+from sympy import Expr
+
 from pytket.utils import Graph
-from pytket.pauli import QubitPauliString  # type: ignore
-from pytket.circuit import Circuit, Qubit  # type: ignore
+from pytket.pauli import QubitPauliString
+from pytket.circuit import Circuit, Qubit
 from pytket.utils import permute_rows_cols_in_unitary
+from pytket.utils.operators import QubitPauliOperator
 from pytket.extensions.cutensornet.general import set_logger
 
 
@@ -654,3 +663,76 @@ def tk_to_tensor_network(tkc: Circuit) -> List[Union[NDArray, List]]:
         (list).
     """
     return TensorNetwork(tkc).cuquantum_interleaved
+
+
+# TODO: this should be optionally parallelised with MPI
+#  (both wrt Pauli strings and contraction itself).
+def get_operator_expectation_value(
+    state_circuit: Circuit,
+    operator: QubitPauliOperator,
+    post_selection: Optional[dict[Qubit, int]] = None,
+) -> float:
+    """Calculates expectation value of an operator using cuTensorNet contraction.
+
+    Has an option to do post selection on an ancilla register.
+
+    Args:
+        state_circuit: Circuit representing state.
+        operator: Operator which expectation value is to be calculated.
+        post_selection: Dictionary of qubits to post select where the key is
+            qubit and the value is bit outcome.
+
+    Returns:
+        Expectation value.
+    """
+    expectation = 0
+
+    ket_network = TensorNetwork(state_circuit)
+    bra_network = ket_network.dagger()
+
+    if post_selection is not None:
+        post_select_qubits = list(post_selection.keys())
+        if set(post_select_qubits).issubset(operator.all_qubits):
+            raise ValueError(
+                "Post selection qubit must not be a subset of operator qubits"
+            )
+        ket_network = measure_qubits_state(ket_network, post_selection)
+        bra_network = measure_qubits_state(
+            bra_network, post_selection
+        )  # This needed because dagger does not work with post selection
+
+    for qos, coeff in operator._dict.items():
+        expectation_value_network = ExpectationValueTensorNetwork(
+            bra_network, qos, ket_network
+        )
+        if isinstance(coeff, Expr):
+            numeric_coeff = complex(coeff.evalf())  # type: ignore
+        else:
+            numeric_coeff = complex(coeff)  # type: ignore
+        expectation_term = numeric_coeff * cq.contract(
+            *expectation_value_network.cuquantum_interleaved
+        )
+        expectation += expectation_term
+    return expectation.real
+
+
+def get_circuit_overlap(
+    circuit_ket: Circuit,
+    circuit_bra: Optional[Circuit] = None,
+) -> float:
+    """Calculates an overlap of two states represented by two circuits.
+
+    Args:
+        circuit_bra: Circuit representing the bra state.
+        circuit_ket: Circuit representing the ket state.
+
+    Returns:
+        Overlap value.
+    """
+    if circuit_bra is None:
+        circuit_bra = circuit_ket
+
+    ket_net = TensorNetwork(circuit_ket)
+    overlap_net_interleaved = ket_net.vdot(TensorNetwork(circuit_bra))
+    overlap: float = cq.contract(*overlap_net_interleaved)
+    return overlap

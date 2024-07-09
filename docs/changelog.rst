@@ -4,9 +4,17 @@ Changelog
 Unreleased
 ----------
 
+* API breaking changes
+    * Renamed ``CuTensorNetBackend`` to ``CuTensorNetStateBackend``.
+    * Moved ``get_operator_expectation_value`` and ``get_circuit_overlap`` from ``backends`` submodule to ``general_state`` submodule.
+    * **Warning** ``TensorNetwork`` object will soon be deprecated in favour of the new ``GeneralState``.
+
+* New API: ``GeneralState`` for exact simulation of circuits via contraction-path optimisation. Currently supports ``get_statevector()``, ``expectation_value()`` and ``sample()``.
+* New feature: ``CuTensorNetShotsBackend`` for simulation of circuit shots.
 * New feature: MPS algorithms ``MPSxGate`` and ``MPSxMPO`` now support simulation of two-qubit gates acting on non-adjacent qubits.
 * New feature: ``add_qubit`` to add fresh qubits at specified positions in an ``MPS``.
 * New feature: added an option to ``measure`` to toggle destructive measurement on/off. Currently only supported for ``MPS``.
+* New feature: a seed can now be provided to ``Config`` objects, providing reproducibility across ``StructuredState`` simulations.
 * New feature: ``apply_unitary`` both for ``MPS`` and ``TTN`` to apply an arbitrary unitary matrix, rather than a ``pytket.Command``.
 * New feature: ``apply_qubit_relabelling`` both for ``MPS`` and ``TTN`` to change the name of their qubits. This is now used within ``simulate`` to take into account the action of implicit SWAPs in pytket circuits (no additional SWAP gates are applied).
 

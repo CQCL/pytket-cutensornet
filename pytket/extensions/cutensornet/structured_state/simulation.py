@@ -32,8 +32,8 @@ from pytket.architecture import Architecture
 from pytket.passes import DefaultMappingPass
 from pytket.predicates import CompilationUnit
 
-from pytket.extensions.cutensornet.general import set_logger
-from .general import CuTensorNetHandle, Config, StructuredState
+from pytket.extensions.cutensornet.general import CuTensorNetHandle, set_logger
+from .general import Config, StructuredState
 from .mps_gate import MPSxGate
 from .mps_mpo import MPSxMPO
 from .ttn_gate import TTNxGate
@@ -60,7 +60,7 @@ def simulate(
     """Simulates the circuit and returns the ``StructuredState`` of the final state.
 
     Note:
-        A ``libhandle`` should be created via a ``with CuTensorNet() as libhandle:``
+        A ``libhandle`` is created via a ``with CuTensorNetHandle() as libhandle:``
         statement. The device where the ``StructuredState`` is stored will match the one
         specified by the library handle.
 

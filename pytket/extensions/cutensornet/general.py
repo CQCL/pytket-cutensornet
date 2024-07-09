@@ -11,8 +11,84 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from __future__ import annotations  # type: ignore
+import warnings
 import logging
 from logging import Logger
+
+from typing import Any, Optional
+
+try:
+    import cupy as cp  # type: ignore
+except ImportError:
+    warnings.warn("local settings failed to import cupy", ImportWarning)
+try:
+    import cuquantum.cutensornet as cutn  # type: ignore
+except ImportError:
+    warnings.warn("local settings failed to import cutensornet", ImportWarning)
+
+
+class CuTensorNetHandle:
+    """Initialise the cuTensorNet library with automatic workspace memory
+    management.
+
+    Note:
+        Always use as ``with CuTensorNetHandle() as libhandle:`` so that cuTensorNet
+        handles are automatically destroyed at the end of execution.
+
+    Attributes:
+        handle (int): The cuTensorNet library handle created by this initialisation.
+        device_id (int): The ID of the device (GPU) where cuTensorNet is initialised.
+            If not provided, defaults to ``cp.cuda.Device()``.
+    """
+
+    def __init__(self, device_id: Optional[int] = None):
+        self._is_destroyed = False
+
+        # Make sure CuPy uses the specified device
+        dev = cp.cuda.Device(device_id)
+        dev.use()
+
+        self.dev = dev
+        self.device_id = dev.id
+
+        self._handle = cutn.create()
+
+    @property
+    def handle(self) -> Any:
+        if self._is_destroyed:
+            raise RuntimeError(
+                "The cuTensorNet library handle is out of scope.",
+                "See the documentation of CuTensorNetHandle.",
+            )
+        return self._handle
+
+    def destroy(self) -> None:
+        """Destroys the memory handle, releasing memory.
+
+        Only call this method if you are initialising a ``CuTensorNetHandle`` outside
+        a ``with CuTensorNetHandle() as libhandle`` statement.
+        """
+        cutn.destroy(self._handle)
+        self._is_destroyed = True
+
+    def __enter__(self) -> CuTensorNetHandle:
+        return self
+
+    def __exit__(self, exc_type: Any, exc_value: Any, exc_tb: Any) -> None:
+        self.destroy()
+
+    def print_device_properties(self, logger: Logger) -> None:
+        """Prints local GPU properties."""
+        device_props = cp.cuda.runtime.getDeviceProperties(self.dev.id)
+        logger.debug("===== device info ======")
+        logger.debug("GPU-name:", device_props["name"].decode())
+        logger.debug("GPU-clock:", device_props["clockRate"])
+        logger.debug("GPU-memoryClock:", device_props["memoryClockRate"])
+        logger.debug("GPU-nSM:", device_props["multiProcessorCount"])
+        logger.debug("GPU-major:", device_props["major"])
+        logger.debug("GPU-minor:", device_props["minor"])
+        logger.debug("========================")
 
 
 def set_logger(
