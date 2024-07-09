@@ -281,15 +281,67 @@ def test_canonicalise_ttn(center: Union[RootPath, Qubit]) -> None:
     ],
 )
 def test_exact_circ_sim(circuit: Circuit, algorithm: SimulationAlgorithm) -> None:
-    if algorithm in [SimulationAlgorithm.MPSxGate, SimulationAlgorithm.MPSxMPO]:
-        circuit, _ = prepare_circuit_mps(circuit)
-
     n_qubits = len(circuit.qubits)
     state_vec = circuit.get_statevector()
 
     with CuTensorNetHandle() as libhandle:
         cfg = Config(leaf_size=2)
         state = simulate(libhandle, circuit, algorithm, cfg)
+        assert state.is_valid()
+        # Check that there was no approximation
+        assert np.isclose(state.get_fidelity(), 1.0, atol=cfg._atol)
+        # Check that overlap is 1
+        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
+
+        # Check that all of the amplitudes are correct
+        for b in range(2**n_qubits):
+            assert np.isclose(
+                state.get_amplitude(b),
+                state_vec[b],
+                atol=cfg._atol,
+            )
+
+        # Check that the statevector is correct
+        assert np.allclose(state.get_statevector(), state_vec, atol=cfg._atol)
+
+
+@pytest.mark.parametrize(
+    "circuit",
+    [
+        pytest.lazy_fixture("q5_empty"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu1"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu2"),  # type: ignore
+        pytest.lazy_fixture("q2_lcu3"),  # type: ignore
+        pytest.lazy_fixture("q3_toffoli_box_with_implicit_swaps"),  # type: ignore
+        pytest.lazy_fixture("q4_with_creates"),  # type: ignore
+        pytest.lazy_fixture("q6_qvol"),  # type: ignore
+        pytest.lazy_fixture("q8_qvol"),  # type: ignore
+    ],
+)
+@pytest.mark.parametrize(
+    "algorithm",
+    [
+        SimulationAlgorithm.MPSxGate,
+        SimulationAlgorithm.MPSxMPO,
+    ],
+)
+def test_prepare_circuit_mps(circuit: Circuit, algorithm: SimulationAlgorithm) -> None:
+    state_vec = circuit.get_statevector()
+    n_qubits = len(circuit.qubits)
+
+    # Prepare the circuit (i.e. add SWAPs so that all gates act on adjacent qubits)
+    circuit, qubit_map = prepare_circuit_mps(circuit)
+    # Check that the qubit adjacency is satisfied
+    for cmd in circuit.get_commands():
+        qs = cmd.qubits
+        assert len(qs) in {1, 2}
+        if len(qs) == 2:
+            assert abs(qs[0].index[0] - qs[1].index[0]) == 1
+
+    with CuTensorNetHandle() as libhandle:
+        cfg = Config(leaf_size=2)
+        state = simulate(libhandle, circuit, algorithm, cfg)
+        state.apply_qubit_relabelling(qubit_map)
         assert state.is_valid()
         # Check that there was no approximation
         assert np.isclose(state.get_fidelity(), 1.0, atol=cfg._atol)
@@ -346,9 +398,6 @@ def test_exact_circ_sim(circuit: Circuit, algorithm: SimulationAlgorithm) -> Non
 def test_approx_circ_sim_gate_fid(
     circuit: Circuit, algorithm: SimulationAlgorithm
 ) -> None:
-    if algorithm in [SimulationAlgorithm.MPSxGate, SimulationAlgorithm.MPSxMPO]:
-        circuit, _ = prepare_circuit_mps(circuit)
-
     with CuTensorNetHandle() as libhandle:
         cfg = Config(truncation_fidelity=0.99, leaf_size=2)
         state = simulate(libhandle, circuit, algorithm, cfg)
@@ -393,9 +442,6 @@ def test_approx_circ_sim_gate_fid(
     ],
 )
 def test_approx_circ_sim_chi(circuit: Circuit, algorithm: SimulationAlgorithm) -> None:
-    if algorithm in [SimulationAlgorithm.MPSxGate, SimulationAlgorithm.MPSxMPO]:
-        circuit, _ = prepare_circuit_mps(circuit)
-
     with CuTensorNetHandle() as libhandle:
         cfg = Config(chi=4, leaf_size=2)
         state = simulate(libhandle, circuit, algorithm, cfg)
@@ -434,9 +480,6 @@ def test_approx_circ_sim_chi(circuit: Circuit, algorithm: SimulationAlgorithm) -
 def test_float_point_options(
     circuit: Circuit, algorithm: SimulationAlgorithm, fp_precision: Any
 ) -> None:
-    if algorithm in [SimulationAlgorithm.MPSxGate, SimulationAlgorithm.MPSxMPO]:
-        circuit, _ = prepare_circuit_mps(circuit)
-
     with CuTensorNetHandle() as libhandle:
         # Exact
         cfg = Config(float_precision=fp_precision, leaf_size=2)
@@ -614,9 +657,7 @@ def test_postselect_circ(circuit: Circuit, postselect_dict: dict) -> None:
     with CuTensorNetHandle() as libhandle:
         cfg = Config()
 
-        circuit, qubit_map = prepare_circuit_mps(circuit)
         mps = simulate(libhandle, circuit, SimulationAlgorithm.MPSxGate, cfg)
-        mps.apply_qubit_relabelling(qubit_map)
 
         prob = mps.postselect(postselect_dict)
         assert np.isclose(prob, sv_prob, atol=cfg._atol)
@@ -665,9 +706,7 @@ def test_expectation_value(circuit: Circuit, observable: QubitPauliString) -> No
     # Simulate the circuit and obtain the expectation value
     with CuTensorNetHandle() as libhandle:
         cfg = Config()
-        circuit, qubit_map = prepare_circuit_mps(circuit)
         mps = simulate(libhandle, circuit, SimulationAlgorithm.MPSxGate, cfg)
-        mps.apply_qubit_relabelling(qubit_map)
         assert np.isclose(
             mps.expectation_value(observable), expectation_value, atol=cfg._atol
         )
@@ -758,9 +797,7 @@ def test_measure_circ(circuit: Circuit) -> None:
     qB = circuit.qubits[-3]  # Third list significant qubit
 
     with CuTensorNetHandle() as libhandle:
-        circuit, qubit_map = prepare_circuit_mps(circuit)
         mps = simulate(libhandle, circuit, SimulationAlgorithm.MPSxGate, Config())
-        mps.apply_qubit_relabelling(qubit_map)
 
         # Compute the probabilities of each outcome
         p = {(0, 0): 0.0, (0, 1): 0.0, (1, 0): 0.0, (1, 1): 0.0}
