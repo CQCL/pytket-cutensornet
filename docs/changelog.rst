@@ -4,7 +4,6 @@ Changelog
 0.7.0 (July 2024)
 -----------------
 
-* Updated pytket version requirement to 1.30.
 * API breaking changes
     * Renamed ``CuTensorNetBackend`` to ``CuTensorNetStateBackend``.
     * Moved ``get_operator_expectation_value`` and ``get_circuit_overlap`` from ``backends`` submodule to ``general_state`` submodule.
@@ -18,6 +17,7 @@ Changelog
 * New feature: a seed can now be provided to ``Config`` objects, providing reproducibility across ``StructuredState`` simulations.
 * New feature: ``apply_unitary`` both for ``MPS`` and ``TTN`` to apply an arbitrary unitary matrix, rather than a ``pytket.Command``.
 * New feature: ``apply_qubit_relabelling`` both for ``MPS`` and ``TTN`` to change the name of their qubits. This is now used within ``simulate`` to take into account the action of implicit SWAPs in pytket circuits (no additional SWAP gates are applied).
+* Updated pytket version requirement to 1.30.
 
 0.6.1 (April 2024)
 ------------------
