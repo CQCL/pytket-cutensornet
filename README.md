@@ -24,7 +24,7 @@ Currently, only single-GPU calculations are supported, but a multi-GPU execution
 implemented in the due course using `mpi4py` library.
 
 Some useful links:
-- [API Documentation](https://tket.quantinuum.com/extensions/pytket-cutensornet/)
+- [API Documentation](https://cqcl.github.io/pytket-cutensornet/api/index.html)
 
 ## Getting started
 
