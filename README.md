@@ -1,8 +1,10 @@
 # pytket-cutensornet
 
+[![Slack](https://img.shields.io/badge/Slack-4A154B?style=for-the-badge&logo=slack&logoColor=white)](https://tketusers.slack.com/join/shared_invite/zt-18qmsamj9-UqQFVdkRzxnXCcKtcarLRA#)
+[![Stack Exchange](https://img.shields.io/badge/StackExchange-%23ffffff.svg?style=for-the-badge&logo=StackExchange)](https://quantumcomputing.stackexchange.com/tags/pytket)
+
 [Pytket](https://tket.quantinuum.com/api-docs/index.html) is a python module for interfacing
 with tket, a quantum computing toolkit and optimising compiler developed by Quantinuum.
-
 
 [cuTensorNet](https://docs.nvidia.com/cuda/cuquantum/latest/cutensornet/index.html) is a
 high-performance library for tensor network computations, developed by NVIDIA.
@@ -20,6 +22,9 @@ expectation values to be simulated using `cuTensorNet` via an interface to
 
 Currently, only single-GPU calculations are supported, but a multi-GPU execution will be
 implemented in the due course using `mpi4py` library.
+
+Some useful links:
+- [API Documentation](https://tket.quantinuum.com/extensions/pytket-cutensornet/)
 
 ## Getting started
 

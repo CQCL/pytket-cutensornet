@@ -1,9 +1,10 @@
 Changelog
 ~~~~~~~~~
 
-Unreleased
-----------
+0.7.0 (July 2024)
+-----------------
 
+* Updated pytket version requirement to 1.30.
 * API breaking changes
     * Renamed ``CuTensorNetBackend`` to ``CuTensorNetStateBackend``.
     * Moved ``get_operator_expectation_value`` and ``get_circuit_overlap`` from ``backends`` submodule to ``general_state`` submodule.
