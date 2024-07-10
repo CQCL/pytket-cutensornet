@@ -21,6 +21,9 @@ expectation values to be simulated using `cuTensorNet` via an interface to
 Currently, only single-GPU calculations are supported, but a multi-GPU execution will be
 implemented in the due course using `mpi4py` library.
 
+Some useful links:
+- [API Documentation](https://tket.quantinuum.com/extensions/pytket-cutensornet/)
+
 ## Getting started
 
 `pytket-cutensornet` is available for Python 3.10, 3.11 and 3.12 on Linux.
