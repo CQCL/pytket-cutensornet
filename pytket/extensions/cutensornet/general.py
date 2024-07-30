@@ -81,14 +81,14 @@ class CuTensorNetHandle:
     def print_device_properties(self, logger: Logger) -> None:
         """Prints local GPU properties."""
         device_props = cp.cuda.runtime.getDeviceProperties(self.dev.id)
-        logger.debug("===== device info ======")
-        logger.debug("GPU-name:", device_props["name"].decode())
-        logger.debug("GPU-clock:", device_props["clockRate"])
-        logger.debug("GPU-memoryClock:", device_props["memoryClockRate"])
-        logger.debug("GPU-nSM:", device_props["multiProcessorCount"])
-        logger.debug("GPU-major:", device_props["major"])
-        logger.debug("GPU-minor:", device_props["minor"])
-        logger.debug("========================")
+        logger.info("===== device info ======")
+        logger.info(f"GPU-name: {device_props["name"].decode()}")
+        logger.info(f"GPU-clock: {device_props["clockRate"]}")
+        logger.info(f"GPU-memoryClock: {device_props["memoryClockRate"]}")
+        logger.info(f"GPU-nSM: {device_props["multiProcessorCount"]}")
+        logger.info(f"GPU-major: {device_props["major"]}")
+        logger.info(f"GPU-minor: {device_props["minor"]}")
+        logger.info("========================")
 
 
 def set_logger(
