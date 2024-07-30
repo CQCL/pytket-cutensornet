@@ -197,7 +197,9 @@ class CuTensorNetStateBackend(_CuTensorNetBaseBackend):
         corresponding get_<data> method.
 
         Note:
-            TODO: Mention cutn attributes.
+            Any element from the ``StateAttribute`` enum (see NVIDIA's CuTensorNet
+            API) can be provided as arguments to this method. For instance:
+            ``process_circuits(..., CONFIG_NUM_HYPER_SAMPLES=100)``.
 
         Args:
             circuits: List of circuits to be submitted.
@@ -270,6 +272,11 @@ class CuTensorNetShotsBackend(_CuTensorNetBaseBackend):
 
         The results will be stored in the backend's result cache to be retrieved by the
         corresponding get_<data> method.
+
+        Note:
+            Any element from the ``SamplerAttribute`` enum (see NVIDIA's CuTensorNet
+            API) can be provided as arguments to this method. For instance:
+            ``process_circuits(..., CONFIG_NUM_HYPER_SAMPLES=100)``.
 
         Args:
             circuits: List of circuits to be submitted.
