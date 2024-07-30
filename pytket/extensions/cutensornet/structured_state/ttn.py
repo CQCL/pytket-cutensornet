@@ -333,7 +333,13 @@ class TTN(StructuredState):
         Returns:
             ``self``, to allow for method chaining.
         """
-        self.nodes[()].tensor *= scalar
+        leftmost_path = max(
+            [path for path in self.nodes.keys() if all(d == DirTTN.LEFT for d in path)],
+            key=len,
+        )
+        self.nodes[leftmost_path].tensor *= scalar
+        if not np.isclose(abs(scalar), 1.0):
+            self.nodes[leftmost_path].canonical_form = None
         return self
 
     def apply_qubit_relabelling(self, qubit_map: dict[Qubit, Qubit]) -> TTN:
@@ -652,7 +658,7 @@ class TTN(StructuredState):
         Returns:
             A dictionary mapping each qubit in the state to its 0 or 1 outcome.
         """
-        raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
+        raise NotImplementedError(f"Method 'sample' not implemented in {type(self).__name__}.")
 
     def measure(self, qubits: set[Qubit], destructive: bool = True) -> dict[Qubit, int]:
         """Applies a Z measurement on each of the ``qubits``.
@@ -674,10 +680,10 @@ class TTN(StructuredState):
         Raises:
             ValueError: If an element in ``qubits`` is not a qubit in the state.
         """
-        raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
+        raise NotImplementedError(f"Method 'measure' not implemented in {type(self).__name__}.")
 
     def postselect(self, qubit_outcomes: dict[Qubit, int]) -> float:
-        """Applies a postselection, updates the states and returns its probability.
+        """Applies a postselection, updates the state and returns its probability.
 
         Notes:
             After applying this function, ``self`` will contain the projected
@@ -698,7 +704,78 @@ class TTN(StructuredState):
             ValueError: If all of the qubits in the state are being postselected.
                 Instead, you may wish to use ``get_amplitude()``.
         """
-        raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
+        for q, v in qubit_outcomes.items():
+            if q not in self.qubit_position:
+                raise ValueError(f"Qubit {q} is not a qubit in the TTN.")
+            if v not in {0, 1}:
+                raise ValueError(f"Outcome of {q} cannot be {v}. Choose int 0 or 1.")
+
+        if len(qubit_outcomes) == len(self.qubit_position):
+            raise ValueError(
+                "Cannot postselect all qubits. You may want to use get_amplitude()."
+            )
+        self._logger.debug(f"Postselecting qubits={qubit_outcomes}")
+
+        # Apply a postselection for each of the qubits
+        for qubit, outcome in qubit_outcomes.items():
+            # Create the rank-1 postselection tensor
+            postselection_tensor = cp.zeros(2, dtype=self._cfg._complex_t)
+            postselection_tensor[outcome] = 1
+            # Apply postselection
+            self._postselect_qubit(qubit, postselection_tensor)
+
+        # Calculate the squared norm of the postselected state; this is its probability
+        prob = self.vdot(self)
+        assert np.isclose(prob.imag, 0.0, atol=self._cfg._atol)
+        prob = prob.real
+
+        # Renormalise; it suffices to update the first tensor
+        if not np.isclose(prob, 0.0, atol=self._cfg._atol):
+            self.apply_scalar(1 / np.sqrt(prob))
+
+        self._logger.debug(f"Probability of this postselection is {prob}.")
+        return prob
+
+    def _postselect_qubit(self, qubit: Qubit, postselection_tensor: cp.ndarray) -> None:
+        """Postselect the qubit with the given tensor."""
+
+        path, target = self.qubit_position[qubit]
+        node_tensor = self.nodes[path].tensor
+        n_qbonds = (
+            len(node_tensor.shape) - 1
+        )  # Total number of physical bonds in this node
+
+        # Glossary of bond IDs
+        # qX -> where X is the X-th physical bond (qubit) in the TTN node
+        # p  -> the parent bond of the TTN node
+        # t  -> the target qubit of the postselection
+
+        node_bonds = [f"q{x}" for x in range(n_qbonds)] + ["p"]
+        result_bonds = node_bonds.copy()
+        node_bonds[target] = "t"  # Target bond must match with the postselection tensor
+        result_bonds.pop(target)  # After contraction, the target bond disappears
+
+        # Contract
+        new_tensor = cq.contract(
+            node_tensor,
+            node_bonds,
+            postselection_tensor,
+            ["t"],
+            result_bonds,
+            options={"handle": self._lib.handle, "device_id": self._lib.device_id},
+            optimize={"path": [(0, 1)]},
+        )
+
+        # Update ``self.nodes``
+        self.nodes[path].tensor = new_tensor
+        self.nodes[path].canonical_form = None
+
+        # Remove the entry from the data structure
+        del self.qubit_position[qubit]
+        # Update all of the qubit positions in the same leaf node
+        for q, (p, idx) in self.qubit_position.items():
+            if p == path and idx > target:
+                self.qubit_position[q] = (p, idx - 1)
 
     def expectation_value(self, pauli_string: QubitPauliString) -> float:
         """Obtains the expectation value of the Pauli string observable.
@@ -712,7 +789,7 @@ class TTN(StructuredState):
         Raises:
             ValueError: If a key in ``pauli_string`` is not a qubit in the state.
         """
-        raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
+        raise NotImplementedError(f"Method 'expectation_value' not implemented in {type(self).__name__}.")
 
     def get_fidelity(self) -> float:
         """Returns the current fidelity of the state."""

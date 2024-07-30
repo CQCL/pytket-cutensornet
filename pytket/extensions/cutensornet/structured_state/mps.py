@@ -251,7 +251,10 @@ class MPS(StructuredState):
         Returns:
             ``self``, to allow for method chaining.
         """
-        self.tensors[0] *= scalar
+        if len(self) > 0:
+            self.tensors[0] *= scalar
+            if not np.isclose(abs(scalar), 1.0):
+                self.canonical_form[0] = None
         return self
 
     def apply_qubit_relabelling(self, qubit_map: dict[Qubit, Qubit]) -> MPS:
@@ -715,9 +718,8 @@ class MPS(StructuredState):
         prob = prob.real
 
         # Renormalise; it suffices to update the first tensor
-        if len(self) > 0 and not np.isclose(prob, 0.0, atol=self._cfg._atol):
-            self.tensors[0] = self.tensors[0] / np.sqrt(prob)
-            self.canonical_form[0] = None
+        if not np.isclose(prob, 0.0, atol=self._cfg._atol):
+            self.apply_scalar(1 / np.sqrt(prob))
 
         self._logger.debug(f"Probability of this postselection is {prob}.")
         return prob

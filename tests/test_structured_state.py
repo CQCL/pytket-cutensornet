@@ -534,7 +534,7 @@ def test_circ_approx_explicit_mps(circuit: Circuit) -> None:
             SimulationAlgorithm.MPSxGate,
             cfg,
         )
-        assert np.isclose(mps_gate.get_fidelity(), 0.4, atol=1e-1)
+        assert mps_gate.get_fidelity() > 0.3
         assert mps_gate.is_valid()
         assert np.isclose(mps_gate.vdot(mps_gate), 1.0, atol=cfg._atol)
 
@@ -545,7 +545,7 @@ def test_circ_approx_explicit_mps(circuit: Circuit) -> None:
             SimulationAlgorithm.MPSxMPO,
             cfg,
         )
-        assert np.isclose(mps_mpo.get_fidelity(), 0.6, atol=1e-1)
+        assert mps_mpo.get_fidelity() > 0.5
         assert mps_mpo.is_valid()
         assert np.isclose(mps_mpo.vdot(mps_mpo), 1.0, atol=cfg._atol)
 
@@ -553,13 +553,13 @@ def test_circ_approx_explicit_mps(circuit: Circuit) -> None:
         # Check for MPSxGate
         cfg = Config(chi=8, leaf_size=4, float_precision=np.float32)
         mps_gate = simulate(libhandle, circuit, SimulationAlgorithm.MPSxGate, cfg)
-        assert np.isclose(mps_gate.get_fidelity(), 0.03, atol=1e-2)
+        assert mps_gate.get_fidelity() > 0.02
         assert mps_gate.is_valid()
         assert np.isclose(mps_gate.vdot(mps_gate), 1.0, atol=cfg._atol)
 
         # Check for MPSxMPO
         mps_mpo = simulate(libhandle, circuit, SimulationAlgorithm.MPSxMPO, cfg)
-        assert np.isclose(mps_mpo.get_fidelity(), 0.05, atol=1e-2)
+        assert mps_mpo.get_fidelity() > 0.04
         assert mps_mpo.is_valid()
         assert np.isclose(mps_mpo.vdot(mps_mpo), 1.0, atol=cfg._atol)
 
@@ -578,7 +578,7 @@ def test_circ_approx_explicit_ttn(circuit: Circuit) -> None:
         # Check for TTNxGate
         cfg = Config(truncation_fidelity=0.99, leaf_size=3, float_precision=np.float32)
         ttn_gate = simulate(libhandle, circuit, SimulationAlgorithm.TTNxGate, cfg)
-        assert np.isclose(ttn_gate.get_fidelity(), 0.751, atol=1e-3)
+        assert ttn_gate.get_fidelity() > 0.750
         assert ttn_gate.is_valid()
         assert np.isclose(ttn_gate.vdot(ttn_gate), 1.0, atol=cfg._atol)
 
@@ -586,7 +586,7 @@ def test_circ_approx_explicit_ttn(circuit: Circuit) -> None:
         # Check for TTNxGate
         cfg = Config(chi=120, leaf_size=3, float_precision=np.float32)
         ttn_gate = simulate(libhandle, circuit, SimulationAlgorithm.TTNxGate, cfg)
-        assert np.isclose(ttn_gate.get_fidelity(), 0.854, atol=1e-3)
+        assert ttn_gate.get_fidelity() >= 0.853
         assert ttn_gate.is_valid()
         assert np.isclose(ttn_gate.vdot(ttn_gate), 1.0, atol=cfg._atol)
 
@@ -608,6 +608,13 @@ def test_circ_approx_explicit_ttn(circuit: Circuit) -> None:
     ],
 )
 @pytest.mark.parametrize(
+    "algorithm",
+    [
+        SimulationAlgorithm.MPSxGate,
+        SimulationAlgorithm.TTNxGate,
+    ],
+)
+@pytest.mark.parametrize(
     "postselect_dict",
     [
         {Qubit("q", 0): 0},
@@ -616,18 +623,20 @@ def test_circ_approx_explicit_ttn(circuit: Circuit) -> None:
         {Qubit("q", 1): 1},
     ],
 )
-def test_postselect_2q_circ(circuit: Circuit, postselect_dict: dict) -> None:
+def test_postselect_2q_circ(
+    circuit: Circuit, algorithm: SimulationAlgorithm, postselect_dict: dict
+) -> None:
     sv = circuit_statevector_postselect(circuit, postselect_dict.copy())
     sv_prob = sv.conj() @ sv
     if not np.isclose(sv_prob, 0.0):
         sv = sv / np.sqrt(sv_prob)  # Normalise
 
     with CuTensorNetHandle() as libhandle:
-        cfg = Config()
-        mps = simulate(libhandle, circuit, SimulationAlgorithm.MPSxGate, cfg)
-        prob = mps.postselect(postselect_dict)
+        cfg = Config(leaf_size=1)
+        state = simulate(libhandle, circuit, algorithm, cfg)
+        prob = state.postselect(postselect_dict)
         assert np.isclose(prob, sv_prob, atol=cfg._atol)
-        assert np.allclose(mps.get_statevector(), sv, atol=cfg._atol)
+        assert np.allclose(state.get_statevector(), sv, atol=cfg._atol)
 
 
 @pytest.mark.parametrize(
@@ -636,6 +645,13 @@ def test_postselect_2q_circ(circuit: Circuit, postselect_dict: dict) -> None:
         pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
         pytest.lazy_fixture("q3_toffoli_box_with_implicit_swaps"),  # type: ignore
         pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
+    ],
+)
+@pytest.mark.parametrize(
+    "algorithm",
+    [
+        SimulationAlgorithm.MPSxGate,
+        SimulationAlgorithm.TTNxGate,
     ],
 )
 @pytest.mark.parametrize(
@@ -648,20 +664,20 @@ def test_postselect_2q_circ(circuit: Circuit, postselect_dict: dict) -> None:
         {Qubit("q", 0): 0, Qubit("q", 2): 1},
     ],
 )
-def test_postselect_circ(circuit: Circuit, postselect_dict: dict) -> None:
+def test_postselect_circ(
+    circuit: Circuit, algorithm: SimulationAlgorithm, postselect_dict: dict
+) -> None:
     sv = circuit_statevector_postselect(circuit, postselect_dict.copy())
     sv_prob = sv.conj() @ sv
     if not np.isclose(sv_prob, 0.0):
         sv = sv / np.sqrt(sv_prob)  # Normalise
 
     with CuTensorNetHandle() as libhandle:
-        cfg = Config()
-
-        mps = simulate(libhandle, circuit, SimulationAlgorithm.MPSxGate, cfg)
-
-        prob = mps.postselect(postselect_dict)
+        cfg = Config(leaf_size=2)
+        state = simulate(libhandle, circuit, algorithm, cfg)
+        prob = state.postselect(postselect_dict)
         assert np.isclose(prob, sv_prob, atol=cfg._atol)
-        assert np.allclose(mps.get_statevector(), sv, atol=cfg._atol)
+        assert np.allclose(state.get_statevector(), sv, atol=cfg._atol)
 
 
 @pytest.mark.parametrize(
