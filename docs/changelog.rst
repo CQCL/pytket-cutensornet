@@ -1,6 +1,11 @@
 Changelog
 ~~~~~~~~~
 
+Unreleased
+----------
+
+* Fixed a bug causing the logger to fail displaying device properties.
+
 0.7.0 (July 2024)
 -----------------
 
