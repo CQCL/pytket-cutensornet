@@ -15,6 +15,7 @@
 """Methods to allow tket circuits to be run on the cuTensorNet simulator."""
 
 from abc import abstractmethod
+import warnings
 
 from typing import List, Union, Optional, Sequence
 from uuid import uuid4
@@ -44,7 +45,12 @@ from pytket.passes import (  # type: ignore
     FullPeepholeOptimise,
     CustomPass,
 )
-from cuquantum.cutensornet import StateAttribute, SamplerAttribute  # type: ignore
+
+try:
+    from cuquantum.cutensornet import StateAttribute, SamplerAttribute  # type: ignore
+except ImportError:
+    warnings.warn("local settings failed to import cuquantum", ImportWarning)
+
 from .._metadata import __extension_version__, __extension_name__
 
 
