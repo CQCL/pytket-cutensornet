@@ -419,12 +419,17 @@ class GeneralState:
             scratch_fraction: Optional. Fraction of free memory on GPU to allocate as
                 scratch space.
         Raises:
+            ValueError: If the circuit contains no measurements.
             MemoryError: If there is insufficient workspace on GPU.
         Returns:
             A pytket ``BackendResult`` with the data from the shots.
         """
 
         num_measurements = len(self._measurements)
+        if num_measurements == 0:
+            raise ValueError(
+                "Cannot sample from the circuit, it contains no measurements."
+            )
         # We will need both a list of the qubits and a list of the classical bits
         # and it is essential that the elements in the same index of either list
         # match according to the self._measurements map. We guarantee this here.
