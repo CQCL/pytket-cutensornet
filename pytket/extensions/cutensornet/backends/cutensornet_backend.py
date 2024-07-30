@@ -44,6 +44,7 @@ from pytket.passes import (  # type: ignore
     FullPeepholeOptimise,
     CustomPass,
 )
+from cuquantum.cutensornet import StateAttribute, SamplerAttribute  # type: ignore
 from .._metadata import __extension_version__, __extension_name__
 
 
@@ -195,15 +196,25 @@ class CuTensorNetStateBackend(_CuTensorNetBaseBackend):
         The results will be stored in the backend's result cache to be retrieved by the
         corresponding get_<data> method.
 
+        Note:
+            TODO: Mention cutn attributes.
+
         Args:
             circuits: List of circuits to be submitted.
             n_shots: Number of shots in case of shot-based calculation.
                 This should be ``None``, since this backend does not support shots.
             valid_check: Whether to check for circuit correctness.
+            scratch_fraction: Optional. Fraction of free memory on GPU to allocate as
+                scratch space. Defaults to `0.75`.
 
         Returns:
             Results handle objects.
         """
+        scratch_fraction = float(kwargs.get("scratch_fraction", 0.75))  # type: ignore
+        cutn_attributes = {
+            k: v for k, v in kwargs.items() if k in StateAttribute._member_names_
+        }
+
         circuit_list = list(circuits)
         if valid_check:
             self._check_all_circuits(circuit_list)
@@ -211,7 +222,7 @@ class CuTensorNetStateBackend(_CuTensorNetBaseBackend):
         with CuTensorNetHandle() as libhandle:
             for circuit in circuit_list:
                 tn = GeneralState(circuit, libhandle)
-                sv = tn.get_statevector()
+                sv = tn.get_statevector(cutn_attributes, scratch_fraction)
                 res_qubits = [qb for qb in sorted(circuit.qubits)]
                 handle = ResultHandle(str(uuid4()))
                 self._cache[handle] = {
@@ -266,10 +277,17 @@ class CuTensorNetShotsBackend(_CuTensorNetBaseBackend):
                 Optionally, this can be a list of shots specifying the number of shots
                 for each circuit separately.
             valid_check: Whether to check for circuit correctness.
+            scratch_fraction: Optional. Fraction of free memory on GPU to allocate as
+                scratch space. Defaults to `0.75`.
 
         Returns:
             Results handle objects.
         """
+        scratch_fraction = float(kwargs.get("scratch_fraction", 0.75))  # type: ignore
+        cutn_attributes = {
+            k: v for k, v in kwargs.items() if k in SamplerAttribute._member_names_
+        }
+
         if "seed" in kwargs and kwargs["seed"] is not None:
             # Current CuTensorNet does not support seeds for Sampler. I created
             # a feature request in their repository.
@@ -294,7 +312,9 @@ class CuTensorNetShotsBackend(_CuTensorNetBaseBackend):
             for circuit, circ_shots in zip(circuit_list, all_shots):
                 tn = GeneralState(circuit, libhandle)
                 handle = ResultHandle(str(uuid4()))
-                self._cache[handle] = {"result": tn.sample(circ_shots)}
+                self._cache[handle] = {
+                    "result": tn.sample(circ_shots, cutn_attributes, scratch_fraction)
+                }
                 handle_list.append(handle)
         return handle_list
 

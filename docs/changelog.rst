@@ -4,6 +4,7 @@ Changelog
 Unreleased
 ----------
 
+* Backend methods can now be given `cutn_attributes` and `scratch_fraction` arguments to configure the cuTensorNet contraction.
 * Fixed a bug causing the logger to fail displaying device properties.
 
 0.7.0 (July 2024)

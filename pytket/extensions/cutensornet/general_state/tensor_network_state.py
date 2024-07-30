@@ -44,7 +44,7 @@ class GeneralState:
         self,
         circuit: Circuit,
         libhandle: CuTensorNetHandle,
-        loglevel: int = logging.INFO,
+        loglevel: int = logging.WARNING,
     ) -> None:
         """Constructs a tensor network for the output state of a pytket circuit.
 
@@ -113,14 +113,14 @@ class GeneralState:
 
     def get_statevector(
         self,
-        attributes: Optional[dict] = None,
-        scratch_fraction: float = 0.5,
+        cutn_attributes: Optional[dict] = None,
+        scratch_fraction: float = 0.75,
         on_host: bool = True,
     ) -> Union[cp.ndarray, np.ndarray]:
         """Contracts the circuit and returns the final statevector.
 
         Args:
-            attributes: Optional. A dict of cuTensorNet `StateAttribute` keys and
+            cutn_attributes: Optional. A dict of cuTensorNet `StateAttribute` keys and
                 their values.
             scratch_fraction: Optional. Fraction of free memory on GPU to allocate as
                 scratch space.
@@ -136,10 +136,10 @@ class GeneralState:
         ####################################
         # Configure the TN for contraction #
         ####################################
-        if attributes is None:
-            attributes = dict()
+        if cutn_attributes is None:
+            cutn_attributes = dict()
         attribute_pairs = [
-            (getattr(cutn.StateAttribute, k), v) for k, v in attributes.items()
+            (getattr(cutn.StateAttribute, k), v) for k, v in cutn_attributes.items()
         ]
 
         for attr, val in attribute_pairs:
@@ -228,14 +228,14 @@ class GeneralState:
     def expectation_value(
         self,
         operator: QubitPauliOperator,
-        attributes: Optional[dict] = None,
-        scratch_fraction: float = 0.5,
+        cutn_attributes: Optional[dict] = None,
+        scratch_fraction: float = 0.75,
     ) -> complex:
         """Calculates the expectation value of the given operator.
 
         Args:
             operator: The operator whose expectation value is to be measured.
-            attributes: Optional. A dict of cuTensorNet `ExpectationAttribute` keys
+            cutn_attributes: Optional. A dict of cuTensorNet `ExpectationAttribute` keys
                 and their values.
             scratch_fraction: Optional. Fraction of free memory on GPU to allocate as
                  scratch space.
@@ -310,10 +310,11 @@ class GeneralState:
             self._lib.handle, self._state, tn_operator
         )
 
-        if attributes is None:
-            attributes = dict()
+        if cutn_attributes is None:
+            cutn_attributes = dict()
         attribute_pairs = [
-            (getattr(cutn.ExpectationAttribute, k), v) for k, v in attributes.items()
+            (getattr(cutn.ExpectationAttribute, k), v)
+            for k, v in cutn_attributes.items()
         ]
 
         for attr, val in attribute_pairs:
@@ -406,14 +407,14 @@ class GeneralState:
     def sample(
         self,
         n_shots: int,
-        attributes: Optional[dict] = None,
-        scratch_fraction: float = 0.5,
+        cutn_attributes: Optional[dict] = None,
+        scratch_fraction: float = 0.75,
     ) -> BackendResult:
         """Obtains samples from the measurements at the end of the circuit.
 
         Args:
             n_shots: The number of samples to obtain.
-            attributes: Optional. A dict of cuTensorNet `SamplerAttribute` keys and
+            cutn_attributes: Optional. A dict of cuTensorNet `SamplerAttribute` keys and
                 their values.
             scratch_fraction: Optional. Fraction of free memory on GPU to allocate as
                 scratch space.
@@ -441,10 +442,10 @@ class GeneralState:
             modes_to_sample=measured_modes,
         )
 
-        if attributes is None:
-            attributes = dict()
+        if cutn_attributes is None:
+            cutn_attributes = dict()
         attribute_pairs = [
-            (getattr(cutn.SamplerAttribute, k), v) for k, v in attributes.items()
+            (getattr(cutn.SamplerAttribute, k), v) for k, v in cutn_attributes.items()
         ]
 
         for attr, val in attribute_pairs:
