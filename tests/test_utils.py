@@ -1,4 +1,6 @@
+import pytest
 import numpy
+from pytket.extensions.cutensornet.general import CuTensorNetHandle, set_logger
 from pytket.extensions.cutensornet.general_state.utils import (
     circuit_statevector_postselect,
 )
@@ -31,3 +33,11 @@ def test_circuit_statevector_postselect() -> None:
     sv_postselect = circuit_statevector_postselect(circ, post_select_dict)
 
     numpy.testing.assert_array_equal(sv_postselect, sv_post_select)
+
+
+def test_device_properties_logger() -> None:
+    try:
+        with CuTensorNetHandle() as libhandle:
+            libhandle.print_device_properties(set_logger("GeneralState", 10))
+    except:
+        pytest.fail("Could not print device properties")
