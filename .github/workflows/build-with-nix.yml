@@ -8,7 +8,7 @@ on:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   build:
     strategy:
@@ -22,7 +22,7 @@ jobs:
       with:
         name: tket
     - name: Build pytket-cutensornet
-      run: nix build
+      run: nix build --accept-flake-config
   test:
     needs: build
     runs-on: nixos-gpu
@@ -34,4 +34,4 @@ jobs:
         name: tket
         authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
     - name: Test pytket-cutensornet
-      run: nix run .#tests
+      run: nix run .#tests --accept-flake-config
