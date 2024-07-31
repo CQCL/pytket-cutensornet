@@ -34,6 +34,39 @@ def test_sampler_bell() -> None:
     assert np.isclose(res.get_counts()[(1, 1)] / n_shots, 0.5, atol=0.01)
 
 
+def test_config_options() -> None:
+    c = Circuit(2, 2)
+    c.H(0)
+    c.CX(0, 1)
+    c.measure_all()
+
+    # State based
+    b1 = CuTensorNetStateBackend()
+    c = b1.get_compiled_circuit(c)
+    h = b1.process_circuit(
+        c,
+        scratch_fraction=0.3,
+        CONFIG_NUM_HYPER_SAMPLES=100,
+    )
+    assert np.allclose(
+        b1.get_result(h).get_state(), np.asarray([1, 0, 0, 1]) * 1 / np.sqrt(2)
+    )
+
+    # Shot based
+    n_shots = 100000
+    b2 = CuTensorNetShotsBackend()
+    c = b2.get_compiled_circuit(c)
+    res = b2.run_circuit(
+        c,
+        n_shots=n_shots,
+        scratch_fraction=0.3,
+        CONFIG_NUM_HYPER_SAMPLES=100,
+    )
+    assert res.get_shots().shape == (n_shots, 2)
+    assert np.isclose(res.get_counts()[(0, 0)] / n_shots, 0.5, atol=0.01)
+    assert np.isclose(res.get_counts()[(1, 1)] / n_shots, 0.5, atol=0.01)
+
+
 def test_basisorder() -> None:
     c = Circuit(2)
     c.X(1)

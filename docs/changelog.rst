@@ -4,6 +4,7 @@ Changelog
 Unreleased
 ----------
 
+* Backend methods can now be given a ``scratch_fraction`` argument to configure the amount of GPU memory allocated to cuTensorNet contraction. Users can also configure the values of the ``StateAttribute`` and ``SamplerAttribute`` from cuTensornet via the backend interface.
 * Fixed a bug causing the logger to fail displaying device properties.
 
 0.7.0 (July 2024)

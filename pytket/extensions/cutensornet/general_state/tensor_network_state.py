@@ -44,7 +44,7 @@ class GeneralState:
         self,
         circuit: Circuit,
         libhandle: CuTensorNetHandle,
-        loglevel: int = logging.INFO,
+        loglevel: int = logging.WARNING,
     ) -> None:
         """Constructs a tensor network for the output state of a pytket circuit.
 
@@ -114,7 +114,7 @@ class GeneralState:
     def get_statevector(
         self,
         attributes: Optional[dict] = None,
-        scratch_fraction: float = 0.5,
+        scratch_fraction: float = 0.75,
         on_host: bool = True,
     ) -> Union[cp.ndarray, np.ndarray]:
         """Contracts the circuit and returns the final statevector.
@@ -229,7 +229,7 @@ class GeneralState:
         self,
         operator: QubitPauliOperator,
         attributes: Optional[dict] = None,
-        scratch_fraction: float = 0.5,
+        scratch_fraction: float = 0.75,
     ) -> complex:
         """Calculates the expectation value of the given operator.
 
@@ -407,7 +407,7 @@ class GeneralState:
         self,
         n_shots: int,
         attributes: Optional[dict] = None,
-        scratch_fraction: float = 0.5,
+        scratch_fraction: float = 0.75,
     ) -> BackendResult:
         """Obtains samples from the measurements at the end of the circuit.
 
@@ -418,12 +418,17 @@ class GeneralState:
             scratch_fraction: Optional. Fraction of free memory on GPU to allocate as
                 scratch space.
         Raises:
+            ValueError: If the circuit contains no measurements.
             MemoryError: If there is insufficient workspace on GPU.
         Returns:
             A pytket ``BackendResult`` with the data from the shots.
         """
 
         num_measurements = len(self._measurements)
+        if num_measurements == 0:
+            raise ValueError(
+                "Cannot sample from the circuit, it contains no measurements."
+            )
         # We will need both a list of the qubits and a list of the classical bits
         # and it is essential that the elements in the same index of either list
         # match according to the self._measurements map. We guarantee this here.
