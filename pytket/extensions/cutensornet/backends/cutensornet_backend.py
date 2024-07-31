@@ -219,7 +219,7 @@ class CuTensorNetStateBackend(_CuTensorNetBaseBackend):
             Results handle objects.
         """
         scratch_fraction = float(kwargs.get("scratch_fraction", 0.75))  # type: ignore
-        cutn_attributes = {
+        attributes = {
             k: v for k, v in kwargs.items() if k in StateAttribute._member_names_
         }
 
@@ -230,7 +230,7 @@ class CuTensorNetStateBackend(_CuTensorNetBaseBackend):
         with CuTensorNetHandle() as libhandle:
             for circuit in circuit_list:
                 tn = GeneralState(circuit, libhandle)
-                sv = tn.get_statevector(cutn_attributes, scratch_fraction)
+                sv = tn.get_statevector(attributes, scratch_fraction)
                 res_qubits = [qb for qb in sorted(circuit.qubits)]
                 handle = ResultHandle(str(uuid4()))
                 self._cache[handle] = {
@@ -297,7 +297,7 @@ class CuTensorNetShotsBackend(_CuTensorNetBaseBackend):
             Results handle objects.
         """
         scratch_fraction = float(kwargs.get("scratch_fraction", 0.75))  # type: ignore
-        cutn_attributes = {
+        attributes = {
             k: v for k, v in kwargs.items() if k in SamplerAttribute._member_names_
         }
 
@@ -326,7 +326,7 @@ class CuTensorNetShotsBackend(_CuTensorNetBaseBackend):
                 tn = GeneralState(circuit, libhandle)
                 handle = ResultHandle(str(uuid4()))
                 self._cache[handle] = {
-                    "result": tn.sample(circ_shots, cutn_attributes, scratch_fraction)
+                    "result": tn.sample(circ_shots, attributes, scratch_fraction)
                 }
                 handle_list.append(handle)
         return handle_list

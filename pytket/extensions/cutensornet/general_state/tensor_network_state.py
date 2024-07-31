@@ -113,14 +113,14 @@ class GeneralState:
 
     def get_statevector(
         self,
-        cutn_attributes: Optional[dict] = None,
+        attributes: Optional[dict] = None,
         scratch_fraction: float = 0.75,
         on_host: bool = True,
     ) -> Union[cp.ndarray, np.ndarray]:
         """Contracts the circuit and returns the final statevector.
 
         Args:
-            cutn_attributes: Optional. A dict of cuTensorNet `StateAttribute` keys and
+            attributes: Optional. A dict of cuTensorNet `StateAttribute` keys and
                 their values.
             scratch_fraction: Optional. Fraction of free memory on GPU to allocate as
                 scratch space.
@@ -136,10 +136,10 @@ class GeneralState:
         ####################################
         # Configure the TN for contraction #
         ####################################
-        if cutn_attributes is None:
-            cutn_attributes = dict()
+        if attributes is None:
+            attributes = dict()
         attribute_pairs = [
-            (getattr(cutn.StateAttribute, k), v) for k, v in cutn_attributes.items()
+            (getattr(cutn.StateAttribute, k), v) for k, v in attributes.items()
         ]
 
         for attr, val in attribute_pairs:
@@ -228,14 +228,14 @@ class GeneralState:
     def expectation_value(
         self,
         operator: QubitPauliOperator,
-        cutn_attributes: Optional[dict] = None,
+        attributes: Optional[dict] = None,
         scratch_fraction: float = 0.75,
     ) -> complex:
         """Calculates the expectation value of the given operator.
 
         Args:
             operator: The operator whose expectation value is to be measured.
-            cutn_attributes: Optional. A dict of cuTensorNet `ExpectationAttribute` keys
+            attributes: Optional. A dict of cuTensorNet `ExpectationAttribute` keys
                 and their values.
             scratch_fraction: Optional. Fraction of free memory on GPU to allocate as
                  scratch space.
@@ -310,11 +310,10 @@ class GeneralState:
             self._lib.handle, self._state, tn_operator
         )
 
-        if cutn_attributes is None:
-            cutn_attributes = dict()
+        if attributes is None:
+            attributes = dict()
         attribute_pairs = [
-            (getattr(cutn.ExpectationAttribute, k), v)
-            for k, v in cutn_attributes.items()
+            (getattr(cutn.ExpectationAttribute, k), v) for k, v in attributes.items()
         ]
 
         for attr, val in attribute_pairs:
@@ -407,14 +406,14 @@ class GeneralState:
     def sample(
         self,
         n_shots: int,
-        cutn_attributes: Optional[dict] = None,
+        attributes: Optional[dict] = None,
         scratch_fraction: float = 0.75,
     ) -> BackendResult:
         """Obtains samples from the measurements at the end of the circuit.
 
         Args:
             n_shots: The number of samples to obtain.
-            cutn_attributes: Optional. A dict of cuTensorNet `SamplerAttribute` keys and
+            attributes: Optional. A dict of cuTensorNet `SamplerAttribute` keys and
                 their values.
             scratch_fraction: Optional. Fraction of free memory on GPU to allocate as
                 scratch space.
@@ -447,10 +446,10 @@ class GeneralState:
             modes_to_sample=measured_modes,
         )
 
-        if cutn_attributes is None:
-            cutn_attributes = dict()
+        if attributes is None:
+            attributes = dict()
         attribute_pairs = [
-            (getattr(cutn.SamplerAttribute, k), v) for k, v in cutn_attributes.items()
+            (getattr(cutn.SamplerAttribute, k), v) for k, v in attributes.items()
         ]
 
         for attr, val in attribute_pairs:
