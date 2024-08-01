@@ -1,9 +1,10 @@
 Changelog
 ~~~~~~~~~
 
-Unreleased
-----------
+0.7.1 (July 2024)
+-----------------
 
+* New official `documentation site <https://tket.quantinuum.com/extensions/pytket-cutensornet/>`_.
 * Backend methods can now be given a ``scratch_fraction`` argument to configure the amount of GPU memory allocated to cuTensorNet contraction. Users can also configure the values of the ``StateAttribute`` and ``SamplerAttribute`` from cuTensornet via the backend interface.
 * Fixed a bug causing the logger to fail displaying device properties.
 
