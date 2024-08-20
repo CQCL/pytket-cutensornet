@@ -185,9 +185,11 @@ class StructuredState(ABC):
         """
         raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
 
-    @abstractmethod
     def apply_gate(self, gate: Command) -> StructuredState:
-        """Applies the gate to the StructuredState.
+        """Apply the gate to the `StructuredState`.
+
+        Note:
+            Only one-qubit gates and two-qubit gates are supported.
 
         Args:
             gate: The gate to be applied.
@@ -200,7 +202,25 @@ class StructuredState(ABC):
             ValueError: If the command introduced is not a unitary gate.
             ValueError: If gate acts on more than 2 qubits.
         """
-        raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
+        try:
+            unitary = gate.op.get_unitary()
+        except:
+            raise ValueError("The command introduced is not unitary.")
+
+        # Load the gate's unitary to the GPU memory
+        unitary = unitary.astype(dtype=self._cfg._complex_t, copy=False)
+        unitary = cp.asarray(unitary, dtype=self._cfg._complex_t)
+
+        self._logger.debug(f"Applying gate {gate}.")
+        if len(gate.qubits) not in [1, 2]:
+            raise ValueError(
+                "Gates must act on only 1 or 2 qubits! "
+                + f"This is not satisfied by {gate}."
+            )
+
+        self.apply_unitary(unitary, gate.qubits)
+
+        return self
 
     @abstractmethod
     def apply_unitary(

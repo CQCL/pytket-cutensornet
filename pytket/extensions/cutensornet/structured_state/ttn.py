@@ -30,7 +30,7 @@ try:
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
-from pytket.circuit import Command, Qubit
+from pytket.circuit import Qubit
 from pytket.pauli import QubitPauliString
 
 from pytket.extensions.cutensornet.general import CuTensorNetHandle, set_logger
@@ -241,37 +241,6 @@ class TTN(StructuredState):
             f"shape_ok={shape_ok}"
         )
         return chi_ok and phys_ok and rank_ok and shape_ok
-
-    def apply_gate(self, gate: Command) -> TTN:
-        """Apply the gate to the TTN.
-
-        Note:
-            Only single-qubit gates and two-qubit gates are supported.
-
-        Args:
-            gate: The gate to be applied.
-
-        Returns:
-            ``self``, to allow for method chaining.
-
-        Raises:
-            RuntimeError: If the ``CuTensorNetHandle`` is out of scope.
-            ValueError: If the command introduced is not a unitary gate.
-            ValueError: If gate acts on more than 2 qubits.
-        """
-        try:
-            unitary = gate.op.get_unitary()
-        except:
-            raise ValueError("The command introduced is not unitary.")
-
-        # Load the gate's unitary to the GPU memory
-        unitary = unitary.astype(dtype=self._cfg._complex_t, copy=False)
-        unitary = cp.asarray(unitary, dtype=self._cfg._complex_t)
-
-        self._logger.debug(f"Applying gate {gate}.")
-        self.apply_unitary(unitary, gate.qubits)
-
-        return self
 
     def apply_unitary(
         self, unitary: cp.ndarray, qubits: list[Qubit]
