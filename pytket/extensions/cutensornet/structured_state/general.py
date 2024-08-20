@@ -176,14 +176,9 @@ class Config:
 class StructuredState(ABC):
     """Class representing a Tensor Network state."""
 
-    @abstractmethod
-    def is_valid(self) -> bool:
-        """Verify that the tensor network state is valid.
-
-        Returns:
-            False if a violation was detected or True otherwise.
-        """
-        raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
+    _lib: CuTensorNetHandle
+    _cfg: Config
+    _logger: logging.Logger
 
     def apply_gate(self, gate: Command) -> StructuredState:
         """Apply the gate to the `StructuredState`.
@@ -221,6 +216,15 @@ class StructuredState(ABC):
         self.apply_unitary(unitary, gate.qubits)
 
         return self
+
+    @abstractmethod
+    def is_valid(self) -> bool:
+        """Verify that the tensor network state is valid.
+
+        Returns:
+            False if a violation was detected or True otherwise.
+        """
+        raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
 
     @abstractmethod
     def apply_unitary(
