@@ -130,6 +130,7 @@ class TTN(StructuredState):
         self._logger = set_logger("TTN", level=config.loglevel)
         self._rng = Random()
         self._rng.seed(self._cfg.seed)
+        self._bits_dict = dict()
 
         self.fidelity = 1.0
         self.nodes: dict[RootPath, TreeNode] = dict()

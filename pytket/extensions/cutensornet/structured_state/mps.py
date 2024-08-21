@@ -91,6 +91,7 @@ class MPS(StructuredState):
         self._logger = set_logger("MPS", level=config.loglevel)
         self._rng = Random()
         self._rng.seed(self._cfg.seed)
+        self._bits_dict = dict()
         self.fidelity = 1.0
 
         n_tensors = len(qubits)
