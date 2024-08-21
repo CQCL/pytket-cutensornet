@@ -26,7 +26,7 @@ from pytket.extensions.cutensornet.structured_state import (
 )
 
 
-def test_pytket_qir_conditional() -> None:
+def test_circuit_with_classicalexpbox_i() -> None:
     # test conditional handling
 
     circ = Circuit(3)
@@ -53,7 +53,7 @@ def test_pytket_qir_conditional() -> None:
         assert state.get_fidelity() == 1.0
 
 
-def test_pytket_qir_conditional_ii() -> None:
+def test_circuit_with_classicalexpbox_ii() -> None:
     # test conditional handling with else case
 
     circ = Circuit(3)
@@ -82,10 +82,10 @@ def test_pytket_qir_conditional_ii() -> None:
         assert state.get_fidelity() == 1.0
 
 
-def test_pytket_qir_conditional_iii() -> None:
+def test_circuit_with_classicalexpbox_iii() -> None:
     # test complicated conditions and recursive classical op
 
-    circ = Circuit(1)
+    circ = Circuit(2)
 
     a = circ.add_c_register("a", 15)
     b = circ.add_c_register("b", 15)
@@ -109,7 +109,7 @@ def test_pytket_qir_conditional_iii() -> None:
         assert state.get_fidelity() == 1.0
 
 
-def test_pytket_qir_conditional_iv() -> None:
+def test_circuit_with_conditional_gate_i() -> None:
     # test complicated conditions and recursive classical op
 
     circ = Circuit(2, 2).H(0).H(1).measure_all()
@@ -124,7 +124,7 @@ def test_pytket_qir_conditional_iv() -> None:
         assert state.get_fidelity() == 1.0
 
 
-def test_pytket_qir_conditional_v() -> None:
+def test_circuit_with_conditional_gate_ii() -> None:
     # test complicated conditions and recursive classical op
 
     circ = Circuit(2, 3).H(0).H(1).measure_all()
@@ -139,7 +139,7 @@ def test_pytket_qir_conditional_v() -> None:
         assert state.get_fidelity() == 1.0
 
 
-def test_pytket_qir_conditional_6() -> None:
+def test_pcircuit_with_conditional_gate_iii() -> None:
     # test conditional for manual added gates
 
     circ = Circuit(2, 3).H(0).H(1)
@@ -156,7 +156,7 @@ def test_pytket_qir_conditional_6() -> None:
         assert state.get_fidelity() == 1.0
 
 
-def test_pytket_qir_conditional_7() -> None:
+def test_circuit_with_conditional_gate_iv() -> None:
     circ = Circuit(7, name="testcirc")
 
     syn = circ.add_c_register("syn", 4)
@@ -240,7 +240,7 @@ def test_pytket_qir_conditional_7() -> None:
 #        assert state.get_fidelity() == 1.0
 
 
-def test_pytket_qir_conditional_12() -> None:
+def test_circuit_with_conditional_gate_v() -> None:
     # test conditional with no register
 
     circ = Circuit(7, name="testcirc")
