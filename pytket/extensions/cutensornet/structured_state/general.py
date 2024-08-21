@@ -19,7 +19,18 @@ from typing import Any, Optional, Type
 
 import numpy as np  # type: ignore
 
-from pytket.circuit import Command, Qubit
+from pytket.circuit import (
+    Command,
+    Op,
+    OpType,
+    Qubit,
+    Bit,
+    Conditional,
+    ClassicalExpBox,
+    SetBitsOp,
+    CopyBitsOp,
+    RangePredicateOp,
+)
 from pytket.pauli import QubitPauliString
 
 try:
@@ -180,14 +191,14 @@ class StructuredState(ABC):
     _cfg: Config
     _logger: logging.Logger
 
-    def apply_gate(self, gate: Command) -> StructuredState:
-        """Apply the gate to the `StructuredState`.
+    def apply_gate(self, command: Command) -> StructuredState:
+        """Apply the command to the `StructuredState`.
 
         Note:
             Only one-qubit gates and two-qubit gates are supported.
 
         Args:
-            gate: The gate to be applied.
+            command: The command to be applied.
 
         Returns:
             ``self``, to allow for method chaining.
@@ -195,25 +206,112 @@ class StructuredState(ABC):
         Raises:
             RuntimeError: If the ``CuTensorNetHandle`` is out of scope.
             ValueError: If the command introduced is not a unitary gate.
-            ValueError: If gate acts on more than 2 qubits.
+            ValueError: If the command acts on more than 2 qubits.
         """
-        try:
-            unitary = gate.op.get_unitary()
-        except:
-            raise ValueError("The command introduced is not unitary.")
 
-        # Load the gate's unitary to the GPU memory
-        unitary = unitary.astype(dtype=self._cfg._complex_t, copy=False)
-        unitary = cp.asarray(unitary, dtype=self._cfg._complex_t)
+        # For circuits with mid-circuit measurements and conditional operations
+        # we need to keep track of the classical bits
+        bits_dict: dict[Bit, bool] = dict()
 
-        self._logger.debug(f"Applying gate {gate}.")
-        if len(gate.qubits) not in [1, 2]:
-            raise ValueError(
-                "Gates must act on only 1 or 2 qubits! "
-                + f"This is not satisfied by {gate}."
-            )
+        if command.op.type == OpType.Measure:
+            q = command.qubits[0]
+            b = command.bits[0]
+            bits_dict[b] = self.measure({q}, destructive=False)[q] != 0
 
-        self.apply_unitary(unitary, gate.qubits)
+        elif command.op.type == OpType.Reset:
+            assert len(command.qubits)
+            q = command.qubits[0]
+            # Measure and correct if outcome is |1>
+            outcome_1 = self.measure({q}, destructive=False)[q] != 0
+            if outcome_1:
+                self.apply_unitary(Op.create(OpType.X).get_unitary(), [q])
+
+        elif command.op.is_gate():  # Either a unitary gate or a not supported "gate"
+            try:
+                unitary = command.op.get_unitary()
+            except:
+                raise ValueError(
+                    f"The command {command.op.type} introduced is not supported."
+                )
+
+            # Load the gate's unitary to the GPU memory
+            unitary = unitary.astype(dtype=self._cfg._complex_t, copy=False)
+            unitary = cp.asarray(unitary, dtype=self._cfg._complex_t)
+
+            self._logger.debug(f"Applying gate {command}.")
+            if len(command.qubits) not in [1, 2]:
+                raise ValueError(
+                    "Gates must act on only 1 or 2 qubits! "
+                    + f"This is not satisfied by {command}."
+                )
+
+            self.apply_unitary(unitary, command.qubits)
+
+        else:  # A classical operation
+
+            if isinstance(command.op, SetBitsOp):
+                these_bits = command.bits
+                for b, v in zip(these_bits, command.op.values):
+                    bits_dict[b] = v
+
+            elif isinstance(command.op, CopyBitsOp):
+                output_bits = command.bits
+                input_bits = command.args[: len(output_bits)]
+                for i, o in zip(input_bits, output_bits):
+                    assert isinstance(i, Bit)
+                    bits_dict[i] = bits_dict[o]
+
+            elif isinstance(command.op, RangePredicateOp):
+                # TODO: Looks like the specs allow for registers to hold the result
+                # (I guess encoding an int). For now, I'm only supporting output to
+                # single bit.
+                assert len(command.bits) == 1
+                res_bit = command.bits[0]
+                input_bits = command.args[:-1]
+                # The input_bits encode a "value" int in little-endian
+                val = sum(
+                    1 << i for i, b in enumerate(input_bits) if bits_dict[b]  # type: ignore
+                )
+                # Check that the value is in the range
+                bits_dict[res_bit] = val >= command.op.lower and val <= command.op.upper
+
+            elif isinstance(command.op, Conditional):
+                input_bits = command.args[: command.op.width]
+                tgt_value = command.op.value
+                # The input_bits encode a "value" int in little-endian
+                var_value = sum(
+                    1 << i for i, b in enumerate(input_bits) if bits_dict[b]  # type: ignore
+                )
+                # If the condition is satisfied, create the command from body and apply
+                if var_value == tgt_value:
+                    body_cmd = Command(
+                        command.op.op, command.qubits + command.bits  # type: ignore
+                    )
+                    self.apply_gate(body_cmd)
+
+            elif isinstance(command.op, ClassicalExpBox):
+                # TODO: Looks like the specs allow for registers to hold the result
+                # (I guess encoding an int). For now, I'm only supporting output to
+                # single bit.
+                assert len(command.bits) == 1
+                res_bit = command.bits[0]
+                the_exp = command.op.get_exp()
+
+                for b in the_exp.all_inputs():  # type: ignore
+                    assert isinstance(b, Bit)
+                    the_exp.set_value(b, bits_dict[b])
+                result = the_exp.eval_vals()
+
+                assert isinstance(result, int)
+                bits_dict[res_bit] = the_exp.eval_vals() != 0
+
+            elif command.op.type == OpType.Barrier:
+                pass
+
+            else:
+                raise NotImplementedError(
+                    f"Commands of type {command.op.type} are not supported."
+                )
 
         return self
 
