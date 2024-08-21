@@ -28,7 +28,7 @@ try:
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
-from pytket.circuit import Qubit
+from pytket.circuit import Qubit, Bit
 from pytket.extensions.cutensornet import CuTensorNetHandle
 from .general import Tensor, Config
 from .mps import (
@@ -49,6 +49,7 @@ class MPSxMPO(MPS):
         libhandle: CuTensorNetHandle,
         qubits: list[Qubit],
         config: Config,
+        bits: Optional[list[Bit]] = None,
     ):
         """Initialise an MPS on the computational state ``|0>``.
 
@@ -63,7 +64,7 @@ class MPSxMPO(MPS):
             qubits: The list of qubits in the circuit to be simulated.
             config: The object describing the configuration for simulation.
         """
-        super().__init__(libhandle, qubits, config)
+        super().__init__(libhandle, qubits, config, bits=bits)
 
         # Initialise the MPO data structure. This will keep a list of the gates
         # batched for application to the MPS; all of them will be applied at
@@ -82,7 +83,7 @@ class MPSxMPO(MPS):
 
         # Initialise the MPS that we will use as first approximation of the
         # variational algorithm.
-        self._aux_mps = MPSxGate(libhandle, qubits, config)
+        self._aux_mps = MPSxGate(libhandle, qubits, config, bits=bits)
 
         self._mpo_bond_counter = 0
 

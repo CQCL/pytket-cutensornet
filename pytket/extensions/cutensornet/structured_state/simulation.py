@@ -87,17 +87,21 @@ def simulate(
         state = MPSxGate(  # type: ignore
             libhandle,
             circuit.qubits,
-            config,
+            bits=circuit.bits,
+            config=config,
         )
-        sorted_gates = _get_sorted_gates(circuit, algorithm)
+        # TODO: Currently deactivating gate sorting. Fix this before merging branch
+        sorted_gates = circuit.get_commands()  # _get_sorted_gates(circuit, algorithm)
 
     elif algorithm == SimulationAlgorithm.MPSxMPO:
         state = MPSxMPO(  # type: ignore
             libhandle,
             circuit.qubits,
-            config,
+            bits=circuit.bits,
+            config=config,
         )
-        sorted_gates = _get_sorted_gates(circuit, algorithm)
+        # TODO: Currently deactivating gate sorting. Fix this before merging branch
+        sorted_gates = circuit.get_commands()  # _get_sorted_gates(circuit, algorithm)
 
     elif algorithm == SimulationAlgorithm.TTNxGate:
         qubit_partition = _get_qubit_partition(
@@ -106,9 +110,13 @@ def simulate(
         state = TTNxGate(  # type: ignore
             libhandle,
             qubit_partition,
-            config,
+            bits=circuit.bits,
+            config=config,
         )
-        sorted_gates = _get_sorted_gates(circuit, algorithm, qubit_partition)
+        # TODO: Currently deactivating gate sorting. Fix this before merging branch
+        sorted_gates = (
+            circuit.get_commands()
+        )  # _get_sorted_gates(circuit, algorithm, qubit_partition)
 
     logger.info("Running simulation...")
     # Apply the gates

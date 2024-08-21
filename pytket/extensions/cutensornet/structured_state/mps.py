@@ -13,7 +13,7 @@
 # limitations under the License.
 from __future__ import annotations  # type: ignore
 import warnings
-from typing import Union
+from typing import Union, Optional
 from enum import Enum
 
 from random import Random  # type: ignore
@@ -29,7 +29,7 @@ try:
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
-from pytket.circuit import Op, OpType, Qubit
+from pytket.circuit import Op, OpType, Qubit, Bit
 from pytket.pauli import Pauli, QubitPauliString
 
 from pytket.extensions.cutensornet.general import CuTensorNetHandle, set_logger
@@ -69,6 +69,7 @@ class MPS(StructuredState):
         libhandle: CuTensorNetHandle,
         qubits: list[Qubit],
         config: Config,
+        bits: Optional[list[Bit]] = None,
     ):
         """Initialise an MPS on the computational state ``|0>``
 
@@ -91,8 +92,12 @@ class MPS(StructuredState):
         self._logger = set_logger("MPS", level=config.loglevel)
         self._rng = Random()
         self._rng.seed(self._cfg.seed)
-        self._bits_dict = dict()
         self.fidelity = 1.0
+
+        if bits is None:
+            self._bits_dict = dict()
+        else:
+            self._bits_dict = {b: False for b in bits}
 
         n_tensors = len(qubits)
         if n_tensors == 0:  # There's no initialisation to be done

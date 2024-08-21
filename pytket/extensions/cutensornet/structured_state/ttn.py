@@ -30,7 +30,7 @@ try:
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
-from pytket.circuit import Qubit
+from pytket.circuit import Qubit, Bit
 from pytket.pauli import QubitPauliString
 
 from pytket.extensions.cutensornet.general import CuTensorNetHandle, set_logger
@@ -96,6 +96,7 @@ class TTN(StructuredState):
         libhandle: CuTensorNetHandle,
         qubit_partition: dict[int, list[Qubit]],
         config: Config,
+        bits: Optional[list[Bit]] = None,
     ):
         """Initialise a TTN on the computational state ``|0>``.
 
@@ -130,7 +131,11 @@ class TTN(StructuredState):
         self._logger = set_logger("TTN", level=config.loglevel)
         self._rng = Random()
         self._rng.seed(self._cfg.seed)
-        self._bits_dict = dict()
+
+        if bits is None:
+            self._bits_dict = dict()
+        else:
+            self._bits_dict = {b: False for b in bits}
 
         self.fidelity = 1.0
         self.nodes: dict[RootPath, TreeNode] = dict()
