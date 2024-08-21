@@ -220,7 +220,7 @@ class StructuredState(ABC):
             # Measure and correct if outcome is |1>
             outcome_1 = self.measure({q}, destructive=False)[q] != 0
             if outcome_1:
-                self.apply_unitary(Op.create(OpType.X).get_unitary(), [q])
+                self.apply_gate(Command(Op.create(OpType.X), [q]))
 
         elif command.op.is_gate():  # Either a unitary gate or a not supported "gate"
             try:
