@@ -190,6 +190,7 @@ class StructuredState(ABC):
     _lib: CuTensorNetHandle
     _cfg: Config
     _logger: logging.Logger
+    _bits_dict: dict[Bit, bool]  # Tracks the state of the classical variables
 
     def apply_gate(self, command: Command) -> StructuredState:
         """Apply the command to the `StructuredState`.
@@ -208,15 +209,10 @@ class StructuredState(ABC):
             ValueError: If the command introduced is not a unitary gate.
             ValueError: If the command acts on more than 2 qubits.
         """
-
-        # For circuits with mid-circuit measurements and conditional operations
-        # we need to keep track of the classical bits
-        bits_dict: dict[Bit, bool] = dict()
-
         if command.op.type == OpType.Measure:
             q = command.qubits[0]
             b = command.bits[0]
-            bits_dict[b] = self.measure({q}, destructive=False)[q] != 0
+            self._bits_dict[b] = self.measure({q}, destructive=False)[q] != 0
 
         elif command.op.type == OpType.Reset:
             assert len(command.qubits)
@@ -252,14 +248,14 @@ class StructuredState(ABC):
             if isinstance(command.op, SetBitsOp):
                 these_bits = command.bits
                 for b, v in zip(these_bits, command.op.values):
-                    bits_dict[b] = v
+                    self._bits_dict[b] = v
 
             elif isinstance(command.op, CopyBitsOp):
                 output_bits = command.bits
                 input_bits = command.args[: len(output_bits)]
                 for i, o in zip(input_bits, output_bits):
                     assert isinstance(i, Bit)
-                    bits_dict[i] = bits_dict[o]
+                    self._bits_dict[i] = self._bits_dict[o]
 
             elif isinstance(command.op, RangePredicateOp):
                 # TODO: Looks like the specs allow for registers to hold the result
@@ -270,17 +266,19 @@ class StructuredState(ABC):
                 input_bits = command.args[:-1]
                 # The input_bits encode a "value" int in little-endian
                 val = sum(
-                    1 << i for i, b in enumerate(input_bits) if bits_dict[b]  # type: ignore
+                    1 << i for i, b in enumerate(input_bits) if self._bits_dict[b]  # type: ignore
                 )
                 # Check that the value is in the range
-                bits_dict[res_bit] = val >= command.op.lower and val <= command.op.upper
+                self._bits_dict[res_bit] = (
+                    val >= command.op.lower and val <= command.op.upper
+                )
 
             elif isinstance(command.op, Conditional):
                 input_bits = command.args[: command.op.width]
                 tgt_value = command.op.value
                 # The input_bits encode a "value" int in little-endian
                 var_value = sum(
-                    1 << i for i, b in enumerate(input_bits) if bits_dict[b]  # type: ignore
+                    1 << i for i, b in enumerate(input_bits) if self._bits_dict[b]  # type: ignore
                 )
                 # If the condition is satisfied, create the command from body and apply
                 if var_value == tgt_value:
@@ -299,11 +297,11 @@ class StructuredState(ABC):
 
                 for b in the_exp.all_inputs():  # type: ignore
                     assert isinstance(b, Bit)
-                    the_exp.set_value(b, bits_dict[b])
+                    the_exp.set_value(b, self._bits_dict[b])
                 result = the_exp.eval_vals()
 
                 assert isinstance(result, int)
-                bits_dict[res_bit] = the_exp.eval_vals() != 0
+                self._bits_dict[res_bit] = the_exp.eval_vals() != 0
 
             elif command.op.type == OpType.Barrier:
                 pass
