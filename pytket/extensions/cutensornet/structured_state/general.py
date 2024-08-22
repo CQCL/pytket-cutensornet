@@ -258,9 +258,6 @@ class StructuredState(ABC):
                     self._bits_dict[i] = self._bits_dict[o]
 
             elif isinstance(command.op, RangePredicateOp):
-                # TODO: Looks like the specs allow for registers to hold the result
-                # (I guess encoding an int). For now, I'm only supporting output to
-                # single bit.
                 assert len(command.bits) == 1
                 res_bit = command.bits[0]
                 input_bits = command.args[:-1]
@@ -288,11 +285,6 @@ class StructuredState(ABC):
                     self.apply_gate(body_cmd)
 
             elif isinstance(command.op, ClassicalExpBox):
-                # TODO: Looks like the specs allow for registers to hold the result
-                # (I guess encoding an int). For now, I'm only supporting output to
-                # single bit.
-                assert len(command.bits) == 1
-                res_bit = command.bits[0]
                 the_exp = command.op.get_exp()
 
                 for b in the_exp.all_inputs():  # type: ignore
@@ -302,6 +294,12 @@ class StructuredState(ABC):
 
                 assert isinstance(result, int)
                 self._bits_dict[res_bit] = the_exp.eval_vals() != 0
+                # The result is an int in little-endian encoding. We update the
+                # output register accordingly.
+                for b in command.bits:
+                    self._bits_dict[b] = (result % 2) == 1
+                    result = result >> 1
+                assert result == 0  # All bits consumed
 
             elif command.op.type == OpType.Barrier:
                 pass
