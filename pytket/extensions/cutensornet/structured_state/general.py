@@ -26,10 +26,6 @@ from pytket.circuit import (
     Qubit,
     Bit,
     Conditional,
-    ClassicalExpBox,
-    SetBitsOp,
-    CopyBitsOp,
-    RangePredicateOp,
 )
 from pytket.pauli import QubitPauliString
 
@@ -39,6 +35,7 @@ except ImportError:
     warnings.warn("local settings failed to import cupy", ImportWarning)
 
 from pytket.extensions.cutensornet import CuTensorNetHandle
+from .classical import apply_classical_command, from_little_endian
 
 # An alias for the CuPy type used for tensors
 try:
@@ -243,71 +240,20 @@ class StructuredState(ABC):
 
             self.apply_unitary(unitary, command.qubits)
 
-        else:  # A classical operation
-
-            if isinstance(command.op, SetBitsOp):
-                these_bits = command.bits
-                for b, v in zip(these_bits, command.op.values):
-                    self._bits_dict[b] = v
-
-            elif isinstance(command.op, CopyBitsOp):
-                output_bits = command.bits
-                input_bits = command.args[: len(output_bits)]
-                for i, o in zip(input_bits, output_bits):
-                    assert isinstance(i, Bit)
-                    self._bits_dict[i] = self._bits_dict[o]
-
-            elif isinstance(command.op, RangePredicateOp):
-                assert len(command.bits) == 1
-                res_bit = command.bits[0]
-                input_bits = command.args[:-1]
-                # The input_bits encode a "value" int in little-endian
-                val = sum(
-                    1 << i for i, b in enumerate(input_bits) if self._bits_dict[b]  # type: ignore
+        elif isinstance(command.op, Conditional):
+            input_bits = command.args[: command.op.width]
+            tgt_value = command.op.value
+            # The input_bits encode a "value" int in little-endian
+            var_value = from_little_endian([self._bits_dict[b] for b in input_bits])  # type: ignore
+            # If the condition is satisfied, create the command from body and apply
+            if var_value == tgt_value:
+                body_cmd = Command(
+                    command.op.op, command.qubits + command.bits  # type: ignore
                 )
-                # Check that the value is in the range
-                self._bits_dict[res_bit] = (
-                    val >= command.op.lower and val <= command.op.upper
-                )
+                self.apply_gate(body_cmd)
 
-            elif isinstance(command.op, Conditional):
-                input_bits = command.args[: command.op.width]
-                tgt_value = command.op.value
-                # The input_bits encode a "value" int in little-endian
-                var_value = sum(
-                    1 << i for i, b in enumerate(input_bits) if self._bits_dict[b]  # type: ignore
-                )
-                # If the condition is satisfied, create the command from body and apply
-                if var_value == tgt_value:
-                    body_cmd = Command(
-                        command.op.op, command.qubits + command.bits  # type: ignore
-                    )
-                    self.apply_gate(body_cmd)
-
-            elif isinstance(command.op, ClassicalExpBox):
-                the_exp = command.op.get_exp()
-
-                for b in the_exp.all_inputs():  # type: ignore
-                    assert isinstance(b, Bit)
-                    the_exp.set_value(b, self._bits_dict[b])
-                result = the_exp.eval_vals()
-
-                assert isinstance(result, int)
-                self._bits_dict[res_bit] = the_exp.eval_vals() != 0
-                # The result is an int in little-endian encoding. We update the
-                # output register accordingly.
-                for b in command.bits:
-                    self._bits_dict[b] = (result % 2) == 1
-                    result = result >> 1
-                assert result == 0  # All bits consumed
-
-            elif command.op.type == OpType.Barrier:
-                pass
-
-            else:
-                raise NotImplementedError(
-                    f"Commands of type {command.op.type} are not supported."
-                )
+        else:  # A purely classical operation
+            apply_classical_command(self._bits_dict, command)
 
         return self
 
