@@ -206,6 +206,8 @@ class StructuredState(ABC):
             ValueError: If the command introduced is not a unitary gate.
             ValueError: If the command acts on more than 2 qubits.
         """
+        self._logger.debug(f"Applying {command}.")
+
         if command.op.type == OpType.Measure:
             q = command.qubits[0]
             b = command.bits[0]
@@ -231,7 +233,6 @@ class StructuredState(ABC):
             unitary = unitary.astype(dtype=self._cfg._complex_t, copy=False)
             unitary = cp.asarray(unitary, dtype=self._cfg._complex_t)
 
-            self._logger.debug(f"Applying gate {command}.")
             if len(command.qubits) not in [1, 2]:
                 raise ValueError(
                     "Gates must act on only 1 or 2 qubits! "
