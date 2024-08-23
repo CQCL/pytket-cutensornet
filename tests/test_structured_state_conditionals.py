@@ -1,4 +1,3 @@
-import pytest
 import numpy as np
 
 from pytket.circuit import (
@@ -19,10 +18,8 @@ from pytket.extensions.cutensornet.structured_state import (
 )
 
 
-# These first suite of tests comes from the pytket-qir extension
+# This first suite of tests comes from the pytket-qir extension
 # (see https://github.com/CQCL/pytket-qir/blob/main/tests/conditional_test.py)
-# TODO: Currently, these tests simply check that the operations can be interpreted
-# by pytket-cutensornet.
 # Further down, there are tests to check that the simulation works correctly.
 
 
