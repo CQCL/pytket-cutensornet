@@ -1,10 +1,3 @@
-#
-# This suite of tests comes from the pytket-qir extension
-# (see https://github.com/CQCL/pytket-qir/blob/main/tests/conditional_test.py)
-# TODO: Currently, these tests simply check that the operations can be interpreted
-# by pytket-cutensornet, but they do not check correctness. This should be included;
-# the circuits are small enough that the correct solution can be computed by hand.
-
 import pytest
 import numpy as np
 
@@ -15,6 +8,7 @@ from pytket.circuit import (
     Qubit,
     if_not_bit,
     reg_eq,
+    RangePredicateOp,
 )
 from pytket.circuit.logic_exp import BitWiseOp, create_bit_logic_exp
 
@@ -25,6 +19,12 @@ from pytket.extensions.cutensornet.structured_state import (
     SimulationAlgorithm,
 )
 
+
+# These first suite of tests comes from the pytket-qir extension
+# (see https://github.com/CQCL/pytket-qir/blob/main/tests/conditional_test.py)
+# TODO: Currently, these tests simply check that the operations can be interpreted
+# by pytket-cutensornet.
+# Further down, there are tests to check that the simulation works correctly.
 
 def test_circuit_with_classicalexpbox_i() -> None:
     # test conditional handling
@@ -256,3 +256,107 @@ def test_circuit_with_conditional_gate_v() -> None:
         assert state.is_valid()
         assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
         assert state.get_fidelity() == 1.0
+
+
+# The tests below check correctness of the simulator.
+
+def test_correctness_reset_bits() -> None:
+    # This circuit does reset on two qubits.
+    n_shots = 10
+
+    circ = Circuit(2, 2).H(0).X(1).measure_all()
+
+    circ.add_gate(OpType.X, [0], condition_bits=[0], condition_value=1)
+    circ.add_gate(OpType.X, [1], condition_bits=[1], condition_value=1)
+
+    with CuTensorNetHandle() as libhandle:
+        cfg = Config()
+
+        for _ in range(n_shots):
+            state = simulate(libhandle, circ, SimulationAlgorithm.MPSxGate, cfg)
+            assert state.is_valid()
+            assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
+            assert state.get_fidelity() == 1.0
+            # The outcome is the |00> state
+            assert np.isclose(abs(state.get_amplitude(0)), 1.0)
+
+
+def test_correctness_reset_register() -> None:
+    # Test reset on register, including RangePredicate
+    n_shots = 10
+
+    circ = Circuit()
+
+    q_reg = circ.add_q_register("a", 3)
+    circ.H(q_reg[0])
+    circ.X(q_reg[1])
+    circ.Rx(1.5, q_reg[2])
+
+    c_reg = circ.add_c_register("c", 3)
+    for q, c in zip(q_reg, c_reg):
+        circ.Measure(q, c)
+
+    # Correct the least significant qubit (in an unnecessarily complicated way)
+    circ.add_gate(OpType.X, [q_reg[0]], condition_bits=c_reg, condition_value=1)
+    circ.add_gate(OpType.X, [q_reg[0]], condition_bits=c_reg, condition_value=3)
+    circ.add_gate(OpType.X, [q_reg[0]], condition_bits=c_reg, condition_value=5)
+    circ.add_gate(OpType.X, [q_reg[0]], condition_bits=c_reg, condition_value=7)
+    # Correct the middle qubit (straightforwad way)
+    circ.add_gate(OpType.X, [q_reg[1]], condition_bits=[c_reg[1]], condition_value=1)
+    # Correct the last bit using RangePredicateOp to create the flag
+    flag = circ.add_c_register("flag", 1)
+    circ.add_c_range_predicate(minval=4, maxval=7, args_in=c_reg, arg_out=flag[0])
+    circ.add_gate(OpType.X, [q_reg[2]], condition_bits=flag, condition_value=1)
+
+    with CuTensorNetHandle() as libhandle:
+        cfg = Config()
+
+        for _ in range(n_shots):
+            state = simulate(libhandle, circ, SimulationAlgorithm.MPSxGate, cfg)
+            assert state.is_valid()
+            assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
+            assert state.get_fidelity() == 1.0
+            # The outcome is the |000> state
+            assert np.isclose(abs(state.get_amplitude(0)), 1.0)
+
+
+def test_correctness_teleportation_bit() -> None:
+    # A circuit to teleport a single qubit
+
+    n_shots = 10
+
+    circ = Circuit(3,2)
+
+    # Generate an "interesting" state to be teleported
+    circ.Rx(0.42, 0)
+
+    # Generate a Bell state
+    circ.H(1)
+    circ.CX(1, 2)
+
+    # Apply Bell measurement
+    circ.CX(0, 1)
+    circ.H(0)
+    circ.Measure(0, 0)
+    circ.Measure(1, 1)
+
+    # Apply conditional corrections
+    circ.add_gate(OpType.Z, [2], condition_bits=[0, 1], condition_value=1)
+    circ.add_gate(OpType.X, [2], condition_bits=[0, 1], condition_value=2)
+    circ.add_gate(OpType.Y, [2], condition_bits=[0, 1], condition_value=3)
+
+    # Reset the other qubits
+    circ.add_gate(OpType.Reset, [0])
+    circ.add_gate(OpType.Reset, [1])
+
+    with CuTensorNetHandle() as libhandle:
+        cfg = Config()
+
+        for _ in range(n_shots):
+            state = simulate(libhandle, circ, SimulationAlgorithm.MPSxGate, cfg)
+            assert state.is_valid()
+            assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
+            assert state.get_fidelity() == 1.0
+            # The outcome is cos(0.42*pi/2) |000> - j*sin2(0.42*pi/2) |001>
+            assert np.isclose(abs(state.get_amplitude(0))**2, 0.6243, atol=1e-4)
+            assert np.isclose(abs(state.get_amplitude(1))**2, 0.3757, atol=1e-4)
