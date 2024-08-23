@@ -53,36 +53,33 @@ def test_circuit_with_classicalexpbox_i() -> None:
         assert state.get_fidelity() == 1.0
 
 
-# TODO: This test fails on a segmentation fault. It is identical to the one above
-# except for the `if_not_bit` function. Needs further investigation before merging.
-#
-#def test_circuit_with_classicalexpbox_ii() -> None:
-#    # test conditional handling with else case
-#
-#    circ = Circuit(3)
-#    a = circ.add_c_register("a", 5)
-#    b = circ.add_c_register("b", 5)
-#    c = circ.add_c_register("c", 5)
-#    d = circ.add_c_register("d", 5)
-#    circ.H(0)
-#    circ.add_classicalexpbox_register(a | b, c)  # type: ignore
-#    circ.add_classicalexpbox_register(c | b, d)  # type: ignore
-#    circ.add_classicalexpbox_register(
-#        c | b, d, condition=if_not_bit(a[4])  # type: ignore
-#    )
-#    circ.H(0)
-#    circ.Measure(Qubit(0), d[4])
-#    circ.H(1)
-#    circ.Measure(Qubit(1), d[3])
-#    circ.H(2)
-#    circ.Measure(Qubit(2), d[2])
-#
-#    with CuTensorNetHandle() as libhandle:
-#        cfg = Config()
-#        state = simulate(libhandle, circ, SimulationAlgorithm.MPSxGate, cfg)
-#        assert state.is_valid()
-#        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
-#        assert state.get_fidelity() == 1.0
+def test_circuit_with_classicalexpbox_ii() -> None:
+    # test conditional handling with else case
+
+    circ = Circuit(3)
+    a = circ.add_c_register("a", 5)
+    b = circ.add_c_register("b", 5)
+    c = circ.add_c_register("c", 5)
+    d = circ.add_c_register("d", 5)
+    circ.H(0)
+    circ.add_classicalexpbox_register(a | b, c)  # type: ignore
+    circ.add_classicalexpbox_register(c | b, d)  # type: ignore
+    circ.add_classicalexpbox_register(
+        c | b, d, condition=if_not_bit(a[4])  # type: ignore
+    )
+    circ.H(0)
+    circ.Measure(Qubit(0), d[4])
+    circ.H(1)
+    circ.Measure(Qubit(1), d[3])
+    circ.H(2)
+    circ.Measure(Qubit(2), d[2])
+
+    with CuTensorNetHandle() as libhandle:
+        cfg = Config()
+        state = simulate(libhandle, circ, SimulationAlgorithm.MPSxGate, cfg)
+        assert state.is_valid()
+        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
+        assert state.get_fidelity() == 1.0
 
 
 def test_circuit_with_classicalexpbox_iii() -> None:
