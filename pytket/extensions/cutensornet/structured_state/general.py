@@ -207,56 +207,55 @@ class StructuredState(ABC):
             ValueError: If the command acts on more than 2 qubits.
         """
         self._logger.debug(f"Applying {command}.")
+        self._apply_command(command.op, command.qubits, command.bits, command.args)
+        return self
 
-        if command.op.type == OpType.Measure:
-            q = command.qubits[0]
-            b = command.bits[0]
+    def _apply_command(
+        self, op: Op, qubits: list[Qubit], bits: list[Bit], args: list[Any]
+    ) -> None:
+        """The implementation of `apply_gate`, acting on the unwrapped Command info."""
+        if op.type == OpType.Measure:
+            q = qubits[0]
+            b = bits[0]
             self._bits_dict[b] = self.measure({q}, destructive=False)[q] != 0
 
-        elif command.op.type == OpType.Reset:
-            assert len(command.qubits)
-            q = command.qubits[0]
+        elif op.type == OpType.Reset:
+            assert len(qubits)
+            q = qubits[0]
             # Measure and correct if outcome is |1>
             outcome_1 = self.measure({q}, destructive=False)[q] != 0
             if outcome_1:
-                self.apply_gate(Command(Op.create(OpType.X), [q]))
+                self._apply_command(Op.create(OpType.X), [q], [], [q])
 
-        elif command.op.is_gate():  # Either a unitary gate or a not supported "gate"
+        elif op.is_gate():  # Either a unitary gate or a not supported "gate"
             try:
-                unitary = command.op.get_unitary()
+                unitary = op.get_unitary()
             except:
-                raise ValueError(
-                    f"The command {command.op.type} introduced is not supported."
-                )
+                raise ValueError(f"The command {op.type} introduced is not supported.")
 
             # Load the gate's unitary to the GPU memory
             unitary = unitary.astype(dtype=self._cfg._complex_t, copy=False)
             unitary = cp.asarray(unitary, dtype=self._cfg._complex_t)
 
-            if len(command.qubits) not in [1, 2]:
+            if len(qubits) not in [1, 2]:
                 raise ValueError(
                     "Gates must act on only 1 or 2 qubits! "
-                    + f"This is not satisfied by {command}."
+                    + f"This is not satisfied by {op.type}."
                 )
 
-            self.apply_unitary(unitary, command.qubits)
+            self.apply_unitary(unitary, qubits)
 
-        elif isinstance(command.op, Conditional):
-            input_bits = command.args[: command.op.width]
-            tgt_value = command.op.value
+        elif isinstance(op, Conditional):
+            input_bits = args[: op.width]
+            tgt_value = op.value
             # The input_bits encode a "value" int in little-endian
             var_value = from_little_endian([self._bits_dict[b] for b in input_bits])  # type: ignore
-            # If the condition is satisfied, create the command from body and apply
+            # If the condition is apply the command in the body
             if var_value == tgt_value:
-                body_cmd = Command(
-                    command.op.op, command.qubits + command.bits  # type: ignore
-                )
-                self.apply_gate(body_cmd)
+                self._apply_command(op.op, qubits, bits, args)
 
         else:  # A purely classical operation
-            apply_classical_command(self._bits_dict, command)
-
-        return self
+            apply_classical_command(op, bits, args, self._bits_dict)
 
     @abstractmethod
     def is_valid(self) -> bool:

@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Union
+from typing import Union, Any
 
 from pytket.circuit import (
-    Command,
+    Op,
     OpType,
     Bit,
     BitRegister,
@@ -32,54 +32,54 @@ from pytket.circuit import (
 ExtendedLogicExp = Union[LogicExp, Bit, BitRegister, int]
 
 
-def apply_classical_command(bits_dict: dict[Bit, bool], command: Command) -> None:
+def apply_classical_command(
+    op: Op, bits: list[Bit], args: list[Any], bits_dict: dict[Bit, bool]
+) -> None:
     """Evaluate classical commands and update the `bits_dict` accordingly."""
-    if isinstance(command.op, SetBitsOp):
-        these_bits = command.bits
-        for b, v in zip(these_bits, command.op.values):
+    if isinstance(op, SetBitsOp):
+        these_bits = bits
+        for b, v in zip(these_bits, op.values):
             bits_dict[b] = v
 
-    elif isinstance(command.op, CopyBitsOp):
-        output_bits = command.bits
-        input_bits = command.args[: len(output_bits)]
+    elif isinstance(op, CopyBitsOp):
+        output_bits = bits
+        input_bits = args[: len(output_bits)]
         for i, o in zip(input_bits, output_bits):
             assert isinstance(i, Bit)
             bits_dict[i] = bits_dict[o]
 
-    elif isinstance(command.op, RangePredicateOp):
-        assert len(command.bits) == 1
-        res_bit = command.bits[0]
-        input_bits = command.args[:-1]
+    elif isinstance(op, RangePredicateOp):
+        assert len(bits) == 1
+        res_bit = bits[0]
+        input_bits = args[:-1]
         # The input_bits encode a "value" int in little-endian
         val = from_little_endian([bits_dict[b] for b in input_bits])  # type: ignore
         # Check that the value is in the range
-        bits_dict[res_bit] = val >= command.op.lower and val <= command.op.upper
+        bits_dict[res_bit] = val >= op.lower and val <= op.upper
 
-    elif isinstance(command.op, ClassicalExpBox):
-        the_exp = command.op.get_exp()
+    elif isinstance(op, ClassicalExpBox):
+        the_exp = op.get_exp()
 
         # I'm implementing my own evaluation of the logical expression because
         # some of the operations in TKET do not have an _const_eval implemented.
         # It would be best to fix this in pytket directly, then use it here.
-        result = evaluate_logic_exp(bits_dict, the_exp)
+        result = evaluate_logic_exp(the_exp, bits_dict)
 
         # The result is an int in little-endian encoding. We update the
         # output register accordingly.
-        for b in command.bits:
+        for b in bits:
             bits_dict[b] = (result % 2) == 1
             result = result >> 1
         assert result == 0  # All bits consumed
 
-    elif command.op.type == OpType.Barrier:
+    elif op.type == OpType.Barrier:
         pass
 
     else:
-        raise NotImplementedError(
-            f"Commands of type {command.op.type} are not supported."
-        )
+        raise NotImplementedError(f"Commands of type {op.type} are not supported.")
 
 
-def evaluate_logic_exp(bits_dict: dict[Bit, bool], exp: ExtendedLogicExp) -> int:
+def evaluate_logic_exp(exp: ExtendedLogicExp, bits_dict: dict[Bit, bool]) -> int:
     """Recursive evaluation of a LogicExp."""
 
     if isinstance(exp, int):
@@ -90,7 +90,7 @@ def evaluate_logic_exp(bits_dict: dict[Bit, bool], exp: ExtendedLogicExp) -> int
         return from_little_endian([bits_dict[b] for b in exp])
     else:
 
-        arg_values = [evaluate_logic_exp(bits_dict, arg) for arg in exp.args]
+        arg_values = [evaluate_logic_exp(arg, bits_dict) for arg in exp.args]
 
         if exp.op in [BitWiseOp.AND, RegWiseOp.AND]:
             return arg_values[0] & arg_values[1]
