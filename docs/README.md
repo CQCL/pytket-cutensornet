@@ -22,11 +22,11 @@ git submodule update --init --recursive
 
 3. Once you are on the latest version of the submodule, build the docs using the `build-docs.sh` script.
 
-`TODO:` Decide where dependencies are stored. I, (Callum) would prefer if the sphinx dependencies are stored in `pytket-docs-theming` in a `pyproject.toml` file. These could then be shared in the submodule and installed for the local build. Finally an editable wheel could be installed to build the dev docs.  
-
 ```shell
-./build-docs.sh
+bash ./build-docs.sh
 ```
+
+`TODO:` Decide where dependencies are stored. I, (Callum) would prefer if the sphinx dependencies are stored in `pytket-docs-theming` in a `pyproject.toml` file. These could then be shared in the submodule and installed for the local build. Finally an editable wheel could be installed to build the dev docs.  
 
 The html pages will then show up in the `docs/build` directory.
 
