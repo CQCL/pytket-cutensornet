@@ -360,3 +360,84 @@ def test_correctness_teleportation_bit() -> None:
             # The outcome is cos(0.42*pi/2) |000> - j*sin2(0.42*pi/2) |001>
             assert np.isclose(abs(state.get_amplitude(0)) ** 2, 0.6243, atol=1e-4)
             assert np.isclose(abs(state.get_amplitude(1)) ** 2, 0.3757, atol=1e-4)
+
+
+def test_repeat_until_sucess_i() -> None:
+    # From Figure 8 of https://arxiv.org/pdf/1311.1074
+
+    attempts = 100
+
+    circ = Circuit()
+    qin = circ.add_q_register("qin", 1)
+    qaux = circ.add_q_register("aux", 1)
+    flag = circ.add_c_register("flag", 1)
+    circ.add_c_setbits([True], flag)  # Set flag bit to 1
+
+    for _ in range(attempts):
+        circ.add_gate(OpType.Reset, qaux, condition_bits=flag, condition_value=1)
+        circ.add_gate(OpType.H, qaux, condition_bits=flag, condition_value=1)
+        circ.add_gate(OpType.T, qaux, condition_bits=flag, condition_value=1)
+        circ.add_gate(OpType.CX, [qaux[0], qin[0]], condition_bits=flag, condition_value=1)
+        circ.add_gate(OpType.H, qaux, condition_bits=flag, condition_value=1)
+        circ.add_gate(OpType.CX, [qaux[0], qin[0]], condition_bits=flag, condition_value=1)
+        circ.add_gate(OpType.T, qaux, condition_bits=flag, condition_value=1)
+        circ.add_gate(OpType.H, qaux, condition_bits=flag, condition_value=1)
+        circ.Measure(qaux, flag, condition_bits=flag, condition_value=1)
+
+    with CuTensorNetHandle() as libhandle:
+        cfg = Config()
+
+        state = simulate(libhandle, circ, SimulationAlgorithm.MPSxGate, cfg)
+        assert state.is_valid()
+        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
+        assert state.get_fidelity() == 1.0
+
+        target_state = [np.sqrt(1/3), np.sqrt(2/3)*1j]
+        assert np.allclose(target_state, state.get_statevector())
+
+
+def test_repeat_until_sucess_ii() -> None:
+    # From Figure 1(c) of https://arxiv.org/pdf/1311.1074
+
+    attempts = 100
+
+    circ = Circuit()
+    qin = circ.add_q_register("qin", 1)
+    qaux = circ.add_q_register("aux", 2)
+    flag = circ.add_c_register("flag", 3)
+    circ.add_c_setbits([True, True, True], flag)  # Set flag bits to 111
+    circ.H(qin[0])  # Use to convert gate to sqrt(1/5)*I + i*sqrt(4/5)*X (i.e. Z -> X)
+
+    for _ in range(attempts):
+        circ.add_classicalexpbox_bit(flag[0] | flag[1], flag[2])  # Success of both are zero
+
+        circ.add_gate(OpType.Reset, [qaux[0]], condition_bits=[flag[2]], condition_value=1)
+        circ.add_gate(OpType.Reset, [qaux[1]], condition_bits=[flag[2]], condition_value=1)
+        circ.add_gate(OpType.H, [qaux[0]], condition_bits=[flag[2]], condition_value=1)
+        circ.add_gate(OpType.H, [qaux[1]], condition_bits=[flag[2]], condition_value=1)
+
+        circ.add_gate(OpType.T, [qin[0]], condition_bits=[flag[2]], condition_value=1)
+        circ.add_gate(OpType.Z, [qin[0]], condition_bits=[flag[2]], condition_value=1)
+        circ.add_gate(OpType.Tdg, [qaux[0]], condition_bits=[flag[2]], condition_value=1)
+        circ.add_gate(OpType.CX, [qaux[1], qaux[0]], condition_bits=[flag[2]], condition_value=1)
+        circ.add_gate(OpType.T, [qaux[0]], condition_bits=[flag[2]], condition_value=1)
+        circ.add_gate(OpType.CX, [qin[0], qaux[1]], condition_bits=[flag[2]], condition_value=1)
+        circ.add_gate(OpType.T, [qaux[1]], condition_bits=[flag[2]], condition_value=1)
+
+        circ.add_gate(OpType.H, [qaux[0]], condition_bits=[flag[2]], condition_value=1)
+        circ.add_gate(OpType.H, [qaux[1]], condition_bits=[flag[2]], condition_value=1)
+        circ.Measure(qaux[0], flag[0], condition_bits=[flag[2]], condition_value=1)
+        circ.Measure(qaux[1], flag[1], condition_bits=[flag[2]], condition_value=1)
+
+    circ.H(qin[0])  # Use to convert gate to sqrt(1/5)*I + i*sqrt(4/5)*X (i.e. Z -> X)
+
+    with CuTensorNetHandle() as libhandle:
+        cfg = Config()
+
+        state = simulate(libhandle, circ, SimulationAlgorithm.MPSxGate, cfg)
+        assert state.is_valid()
+        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
+        assert state.get_fidelity() == 1.0
+
+        target_state = [np.sqrt(1/5), np.sqrt(4/5)*1j]
+        assert np.allclose(target_state, state.get_statevector())
