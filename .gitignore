@@ -14,3 +14,4 @@ pytket/extensions/cutensornet/_metadata.py
 result
 .direnv
 .envrc
+.venv
