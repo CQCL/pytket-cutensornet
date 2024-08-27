@@ -377,12 +377,16 @@ def test_repeat_until_sucess_i() -> None:
         circ.add_gate(OpType.Reset, qaux, condition_bits=flag, condition_value=1)
         circ.add_gate(OpType.H, qaux, condition_bits=flag, condition_value=1)
         circ.add_gate(OpType.T, qaux, condition_bits=flag, condition_value=1)
-        circ.add_gate(OpType.CX, [qaux[0], qin[0]], condition_bits=flag, condition_value=1)
+        circ.add_gate(
+            OpType.CX, [qaux[0], qin[0]], condition_bits=flag, condition_value=1
+        )
         circ.add_gate(OpType.H, qaux, condition_bits=flag, condition_value=1)
-        circ.add_gate(OpType.CX, [qaux[0], qin[0]], condition_bits=flag, condition_value=1)
+        circ.add_gate(
+            OpType.CX, [qaux[0], qin[0]], condition_bits=flag, condition_value=1
+        )
         circ.add_gate(OpType.T, qaux, condition_bits=flag, condition_value=1)
         circ.add_gate(OpType.H, qaux, condition_bits=flag, condition_value=1)
-        circ.Measure(qaux, flag, condition_bits=flag, condition_value=1)
+        circ.Measure(qaux[0], flag[0], condition_bits=flag, condition_value=1)
 
     with CuTensorNetHandle() as libhandle:
         cfg = Config()
@@ -392,8 +396,17 @@ def test_repeat_until_sucess_i() -> None:
         assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
         assert state.get_fidelity() == 1.0
 
-        target_state = [np.sqrt(1/3), np.sqrt(2/3)*1j]
-        assert np.allclose(target_state, state.get_statevector())
+        # The auxiliary qubits should be in state |0>
+        prob = state.postselect({qaux[0]: 0})
+        assert np.isclose(prob, 1.0)
+
+        target_state = [np.sqrt(1 / 3), np.sqrt(2 / 3) * 1j]
+        output_state = state.get_statevector()
+        # As indicated in the paper, the gate is implemented up to global phase
+        global_phase = target_state[0] / output_state[0]
+        assert np.isclose(abs(global_phase), 1.0)
+        output_state *= global_phase
+        assert np.allclose(target_state, output_state)
 
 
 def test_repeat_until_sucess_ii() -> None:
@@ -409,19 +422,31 @@ def test_repeat_until_sucess_ii() -> None:
     circ.H(qin[0])  # Use to convert gate to sqrt(1/5)*I + i*sqrt(4/5)*X (i.e. Z -> X)
 
     for _ in range(attempts):
-        circ.add_classicalexpbox_bit(flag[0] | flag[1], flag[2])  # Success of both are zero
+        circ.add_classicalexpbox_bit(
+            flag[0] | flag[1], [flag[2]]
+        )  # Success of both are zero
 
-        circ.add_gate(OpType.Reset, [qaux[0]], condition_bits=[flag[2]], condition_value=1)
-        circ.add_gate(OpType.Reset, [qaux[1]], condition_bits=[flag[2]], condition_value=1)
+        circ.add_gate(
+            OpType.Reset, [qaux[0]], condition_bits=[flag[2]], condition_value=1
+        )
+        circ.add_gate(
+            OpType.Reset, [qaux[1]], condition_bits=[flag[2]], condition_value=1
+        )
         circ.add_gate(OpType.H, [qaux[0]], condition_bits=[flag[2]], condition_value=1)
         circ.add_gate(OpType.H, [qaux[1]], condition_bits=[flag[2]], condition_value=1)
 
         circ.add_gate(OpType.T, [qin[0]], condition_bits=[flag[2]], condition_value=1)
         circ.add_gate(OpType.Z, [qin[0]], condition_bits=[flag[2]], condition_value=1)
-        circ.add_gate(OpType.Tdg, [qaux[0]], condition_bits=[flag[2]], condition_value=1)
-        circ.add_gate(OpType.CX, [qaux[1], qaux[0]], condition_bits=[flag[2]], condition_value=1)
+        circ.add_gate(
+            OpType.Tdg, [qaux[0]], condition_bits=[flag[2]], condition_value=1
+        )
+        circ.add_gate(
+            OpType.CX, [qaux[1], qaux[0]], condition_bits=[flag[2]], condition_value=1
+        )
         circ.add_gate(OpType.T, [qaux[0]], condition_bits=[flag[2]], condition_value=1)
-        circ.add_gate(OpType.CX, [qin[0], qaux[1]], condition_bits=[flag[2]], condition_value=1)
+        circ.add_gate(
+            OpType.CX, [qin[0], qaux[1]], condition_bits=[flag[2]], condition_value=1
+        )
         circ.add_gate(OpType.T, [qaux[1]], condition_bits=[flag[2]], condition_value=1)
 
         circ.add_gate(OpType.H, [qaux[0]], condition_bits=[flag[2]], condition_value=1)
@@ -439,5 +464,14 @@ def test_repeat_until_sucess_ii() -> None:
         assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
         assert state.get_fidelity() == 1.0
 
-        target_state = [np.sqrt(1/5), np.sqrt(4/5)*1j]
-        assert np.allclose(target_state, state.get_statevector())
+        # The auxiliary qubits should be in state |0>
+        prob = state.postselect({qaux[0]: 0, qaux[1]: 0})
+        assert np.isclose(prob, 1.0)
+
+        target_state = [np.sqrt(1 / 5), np.sqrt(4 / 5) * 1j]
+        output_state = state.get_statevector()
+        # As indicated in the paper, the gate is implemented up to global phase
+        global_phase = target_state[0] / output_state[0]
+        assert np.isclose(abs(global_phase), 1.0)
+        output_state *= global_phase
+        assert np.allclose(target_state, output_state)
