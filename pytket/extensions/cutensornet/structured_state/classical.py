@@ -131,7 +131,7 @@ def evaluate_logic_exp(exp: ExtendedLogicExp, bits_dict: dict[Bit, bool]) -> int
             # evaluation of these expressions is upported via `eval_vals()` from
             # TKET's LogicExp, see issue #1551 from the TKET repo.
             raise NotImplementedError(
-                "Evaluation of {exp.op} not supported in ClassicalExpBox ",
+                f"Evaluation of {exp.op} not supported in ClassicalExpBox ",
                 "by pytket-cutensornet.",
             )
 
