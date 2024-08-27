@@ -108,24 +108,28 @@ def evaluate_logic_exp(exp: ExtendedLogicExp, bits_dict: dict[Bit, bool]) -> int
             return 0
         elif exp.op == BitWiseOp.ONE:
             return 1
-        elif exp.op == RegWiseOp.ADD:
-            return arg_values[0] + arg_values[1]
-        elif exp.op == RegWiseOp.SUB:
-            return arg_values[0] - arg_values[1]
-        elif exp.op == RegWiseOp.MUL:
-            return arg_values[0] * arg_values[1]
-        elif exp.op == RegWiseOp.POW:
-            return int(arg_values[0] ** arg_values[1])
-        elif exp.op == RegWiseOp.LSH:
-            return arg_values[0] << arg_values[1]
+        # elif exp.op == RegWiseOp.ADD:
+        #     return arg_values[0] + arg_values[1]
+        # elif exp.op == RegWiseOp.SUB:
+        #     return arg_values[0] - arg_values[1]
+        # elif exp.op == RegWiseOp.MUL:
+        #     return arg_values[0] * arg_values[1]
+        # elif exp.op == RegWiseOp.POW:
+        #     return int(arg_values[0] ** arg_values[1])
+        # elif exp.op == RegWiseOp.LSH:
+        #     return arg_values[0] << arg_values[1]
         elif exp.op == RegWiseOp.RSH:
             return arg_values[0] >> arg_values[1]
-        elif exp.op == RegWiseOp.NEG:
-            return -arg_values[0]
+        # elif exp.op == RegWiseOp.NEG:
+        #     return -arg_values[0]
         else:
             # TODO: Currently not supporting RegWiseOp's DIV, EQ, NEQ, LT, GT, LEQ,
             # GEQ and NOT, since these do not return int, so I am unsure what the
-            #  semantic is meant to be.
+            # semantic is meant to be.
+            # TODO: Similarly, it is not clear what to do with overflow of ADD, etc.
+            # so I have decided to not support them for now. My preference is that
+            # evaluation of these expressions is upported via `eval_vals()` from
+            # TKET's LogicExp, see issue #1551 from the TKET repo.
             raise NotImplementedError(
                 "Evaluation of {exp.op} not supported in ClassicalExpBox ",
                 "by pytket-cutensornet.",
