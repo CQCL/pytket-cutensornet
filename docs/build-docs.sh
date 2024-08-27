@@ -1,11 +1,16 @@
+#!/bin/bash
 rm -rf build/
 
+# Move theming elements into the docs folder
 mv pytket-docs-theming/_static .
 mv pytket-docs-theming/quantinuum-sphinx .
 mv pytket-docs-theming/conf.py .
 
+# Build the docs
 sphinx-build -b html . build 
 
+# Move the theming elements back after docs are built. 
 mv _static pytket-docs-theming
 mv quantinuum-sphinx pytket-docs-theming 
 mv conf.py pytket-docs-theming
+# This helps reproducibility and doesn't clutter source control
