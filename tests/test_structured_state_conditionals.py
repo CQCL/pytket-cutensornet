@@ -371,21 +371,21 @@ def test_repeat_until_sucess_i() -> None:
     qin = circ.add_q_register("qin", 1)
     qaux = circ.add_q_register("aux", 1)
     flag = circ.add_c_register("flag", 1)
-    circ.add_c_setbits([True], flag)  # Set flag bit to 1
+    circ.add_c_setbits([True], [flag[0]])  # Set flag bit to 1
 
     for _ in range(attempts):
-        circ.add_gate(OpType.Reset, qaux, condition_bits=flag, condition_value=1)
-        circ.add_gate(OpType.H, qaux, condition_bits=flag, condition_value=1)
-        circ.add_gate(OpType.T, qaux, condition_bits=flag, condition_value=1)
+        circ.add_gate(OpType.Reset, [qaux[0]], condition_bits=flag, condition_value=1)
+        circ.add_gate(OpType.H, [qaux[0]], condition_bits=flag, condition_value=1)
+        circ.add_gate(OpType.T, [qaux[0]], condition_bits=flag, condition_value=1)
         circ.add_gate(
             OpType.CX, [qaux[0], qin[0]], condition_bits=flag, condition_value=1
         )
-        circ.add_gate(OpType.H, qaux, condition_bits=flag, condition_value=1)
+        circ.add_gate(OpType.H, [qaux[0]], condition_bits=flag, condition_value=1)
         circ.add_gate(
             OpType.CX, [qaux[0], qin[0]], condition_bits=flag, condition_value=1
         )
-        circ.add_gate(OpType.T, qaux, condition_bits=flag, condition_value=1)
-        circ.add_gate(OpType.H, qaux, condition_bits=flag, condition_value=1)
+        circ.add_gate(OpType.T, [qaux[0]], condition_bits=flag, condition_value=1)
+        circ.add_gate(OpType.H, [qaux[0]], condition_bits=flag, condition_value=1)
         circ.Measure(qaux[0], flag[0], condition_bits=flag, condition_value=1)
 
     with CuTensorNetHandle() as libhandle:
@@ -418,7 +418,7 @@ def test_repeat_until_sucess_ii() -> None:
     qin = circ.add_q_register("qin", 1)
     qaux = circ.add_q_register("aux", 2)
     flag = circ.add_c_register("flag", 3)
-    circ.add_c_setbits([True, True, True], flag)  # Set flag bits to 111
+    circ.add_c_setbits([True, True], [flag[0], flag[1]])  # Set flag bits to 11
     circ.H(qin[0])  # Use to convert gate to sqrt(1/5)*I + i*sqrt(4/5)*X (i.e. Z -> X)
 
     for _ in range(attempts):
