@@ -424,7 +424,7 @@ def test_repeat_until_sucess_ii() -> None:
     for _ in range(attempts):
         circ.add_classicalexpbox_bit(
             flag[0] | flag[1], [flag[2]]
-        )  # Success of both are zero
+        )  # Success if both are zero
 
         circ.add_gate(
             OpType.Reset, [qaux[0]], condition_bits=[flag[2]], condition_value=1
@@ -453,6 +453,11 @@ def test_repeat_until_sucess_ii() -> None:
         circ.add_gate(OpType.H, [qaux[1]], condition_bits=[flag[2]], condition_value=1)
         circ.Measure(qaux[0], flag[0], condition_bits=[flag[2]], condition_value=1)
         circ.Measure(qaux[1], flag[1], condition_bits=[flag[2]], condition_value=1)
+
+        # From chat with Silas and exploring the RUS as a block matrix, we have noticed
+        # that the circuit is missing an X correction when this condition is satisfied
+        circ.add_classicalexpbox_bit(flag[0] ^ flag[1], [flag[2]])
+        circ.add_gate(OpType.Z, [qin[0]], condition_bits=[flag[2]], condition_value=1)
 
     circ.H(qin[0])  # Use to convert gate to sqrt(1/5)*I + i*sqrt(4/5)*X (i.e. Z -> X)
 
