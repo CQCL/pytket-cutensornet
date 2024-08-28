@@ -14,4 +14,4 @@ sphinx-build -b html -D html_title="$parentdir" . build
 mv _static pytket-docs-theming
 mv quantinuum-sphinx pytket-docs-theming 
 mv conf.py pytket-docs-theming
-# This helps reproducibility and doesn't clutter source control
+# This ensures reusability and doesn't clutter source control
