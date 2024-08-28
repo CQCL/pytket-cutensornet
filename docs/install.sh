@@ -5,4 +5,4 @@ cp pytket-docs-theming/extensio
 # Install the docs dependencies. Creates a .venv directory in docs
 poetry install
 
-# Editable wheel should be installed separately.
+# NOTE: Editable wheel should be installed separately.
