@@ -6,8 +6,9 @@ mv pytket-docs-theming/_static .
 mv pytket-docs-theming/quantinuum-sphinx .
 mv pytket-docs-theming/conf.py .
 
-# Build the docs
-sphinx-build -b html . build 
+# Build the docs Setting the correct title
+parentdir="$(basename "$(dirname `pwd`)")"
+sphinx-build -b html -D html_title="$parentdir" . build 
 
 # Move the theming elements back after docs are built. 
 mv _static pytket-docs-theming
