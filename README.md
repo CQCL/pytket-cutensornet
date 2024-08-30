@@ -32,7 +32,7 @@ Some useful links:
 In order to use it, you need access to a Linux machine with an NVIDIA GPU of
 Compute Capability +7.0 (check it [here](https://developer.nvidia.com/cuda-gpus)) and first
 install `cuQuantum Python` following their installation
-[instructions](https://docs.nvidia.com/cuda/cuquantum/latest/python/README.html#installation).
+[instructions](https://docs.nvidia.com/cuda/cuquantum/latest/getting-started/index.html).
 This will include the necessary dependencies such as CUDA toolkit. Then, to install
 `pytket-cutensornet`, run:
 
