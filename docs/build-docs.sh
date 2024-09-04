@@ -9,12 +9,11 @@ mv pytket-docs-theming/conf.py .
 # Get the name of the project
 EXTENSION_NAME="$(basename "$(dirname `pwd`)")"
 
-# Build the docs
+# Build the docs. Ensure we have the correct project title.
 sphinx-build -b html -D html_title="$EXTENSION_NAME" . build 
 
 # Correct github link in navbar
 sed 's#CQCL/tket#CQCL/'$EXTENSION_NAME'#' _static/nav-config.js
-
 
 # Move the theming elements back after docs are built. 
 mv _static pytket-docs-theming
