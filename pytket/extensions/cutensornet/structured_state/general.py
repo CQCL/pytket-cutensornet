@@ -55,7 +55,6 @@ class Config:
         float_precision: Type[Any] = np.float64,
         value_of_zero: float = 1e-16,
         leaf_size: int = 8,
-        use_kahypar: bool = False,
         k: int = 4,
         optim_delta: float = 1e-5,
         loglevel: int = logging.WARNING,
@@ -92,9 +91,6 @@ class Config:
                 ``np.float64`` precision (default) and ``1e-7`` for ``np.float32``.
             leaf_size: For ``TTN`` simulation only. Sets the maximum number of
                 qubits in a leaf node when using ``TTN``. Default is 8.
-            use_kahypar: Use KaHyPar for graph partitioning (used in ``TTN``) if this
-                is True. Otherwise, use NetworkX (worse, but easy to setup). Defaults
-                to False.
             k: For ``MPSxMPO`` simulation only. Sets the maximum number of layers
                 the MPO is allowed to have before being contracted. Increasing this
                 might increase fidelity, but it will also increase resource requirements
@@ -161,7 +157,6 @@ class Config:
             raise ValueError("Maximum allowed leaf_size is 65.")
 
         self.leaf_size = leaf_size
-        self.use_kahypar = use_kahypar
         self.k = k
         self.optim_delta = 1e-5
         self.loglevel = loglevel
