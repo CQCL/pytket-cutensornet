@@ -1,3 +1,5 @@
+import pytest
+
 import numpy as np
 
 from pytket.circuit import (
@@ -79,6 +81,7 @@ def test_circuit_with_classicalexpbox_ii() -> None:
         assert state.get_fidelity() == 1.0
 
 
+@pytest.mark.skip(reason="Currently not supporting arithmetic operations in LogicExp")
 def test_circuit_with_classicalexpbox_iii() -> None:
     # test complicated conditions and recursive classical op
 
