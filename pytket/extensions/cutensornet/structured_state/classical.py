@@ -59,10 +59,6 @@ def apply_classical_command(
 
     elif isinstance(op, ClassicalExpBox):
         the_exp = op.get_exp()
-
-        # I'm implementing my own evaluation of the logical expression because
-        # some of the operations in TKET do not have an _const_eval implemented.
-        # It would be best to fix this in pytket directly, then use it here.
         result = evaluate_logic_exp(the_exp, bits_dict)
 
         # The result is an int in little-endian encoding. We update the
@@ -127,9 +123,7 @@ def evaluate_logic_exp(exp: ExtendedLogicExp, bits_dict: dict[Bit, bool]) -> int
             # GEQ and NOT, since these do not return int, so I am unsure what the
             # semantic is meant to be.
             # TODO: Similarly, it is not clear what to do with overflow of ADD, etc.
-            # so I have decided to not support them for now. My preference is that
-            # evaluation of these expressions is upported via `eval_vals()` from
-            # TKET's LogicExp, see issue #1551 from the TKET repo.
+            # so I have decided to not support them for now.
             raise NotImplementedError(
                 f"Evaluation of {exp.op} not supported in ClassicalExpBox ",
                 "by pytket-cutensornet.",

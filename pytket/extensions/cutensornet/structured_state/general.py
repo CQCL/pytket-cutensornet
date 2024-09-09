@@ -184,14 +184,14 @@ class StructuredState(ABC):
     _logger: logging.Logger
     _bits_dict: dict[Bit, bool]  # Tracks the state of the classical variables
 
-    def apply_gate(self, command: Command) -> StructuredState:
+    def apply_gate(self, gate: Command) -> StructuredState:
         """Apply the command to the `StructuredState`.
 
         Note:
             Only one-qubit gates and two-qubit gates are supported.
 
         Args:
-            command: The command to be applied.
+            gate: The command to be applied.
 
         Returns:
             ``self``, to allow for method chaining.
@@ -201,8 +201,8 @@ class StructuredState(ABC):
             ValueError: If the command introduced is not a unitary gate.
             ValueError: If the command acts on more than 2 qubits.
         """
-        self._logger.debug(f"Applying {command}.")
-        self._apply_command(command.op, command.qubits, command.bits, command.args)
+        self._logger.debug(f"Applying {gate}.")
+        self._apply_command(gate.op, gate.qubits, gate.bits, gate.args)
         return self
 
     def _apply_command(
