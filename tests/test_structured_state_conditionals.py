@@ -398,6 +398,8 @@ def test_repeat_until_sucess_i() -> None:
         assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
         assert state.get_fidelity() == 1.0
 
+        # The flag bit should have turned False
+        assert not state.get_bits()[flag[0]]
         # The auxiliary qubits should be in state |0>
         prob = state.postselect({qaux[0]: 0})
         assert np.isclose(prob, 1.0)
@@ -471,6 +473,8 @@ def test_repeat_until_sucess_ii() -> None:
         assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
         assert state.get_fidelity() == 1.0
 
+        # All of the flag bits should have turned False
+        assert all(not state.get_bits()[bit] for bit in flag)
         # The auxiliary qubits should be in state |0>
         prob = state.postselect({qaux[0]: 0, qaux[1]: 0})
         assert np.isclose(prob, 1.0)

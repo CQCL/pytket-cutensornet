@@ -447,6 +447,10 @@ class StructuredState(ABC):
         """
         raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
 
+    def get_bits(self) -> dict[Bit, bool]:
+        """Returns the dictionary of bits and their values."""
+        return self._bits_dict.copy()
+
     @abstractmethod
     def get_qubits(self) -> set[Qubit]:
         """Returns the set of qubits that ``self`` is defined on."""
