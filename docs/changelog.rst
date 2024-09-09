@@ -1,6 +1,15 @@
 Changelog
 ~~~~~~~~~
 
+Unreleased
+----------
+
+* API breaking changes
+    * Removed `use_kahypar` option from Config. It can still be set via the `simulate` option `compilation_params`.
+
+* New feature: `simulate` now accepts pytket circuits with `Measure`, `Reset`, `Conditional`, `ClassicalExpBox` and more classical operations. You can now retrieve classical bit values using `get_bits`.
+* When calling `simulate`, the gates on the circuit are no longer sorted by default. Use `compilation_params["sort_gates"] = True` to recover this behaviour, which is now deprecated.
+
 0.7.1 (July 2024)
 -----------------
 
