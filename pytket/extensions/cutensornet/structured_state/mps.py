@@ -233,7 +233,7 @@ class MPS(StructuredState):
         Raises:
             ValueError: If any of the keys in ``qubit_map`` are not qubits in the state.
         """
-        # TODO: Is this properly supported in MPSxMPO?
+        self._flush()
 
         new_qubit_position = dict()
         for q_orig, q_new in qubit_map.items():
@@ -265,7 +265,7 @@ class MPS(StructuredState):
             ValueError: If ``position`` is negative or larger than ``len(self)``.
             ValueError: If ``state`` is not ``0`` or ``1``.
         """
-        # TODO: Is this properly supported in MPSxMPO?
+        self._flush()
 
         options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
 

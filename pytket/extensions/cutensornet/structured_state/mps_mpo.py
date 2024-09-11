@@ -101,6 +101,47 @@ class MPSxMPO(MPS):
         super().update_libhandle(libhandle)
         self._aux_mps.update_libhandle(libhandle)
 
+    def apply_qubit_relabelling(self, qubit_map: dict[Qubit, Qubit]) -> MPSxMPO:
+        """Relabels each qubit ``q`` as ``qubit_map[q]``.
+
+        This does not apply any SWAP gate, nor it changes the internal structure of the
+        state. It simply changes the label of the physical bonds of the tensor network.
+
+        Args:
+            qubit_map: Dictionary mapping each qubit to its new label.
+
+        Returns:
+            ``self``, to allow for method chaining.
+
+        Raises:
+            ValueError: If any of the keys in ``qubit_map`` are not qubits in the state.
+        """
+        self._aux_mps.apply_qubit_relabelling(qubit_map)
+        super().apply_qubit_relabelling(qubit_map)
+        return self
+
+    def add_qubit(self, new_qubit: Qubit, position: int, state: int = 0) -> MPS:
+        """Adds a qubit at the specified position.
+
+        Args:
+            new_qubit: The identifier of the qubit to be added to the state.
+            position: The location the new qubit should be inserted at in the MPS.
+                Qubits on this and later indexed have their position shifted by 1.
+            state: Choose either ``0`` or ``1`` for the new qubit's state.
+                Defaults to ``0``.
+
+        Returns:
+            ``self``, to allow for method chaining.
+
+        Raises:
+            ValueError: If ``new_qubit`` already exists in the state.
+            ValueError: If ``position`` is negative or larger than ``len(self)``.
+            ValueError: If ``state`` is not ``0`` or ``1``.
+        """
+        raise NotImplementedError(
+            "Creating new qubits is not currently supported in MPSxMPO."
+        )
+
     def _apply_1q_unitary(self, unitary: cp.ndarray, qubit: Qubit) -> MPSxMPO:
         """Applies the 1-qubit unitary to the MPS.
 
