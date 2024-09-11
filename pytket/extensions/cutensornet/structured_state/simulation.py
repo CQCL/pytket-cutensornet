@@ -173,6 +173,9 @@ def prepare_circuit_mps(circuit: Circuit) -> tuple[Circuit, dict[Qubit, Qubit]]:
         map of qubit names at the end of the circuit to their corresponding
         original names.
     """
+    if circuit.n_qubits < 2:
+        # Nothing needs to be done
+        return (circuit, {q: q for q in circuit.qubits})
 
     # Implement it in a line architecture
     cu = CompilationUnit(circuit)
@@ -209,7 +212,7 @@ def _get_qubit_partition(
         A dictionary describing the partition in the format expected by TTN.
 
     Raises:
-        RuntimeError: If gate acts on more than 2 qubits.
+        RuntimeError: If a gate acts on more than 2 qubits.
     """
 
     # Scan the circuit and generate the edges of the connectivity graph
@@ -238,9 +241,9 @@ def _get_qubit_partition(
 
     # Apply balanced bisections until each qubit group is small enough
     partition = {0: circuit.qubits}
-    stop_bisec = False  # Do at least one bisection (TTN reqs >1 leaf nodes)
 
-    while not stop_bisec:
+    # Stop if all groups have less than ``max_q_per_leaf`` qubits in them
+    while not all(len(group) <= max_q_per_leaf for group in partition.values()):
         old_partition = partition.copy()
         for key, group in old_partition.items():
             # Apply the balanced bisection on this group
@@ -255,9 +258,6 @@ def _get_qubit_partition(
             # Groups A and B are on the same subtree (key separated by +1)
             partition[2 * key] = groupA
             partition[2 * key + 1] = groupB
-
-        # Stop if all groups have less than ``max_q_per_leaf`` qubits in them
-        stop_bisec = all(len(group) <= max_q_per_leaf for group in partition.values())
 
     qubit_partition = {key: list(leaf_qubits) for key, leaf_qubits in partition.items()}
     return qubit_partition

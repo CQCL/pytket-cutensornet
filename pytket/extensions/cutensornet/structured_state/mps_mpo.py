@@ -122,6 +122,7 @@ class MPSxMPO(MPS):
             # If there is only one qubit, there is no benefit in using an MPO, so
             # simply copy from the standard MPS
             self.tensors[0] = self._aux_mps.tensors[0].copy()
+            return self
 
         # Glossary of bond IDs
         # i -> input to the MPO tensor

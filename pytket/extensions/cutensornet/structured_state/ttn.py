@@ -124,7 +124,6 @@ class TTN(StructuredState):
             ValueError: If the keys of ``qubit_partition`` do not range from ``0`` to
                 ``2^l - 1`` for some ``l``.
             ValueError: If a ``Qubit`` is repeated in ``qubit_partition``.
-            ValueError: If there is only one entry in ``qubit_partition``.
         """
         self._lib = libhandle
         self._cfg = config
@@ -144,11 +143,6 @@ class TTN(StructuredState):
         n_groups = len(qubit_partition)
         if n_groups == 0:  # There's no initialisation to be done
             pass
-        elif n_groups == 1:
-            raise ValueError(
-                "Only one entry to qubit_partition provided."
-                "Introduce a finer partition of qubits."
-            )
         else:
             n_levels = math.floor(math.log2(n_groups))
             if n_groups != 2**n_levels:

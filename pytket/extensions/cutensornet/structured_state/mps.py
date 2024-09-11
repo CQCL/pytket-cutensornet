@@ -83,9 +83,6 @@ class MPS(StructuredState):
                 tensor operations on the MPS.
             qubits: The list of qubits in the circuit to be simulated.
             config: The object describing the configuration for simulation.
-
-        Raises:
-            ValueError: If less than two qubits are provided.
         """
         self._lib = libhandle
         self._cfg = config
