@@ -118,6 +118,11 @@ class MPSxMPO(MPS):
         # Apply the gate to the MPS with eager approximation
         self._aux_mps._apply_1q_unitary(unitary, qubit)
 
+        if len(self) == 1:
+            # If there is only one qubit, there is no benefit in using an MPO, so
+            # simply copy from the standard MPS
+            self.tensors[0] = self._aux_mps.tensors[0].copy()
+
         # Glossary of bond IDs
         # i -> input to the MPO tensor
         # o -> output of the MPO tensor
@@ -337,6 +342,10 @@ class MPSxMPO(MPS):
         The method applies variational optimisation of the MPS until it
         converges. Based on https://arxiv.org/abs/2207.05612.
         """
+        if self._mpo_bond_counter == 0:
+            # MPO is empty, there is nothing to flush
+            return None
+
         self._logger.info("Applying variational optimisation.")
         self._logger.info(f"Fidelity before optimisation={self._aux_mps.fidelity}")
 

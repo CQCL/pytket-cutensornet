@@ -52,6 +52,12 @@ def quantum_volume_circuit(n_qubits: int) -> Circuit:
 
 
 @pytest.fixture
+def q1_empty() -> Circuit:
+    circuit = Circuit(1)
+    return circuit
+
+
+@pytest.fixture
 def q5_empty() -> Circuit:
     circuit = Circuit(5)
     return circuit
@@ -60,6 +66,13 @@ def q5_empty() -> Circuit:
 @pytest.fixture
 def q8_empty() -> Circuit:
     circuit = Circuit(8)
+    return circuit
+
+
+@pytest.fixture
+def q1_h0rz() -> Circuit:
+    circuit = Circuit(1)
+    circuit.H(0).Rz(0.3, 0)
     return circuit
 
 

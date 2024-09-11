@@ -102,8 +102,6 @@ class MPS(StructuredState):
         n_tensors = len(qubits)
         if n_tensors == 0:  # There's no initialisation to be done
             pass
-        elif n_tensors == 1:
-            raise ValueError("Please, provide at least two qubits.")
         else:
             self.qubit_position = {q: i for i, q in enumerate(qubits)}
 
@@ -238,6 +236,8 @@ class MPS(StructuredState):
         Raises:
             ValueError: If any of the keys in ``qubit_map`` are not qubits in the state.
         """
+        # TODO: Is this properly supported in MPSxMPO?
+
         new_qubit_position = dict()
         for q_orig, q_new in qubit_map.items():
             # Check the qubit is in the state
@@ -268,6 +268,8 @@ class MPS(StructuredState):
             ValueError: If ``position`` is negative or larger than ``len(self)``.
             ValueError: If ``state`` is not ``0`` or ``1``.
         """
+        # TODO: Is this properly supported in MPSxMPO?
+
         options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
 
         if new_qubit in self.qubit_position.keys():
@@ -575,6 +577,7 @@ class MPS(StructuredState):
         Raises:
             ValueError: If an element in ``qubits`` is not a qubit in the state.
         """
+        self._flush()
         result = dict()
 
         # Obtain the positions that need to be measured and build the reverse dict
@@ -658,6 +661,8 @@ class MPS(StructuredState):
             ValueError: If all of the qubits in the MPS are being postselected. Instead,
                 you may wish to use ``get_amplitude()``.
         """
+        self._flush()
+
         for q, v in qubit_outcomes.items():
             if q not in self.qubit_position:
                 raise ValueError(f"Qubit {q} is not a qubit in the MPS.")
@@ -756,6 +761,8 @@ class MPS(StructuredState):
         Raises:
             ValueError: If a key in ``pauli_string`` is not a qubit in the MPS.
         """
+        self._flush()
+
         for q in pauli_string.map.keys():
             if q not in self.qubit_position:
                 raise ValueError(f"Qubit {q} is not a qubit in the MPS.")
@@ -795,6 +802,7 @@ class MPS(StructuredState):
 
     def get_fidelity(self) -> float:
         """Returns the current fidelity of the state."""
+        self._flush()
         return self.fidelity
 
     def get_statevector(self) -> np.ndarray:
@@ -803,6 +811,8 @@ class MPS(StructuredState):
         Raises:
             ValueError: If there are no qubits left in the MPS.
         """
+        self._flush()
+
         if len(self) == 0:
             raise ValueError("There are no qubits left in this MPS.")
 
@@ -860,6 +870,7 @@ class MPS(StructuredState):
         Returns:
             The amplitude of the computational state in the MPS.
         """
+        self._flush()
 
         # Auxiliar dictionary of physical bonds to qubit IDs
         qubit_id = {location: qubit for qubit, location in self.qubit_position.items()}
