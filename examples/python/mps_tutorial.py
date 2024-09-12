@@ -1,7 +1,7 @@
 import numpy as np
 from time import time
 import matplotlib.pyplot as plt
-from pytket import Circuit
+from pytket import Circuit, OpType
 from pytket.circuit.display import render_circuit_jupyter
 
 from pytket.extensions.cutensornet.structured_state import (
@@ -144,6 +144,39 @@ other_state = other_circ.get_statevector()
 
 print("Is the inner product correct?")
 print(np.isclose(np.vdot(my_state, other_state), inner_product))
+
+# ### Mid-circuit measurements and classical control
+# Mid-circuit measurements and classical control is supported (only in `MPSxGate` as of v0.8.0). For instance, we can implement the teleportation protocol on a pytket circuit and simulate it:
+
+circ = Circuit()
+alice = circ.add_q_register("alice", 2)
+alice_bits = circ.add_c_register("alice_bits", 2)
+bob = circ.add_q_register("bob", 1)
+# Initialise Alice's first qubit in some arbitrary state
+circ.Rx(0.42, alice[0])
+orig_state = circ.get_statevector()
+# Create a Bell pair shared between Alice and Bob
+circ.H(alice[1]).CX(alice[1], bob[0])
+# Apply a Bell measurement on Alice's qubits
+circ.CX(alice[0], alice[1]).H(alice[0])
+circ.Measure(alice[0], alice_bits[0])
+circ.Measure(alice[1], alice_bits[1])
+# Apply conditional corrections on Bob's qubits
+circ.add_gate(OpType.X, [bob[0]], condition_bits=[alice_bits[1]], condition_value=1)
+circ.add_gate(OpType.Z, [bob[0]], condition_bits=[alice_bits[0]], condition_value=1)
+# Reset Alice's qubits
+circ.add_gate(OpType.Reset, [alice[0]])
+circ.add_gate(OpType.Reset, [alice[1]])
+# Display the circuit
+render_circuit_jupyter(circ)
+
+# We can now simulate the circuit and check that the qubit has been successfully teleported.
+
+print(f"Initial state:\n {np.round(orig_state[0],2)}|00>|0> + {np.round(orig_state[4],2)}|10>|0>")
+with CuTensorNetHandle() as libhandle:
+    state = simulate(libhandle, circ, SimulationAlgorithm.MPSxGate, Config())
+    print(f"Teleported state:\n {np.round(state.get_amplitude(0),2)}|00>|0> + {np.round(state.get_amplitude(1),2)}|00>|1>")
+    print(f"Measurement outcomes:\n {state.get_bits()}")
 
 # ### Two-qubit gates acting on non-adjacent qubits
 # Standard MPS algorithms only support simulation of two-qubit gates acting on neighbour qubits. In our implementation, however, two-qubit gates between arbitrary qubits may be applied, as shown below.
