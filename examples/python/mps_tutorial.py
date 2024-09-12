@@ -172,10 +172,14 @@ render_circuit_jupyter(circ)
 
 # We can now simulate the circuit and check that the qubit has been successfully teleported.
 
-print(f"Initial state:\n {np.round(orig_state[0],2)}|00>|0> + {np.round(orig_state[4],2)}|10>|0>")
+print(
+    f"Initial state:\n {np.round(orig_state[0],2)}|00>|0> + {np.round(orig_state[4],2)}|10>|0>"
+)
 with CuTensorNetHandle() as libhandle:
     state = simulate(libhandle, circ, SimulationAlgorithm.MPSxGate, Config())
-    print(f"Teleported state:\n {np.round(state.get_amplitude(0),2)}|00>|0> + {np.round(state.get_amplitude(1),2)}|00>|1>")
+    print(
+        f"Teleported state:\n {np.round(state.get_amplitude(0),2)}|00>|0> + {np.round(state.get_amplitude(1),2)}|00>|1>"
+    )
     print(f"Measurement outcomes:\n {state.get_bits()}")
 
 # ### Two-qubit gates acting on non-adjacent qubits
