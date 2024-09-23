@@ -322,6 +322,23 @@ def test_correctness_reset_register() -> None:
             assert np.isclose(abs(state.get_amplitude(0)), 1.0)
 
 
+def test_correctness_copy_bits() -> None:
+    # Dummy circuit where two bits are set and then copied
+    circ = Circuit(1)
+    orig = circ.add_c_register("orig", 2)
+    copied = circ.add_c_register("copied", 2)
+    # Set the `orig` bits to 0 and 1
+    circ.add_c_setbits([False, True], [orig[0], orig[1]])
+    # Copy the bits to the `copied` register
+    circ.add_c_copybits([orig[0], orig[1]], [copied[0], copied[1]])
+    # Simulate
+    with CuTensorNetHandle() as libhandle:
+        cfg = Config()
+        state = simulate(libhandle, circ, SimulationAlgorithm.MPSxGate, cfg)
+    # Check that the copied register has the correct values
+    assert state.get_bits()[copied[0]] == False and state.get_bits()[copied[1]] == True
+
+
 def test_correctness_teleportation_bit() -> None:
     # A circuit to teleport a single qubit
 
@@ -364,7 +381,7 @@ def test_correctness_teleportation_bit() -> None:
             assert np.isclose(abs(state.get_amplitude(1)) ** 2, 0.3757, atol=1e-4)
 
 
-def test_repeat_until_sucess_i() -> None:
+def test_repeat_until_success_i() -> None:
     # From Figure 8 of https://arxiv.org/pdf/1311.1074
 
     attempts = 100
@@ -413,7 +430,7 @@ def test_repeat_until_sucess_i() -> None:
         assert np.allclose(target_state, output_state)
 
 
-def test_repeat_until_sucess_ii() -> None:
+def test_repeat_until_success_ii() -> None:
     # From Figure 1(c) of https://arxiv.org/pdf/1311.1074
 
     attempts = 100
