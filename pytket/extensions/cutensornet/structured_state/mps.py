@@ -13,7 +13,7 @@
 # limitations under the License.
 from __future__ import annotations  # type: ignore
 import warnings
-from typing import Union
+from typing import Union, Optional
 from enum import Enum
 
 from random import Random  # type: ignore
@@ -29,7 +29,7 @@ try:
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
-from pytket.circuit import Command, Op, OpType, Qubit
+from pytket.circuit import Op, OpType, Qubit, Bit
 from pytket.pauli import Pauli, QubitPauliString
 
 from pytket.extensions.cutensornet.general import CuTensorNetHandle, set_logger
@@ -69,6 +69,7 @@ class MPS(StructuredState):
         libhandle: CuTensorNetHandle,
         qubits: list[Qubit],
         config: Config,
+        bits: Optional[list[Bit]] = None,
     ):
         """Initialise an MPS on the computational state ``|0>``
 
@@ -82,9 +83,6 @@ class MPS(StructuredState):
                 tensor operations on the MPS.
             qubits: The list of qubits in the circuit to be simulated.
             config: The object describing the configuration for simulation.
-
-        Raises:
-            ValueError: If less than two qubits are provided.
         """
         self._lib = libhandle
         self._cfg = config
@@ -93,11 +91,14 @@ class MPS(StructuredState):
         self._rng.seed(self._cfg.seed)
         self.fidelity = 1.0
 
+        if bits is None:
+            self._bits_dict = dict()
+        else:
+            self._bits_dict = {b: False for b in bits}
+
         n_tensors = len(qubits)
         if n_tensors == 0:  # There's no initialisation to be done
             pass
-        elif n_tensors == 1:
-            raise ValueError("Please, provide at least two qubits.")
         else:
             self.qubit_position = {q: i for i, q in enumerate(qubits)}
 
@@ -146,43 +147,6 @@ class MPS(StructuredState):
         )
 
         return chi_ok and phys_ok and shape_ok and ds_ok
-
-    def apply_gate(self, gate: Command) -> MPS:
-        """Apply the gate to the MPS.
-
-        Note:
-            Only one-qubit gates and two-qubit gates are supported.
-
-        Args:
-            gate: The gate to be applied.
-
-        Returns:
-            ``self``, to allow for method chaining.
-
-        Raises:
-            RuntimeError: If the ``CuTensorNetHandle`` is out of scope.
-            ValueError: If the command introduced is not a unitary gate.
-            ValueError: If gate acts on more than 2 qubits.
-        """
-        try:
-            unitary = gate.op.get_unitary()
-        except:
-            raise ValueError("The command introduced is not unitary.")
-
-        # Load the gate's unitary to the GPU memory
-        unitary = unitary.astype(dtype=self._cfg._complex_t, copy=False)
-        unitary = cp.asarray(unitary, dtype=self._cfg._complex_t)
-
-        self._logger.debug(f"Applying gate {gate}.")
-        if len(gate.qubits) not in [1, 2]:
-            raise ValueError(
-                "Gates must act on only 1 or 2 qubits! "
-                + f"This is not satisfied by {gate}."
-            )
-
-        self.apply_unitary(unitary, gate.qubits)
-
-        return self
 
     def apply_unitary(
         self, unitary: cp.ndarray, qubits: list[Qubit]
@@ -269,6 +233,8 @@ class MPS(StructuredState):
         Raises:
             ValueError: If any of the keys in ``qubit_map`` are not qubits in the state.
         """
+        self._flush()
+
         new_qubit_position = dict()
         for q_orig, q_new in qubit_map.items():
             # Check the qubit is in the state
@@ -299,6 +265,8 @@ class MPS(StructuredState):
             ValueError: If ``position`` is negative or larger than ``len(self)``.
             ValueError: If ``state`` is not ``0`` or ``1``.
         """
+        self._flush()
+
         options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
 
         if new_qubit in self.qubit_position.keys():
@@ -606,6 +574,7 @@ class MPS(StructuredState):
         Raises:
             ValueError: If an element in ``qubits`` is not a qubit in the state.
         """
+        self._flush()
         result = dict()
 
         # Obtain the positions that need to be measured and build the reverse dict
@@ -689,6 +658,8 @@ class MPS(StructuredState):
             ValueError: If all of the qubits in the MPS are being postselected. Instead,
                 you may wish to use ``get_amplitude()``.
         """
+        self._flush()
+
         for q, v in qubit_outcomes.items():
             if q not in self.qubit_position:
                 raise ValueError(f"Qubit {q} is not a qubit in the MPS.")
@@ -787,6 +758,8 @@ class MPS(StructuredState):
         Raises:
             ValueError: If a key in ``pauli_string`` is not a qubit in the MPS.
         """
+        self._flush()
+
         for q in pauli_string.map.keys():
             if q not in self.qubit_position:
                 raise ValueError(f"Qubit {q} is not a qubit in the MPS.")
@@ -826,6 +799,7 @@ class MPS(StructuredState):
 
     def get_fidelity(self) -> float:
         """Returns the current fidelity of the state."""
+        self._flush()
         return self.fidelity
 
     def get_statevector(self) -> np.ndarray:
@@ -834,6 +808,8 @@ class MPS(StructuredState):
         Raises:
             ValueError: If there are no qubits left in the MPS.
         """
+        self._flush()
+
         if len(self) == 0:
             raise ValueError("There are no qubits left in this MPS.")
 
@@ -891,6 +867,7 @@ class MPS(StructuredState):
         Returns:
             The amplitude of the computational state in the MPS.
         """
+        self._flush()
 
         # Auxiliar dictionary of physical bonds to qubit IDs
         qubit_id = {location: qubit for qubit, location in self.qubit_position.items()}

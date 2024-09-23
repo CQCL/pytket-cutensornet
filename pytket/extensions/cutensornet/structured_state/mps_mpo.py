@@ -28,7 +28,7 @@ try:
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
-from pytket.circuit import Qubit
+from pytket.circuit import Qubit, Bit
 from pytket.extensions.cutensornet import CuTensorNetHandle
 from .general import Tensor, Config
 from .mps import (
@@ -49,6 +49,7 @@ class MPSxMPO(MPS):
         libhandle: CuTensorNetHandle,
         qubits: list[Qubit],
         config: Config,
+        bits: Optional[list[Bit]] = None,
     ):
         """Initialise an MPS on the computational state ``|0>``.
 
@@ -63,7 +64,7 @@ class MPSxMPO(MPS):
             qubits: The list of qubits in the circuit to be simulated.
             config: The object describing the configuration for simulation.
         """
-        super().__init__(libhandle, qubits, config)
+        super().__init__(libhandle, qubits, config, bits=bits)
 
         # Initialise the MPO data structure. This will keep a list of the gates
         # batched for application to the MPS; all of them will be applied at
@@ -82,7 +83,7 @@ class MPSxMPO(MPS):
 
         # Initialise the MPS that we will use as first approximation of the
         # variational algorithm.
-        self._aux_mps = MPSxGate(libhandle, qubits, config)
+        self._aux_mps = MPSxGate(libhandle, qubits, config, bits=bits)
 
         self._mpo_bond_counter = 0
 
@@ -100,6 +101,47 @@ class MPSxMPO(MPS):
         super().update_libhandle(libhandle)
         self._aux_mps.update_libhandle(libhandle)
 
+    def apply_qubit_relabelling(self, qubit_map: dict[Qubit, Qubit]) -> MPSxMPO:
+        """Relabels each qubit ``q`` as ``qubit_map[q]``.
+
+        This does not apply any SWAP gate, nor it changes the internal structure of the
+        state. It simply changes the label of the physical bonds of the tensor network.
+
+        Args:
+            qubit_map: Dictionary mapping each qubit to its new label.
+
+        Returns:
+            ``self``, to allow for method chaining.
+
+        Raises:
+            ValueError: If any of the keys in ``qubit_map`` are not qubits in the state.
+        """
+        self._aux_mps.apply_qubit_relabelling(qubit_map)
+        super().apply_qubit_relabelling(qubit_map)
+        return self
+
+    def add_qubit(self, new_qubit: Qubit, position: int, state: int = 0) -> MPS:
+        """Adds a qubit at the specified position.
+
+        Args:
+            new_qubit: The identifier of the qubit to be added to the state.
+            position: The location the new qubit should be inserted at in the MPS.
+                Qubits on this and later indexed have their position shifted by 1.
+            state: Choose either ``0`` or ``1`` for the new qubit's state.
+                Defaults to ``0``.
+
+        Returns:
+            ``self``, to allow for method chaining.
+
+        Raises:
+            ValueError: If ``new_qubit`` already exists in the state.
+            ValueError: If ``position`` is negative or larger than ``len(self)``.
+            ValueError: If ``state`` is not ``0`` or ``1``.
+        """
+        raise NotImplementedError(
+            "Creating new qubits is not currently supported in MPSxMPO."
+        )
+
     def _apply_1q_unitary(self, unitary: cp.ndarray, qubit: Qubit) -> MPSxMPO:
         """Applies the 1-qubit unitary to the MPS.
 
@@ -116,6 +158,12 @@ class MPSxMPO(MPS):
 
         # Apply the gate to the MPS with eager approximation
         self._aux_mps._apply_1q_unitary(unitary, qubit)
+
+        if len(self) == 1:
+            # If there is only one qubit, there is no benefit in using an MPO, so
+            # simply copy from the standard MPS
+            self.tensors[0] = self._aux_mps.tensors[0].copy()
+            return self
 
         # Glossary of bond IDs
         # i -> input to the MPO tensor
@@ -336,6 +384,10 @@ class MPSxMPO(MPS):
         The method applies variational optimisation of the MPS until it
         converges. Based on https://arxiv.org/abs/2207.05612.
         """
+        if self._mpo_bond_counter == 0:
+            # MPO is empty, there is nothing to flush
+            return None
+
         self._logger.info("Applying variational optimisation.")
         self._logger.info(f"Fidelity before optimisation={self._aux_mps.fidelity}")
 

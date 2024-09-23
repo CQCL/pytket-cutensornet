@@ -26,6 +26,7 @@ Classes
     .. automethod:: apply_gate
     .. automethod:: apply_unitary
     .. automethod:: apply_scalar
+    .. automethod:: apply_qubit_relabelling
     .. automethod:: vdot
     .. automethod:: sample
     .. automethod:: measure
@@ -52,7 +53,6 @@ Classes
 .. autoclass:: pytket.extensions.cutensornet.structured_state.MPSxMPO()
 
     .. automethod:: __init__
-    .. automethod:: add_qubit
 
 
 Miscellaneous

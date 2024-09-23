@@ -19,7 +19,14 @@ from typing import Any, Optional, Type
 
 import numpy as np  # type: ignore
 
-from pytket.circuit import Command, Qubit
+from pytket.circuit import (
+    Command,
+    Op,
+    OpType,
+    Qubit,
+    Bit,
+    Conditional,
+)
 from pytket.pauli import QubitPauliString
 
 try:
@@ -28,6 +35,7 @@ except ImportError:
     warnings.warn("local settings failed to import cupy", ImportWarning)
 
 from pytket.extensions.cutensornet import CuTensorNetHandle
+from .classical import apply_classical_command, from_little_endian
 
 # An alias for the CuPy type used for tensors
 try:
@@ -47,7 +55,6 @@ class Config:
         float_precision: Type[Any] = np.float64,
         value_of_zero: float = 1e-16,
         leaf_size: int = 8,
-        use_kahypar: bool = False,
         k: int = 4,
         optim_delta: float = 1e-5,
         loglevel: int = logging.WARNING,
@@ -84,9 +91,6 @@ class Config:
                 ``np.float64`` precision (default) and ``1e-7`` for ``np.float32``.
             leaf_size: For ``TTN`` simulation only. Sets the maximum number of
                 qubits in a leaf node when using ``TTN``. Default is 8.
-            use_kahypar: Use KaHyPar for graph partitioning (used in ``TTN``) if this
-                is True. Otherwise, use NetworkX (worse, but easy to setup). Defaults
-                to False.
             k: For ``MPSxMPO`` simulation only. Sets the maximum number of layers
                 the MPO is allowed to have before being contracted. Increasing this
                 might increase fidelity, but it will also increase resource requirements
@@ -153,7 +157,6 @@ class Config:
             raise ValueError("Maximum allowed leaf_size is 65.")
 
         self.leaf_size = leaf_size
-        self.use_kahypar = use_kahypar
         self.k = k
         self.optim_delta = 1e-5
         self.loglevel = loglevel
@@ -176,21 +179,19 @@ class Config:
 class StructuredState(ABC):
     """Class representing a Tensor Network state."""
 
-    @abstractmethod
-    def is_valid(self) -> bool:
-        """Verify that the tensor network state is valid.
+    _lib: CuTensorNetHandle
+    _cfg: Config
+    _logger: logging.Logger
+    _bits_dict: dict[Bit, bool]  # Tracks the state of the classical variables
 
-        Returns:
-            False if a violation was detected or True otherwise.
-        """
-        raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
-
-    @abstractmethod
     def apply_gate(self, gate: Command) -> StructuredState:
-        """Applies the gate to the StructuredState.
+        """Apply the command to the `StructuredState`.
+
+        Note:
+            Only one-qubit gates and two-qubit gates are supported.
 
         Args:
-            gate: The gate to be applied.
+            gate: The command to be applied.
 
         Returns:
             ``self``, to allow for method chaining.
@@ -198,7 +199,65 @@ class StructuredState(ABC):
         Raises:
             RuntimeError: If the ``CuTensorNetHandle`` is out of scope.
             ValueError: If the command introduced is not a unitary gate.
-            ValueError: If gate acts on more than 2 qubits.
+            ValueError: If the command acts on more than 2 qubits.
+        """
+        self._logger.debug(f"Applying {gate}.")
+        self._apply_command(gate.op, gate.qubits, gate.bits, gate.args)
+        return self
+
+    def _apply_command(
+        self, op: Op, qubits: list[Qubit], bits: list[Bit], args: list[Any]
+    ) -> None:
+        """The implementation of `apply_gate`, acting on the unwrapped Command info."""
+        if op.type == OpType.Measure:
+            q = qubits[0]
+            b = bits[0]
+            self._bits_dict[b] = self.measure({q}, destructive=False)[q] != 0
+
+        elif op.type == OpType.Reset:
+            assert len(qubits)
+            q = qubits[0]
+            # Measure and correct if outcome is |1>
+            outcome_1 = self.measure({q}, destructive=False)[q] != 0
+            if outcome_1:
+                self._apply_command(Op.create(OpType.X), [q], [], [q])
+
+        elif op.is_gate():  # Either a unitary gate or a not supported "gate"
+            try:
+                unitary = op.get_unitary()
+            except:
+                raise ValueError(f"The command {op.type} introduced is not supported.")
+
+            # Load the gate's unitary to the GPU memory
+            unitary = unitary.astype(dtype=self._cfg._complex_t, copy=False)
+            unitary = cp.asarray(unitary, dtype=self._cfg._complex_t)
+
+            if len(qubits) not in [1, 2]:
+                raise ValueError(
+                    "Gates must act on only 1 or 2 qubits! "
+                    + f"This is not satisfied by {op.type}."
+                )
+
+            self.apply_unitary(unitary, qubits)
+
+        elif isinstance(op, Conditional):
+            input_bits = args[: op.width]
+            tgt_value = op.value
+            # The input_bits encode a "value" int in little-endian
+            var_value = from_little_endian([self._bits_dict[b] for b in input_bits])  # type: ignore
+            # If the condition is apply the command in the body
+            if var_value == tgt_value:
+                self._apply_command(op.op, qubits, bits, args)
+
+        else:  # A purely classical operation
+            apply_classical_command(op, bits, args, self._bits_dict)
+
+    @abstractmethod
+    def is_valid(self) -> bool:
+        """Verify that the tensor network state is valid.
+
+        Returns:
+            False if a violation was detected or True otherwise.
         """
         raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
 
@@ -387,6 +446,10 @@ class StructuredState(ABC):
             The amplitude of the computational state in ``self``.
         """
         raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
+
+    def get_bits(self) -> dict[Bit, bool]:
+        """Returns the dictionary of bits and their values."""
+        return self._bits_dict.copy()
 
     @abstractmethod
     def get_qubits(self) -> set[Qubit]:

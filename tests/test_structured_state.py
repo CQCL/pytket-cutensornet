@@ -248,8 +248,10 @@ def test_canonicalise_ttn(center: Union[RootPath, Qubit]) -> None:
 @pytest.mark.parametrize(
     "circuit",
     [
+        pytest.lazy_fixture("q1_empty"),  # type: ignore
         pytest.lazy_fixture("q5_empty"),  # type: ignore
         pytest.lazy_fixture("q8_empty"),  # type: ignore
+        pytest.lazy_fixture("q1_h0rz"),  # type: ignore
         pytest.lazy_fixture("q2_x0"),  # type: ignore
         pytest.lazy_fixture("q2_x1"),  # type: ignore
         pytest.lazy_fixture("q2_v0"),  # type: ignore
@@ -308,7 +310,9 @@ def test_exact_circ_sim(circuit: Circuit, algorithm: SimulationAlgorithm) -> Non
 @pytest.mark.parametrize(
     "circuit",
     [
+        pytest.lazy_fixture("q1_empty"),  # type: ignore
         pytest.lazy_fixture("q5_empty"),  # type: ignore
+        pytest.lazy_fixture("q1_h0rz"),  # type: ignore
         pytest.lazy_fixture("q2_lcu1"),  # type: ignore
         pytest.lazy_fixture("q2_lcu2"),  # type: ignore
         pytest.lazy_fixture("q2_lcu3"),  # type: ignore
@@ -363,8 +367,10 @@ def test_prepare_circuit_mps(circuit: Circuit, algorithm: SimulationAlgorithm) -
 @pytest.mark.parametrize(
     "circuit",
     [
+        pytest.lazy_fixture("q1_empty"),  # type: ignore
         pytest.lazy_fixture("q5_empty"),  # type: ignore
         pytest.lazy_fixture("q8_empty"),  # type: ignore
+        pytest.lazy_fixture("q1_h0rz"),  # type: ignore
         pytest.lazy_fixture("q2_x0"),  # type: ignore
         pytest.lazy_fixture("q2_x1"),  # type: ignore
         pytest.lazy_fixture("q2_v0"),  # type: ignore
@@ -409,8 +415,10 @@ def test_approx_circ_sim_gate_fid(
 @pytest.mark.parametrize(
     "circuit",
     [
+        pytest.lazy_fixture("q1_empty"),  # type: ignore
         pytest.lazy_fixture("q5_empty"),  # type: ignore
         pytest.lazy_fixture("q8_empty"),  # type: ignore
+        pytest.lazy_fixture("q1_h0rz"),  # type: ignore
         pytest.lazy_fixture("q2_x0"),  # type: ignore
         pytest.lazy_fixture("q2_x1"),  # type: ignore
         pytest.lazy_fixture("q2_v0"),  # type: ignore
@@ -453,7 +461,9 @@ def test_approx_circ_sim_chi(circuit: Circuit, algorithm: SimulationAlgorithm) -
 @pytest.mark.parametrize(
     "circuit",
     [
+        pytest.lazy_fixture("q1_empty"),  # type: ignore
         pytest.lazy_fixture("q5_empty"),  # type: ignore
+        pytest.lazy_fixture("q1_h0rz"),  # type: ignore
         pytest.lazy_fixture("q2_x0cx01cx10"),  # type: ignore
         pytest.lazy_fixture("q2_lcu2"),  # type: ignore
         pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
@@ -715,6 +725,7 @@ def test_expectation_value(circuit: Circuit, observable: QubitPauliString) -> No
 @pytest.mark.parametrize(
     "circuit",
     [
+        pytest.lazy_fixture("q1_h0rz"),  # type: ignore
         pytest.lazy_fixture("q2_v0cx01cx10"),  # type: ignore
         pytest.lazy_fixture("q2_hadamard_test"),  # type: ignore
         pytest.lazy_fixture("q2_lcu2"),  # type: ignore
