@@ -1,2 +1,2 @@
 black~=24.8
-pylint~=3.2
+pylint~=3.3
