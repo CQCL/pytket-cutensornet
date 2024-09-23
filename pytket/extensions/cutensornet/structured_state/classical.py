@@ -37,8 +37,7 @@ def apply_classical_command(
 ) -> None:
     """Evaluate classical commands and update the `bits_dict` accordingly."""
     if isinstance(op, SetBitsOp):
-        these_bits = bits
-        for b, v in zip(these_bits, op.values):
+        for b, v in zip(bits, op.values):
             bits_dict[b] = v
 
     elif isinstance(op, CopyBitsOp):
@@ -46,7 +45,7 @@ def apply_classical_command(
         input_bits = args[: len(output_bits)]
         for i, o in zip(input_bits, output_bits):
             assert isinstance(i, Bit)
-            bits_dict[i] = bits_dict[o]
+            bits_dict[o] = bits_dict[i]
 
     elif isinstance(op, RangePredicateOp):
         assert len(bits) == 1
