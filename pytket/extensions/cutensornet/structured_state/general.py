@@ -448,7 +448,10 @@ class StructuredState(ABC):
         raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
 
     def get_bits(self) -> dict[Bit, bool]:
-        """Returns the dictionary of bits and their values."""
+        """Returns the dictionary of bits and their values.
+
+        A bit with value ``False`` corresponds to ``0``, and ``True`` is ``1``.
+        """
         return self._bits_dict.copy()
 
     @abstractmethod
