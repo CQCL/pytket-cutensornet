@@ -1,8 +1,8 @@
 Changelog
 ~~~~~~~~~
 
-Unreleased
-----------
+0.8.0 (September 2024)
+----------------------
 
 * API breaking changes
     * Removed ``use_kahypar`` option from ``Config``. It can still be set via the ``simulate`` option ``compilation_params``.
