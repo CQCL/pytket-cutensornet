@@ -10,10 +10,10 @@ Unreleased
 * New feature: ``simulate`` now accepts pytket circuits with ``Measure``, ``Reset``, ``Conditional``, ``ClassicalExpBox`` and more classical operations. You can now retrieve classical bit values using ``get_bits``.
 * When calling ``simulate``, the gates on the circuit are no longer sorted by default. Use ``compilation_params["sort_gates"] = True`` to recover this behaviour, which is now deprecated.
 * ``StructuredState`` now supports simulation of single qubit circuits.
-* Some bugfixes on MPSxMPO relating to measurement and relabelling qubits. The bug was caused due to these functions not guaranteeing the MPO was applied before their action.
+* Some bugfixes on ``MPSxMPO`` relating to measurement and relabelling qubits. The bug was caused due to these functions not guaranteeing the MPO was applied before their action.
 * Documentation fixes:
     * ``apply_qubit_relabelling`` now appears in the documentation.
-    * ``add_qubit`` removed from documentation of MPSxMPO, since it is not supported.
+    * ``add_qubit`` removed from documentation of ``MPSxMPO``, since it is not currently supported.
 
 0.7.1 (July 2024)
 -----------------
