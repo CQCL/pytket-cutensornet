@@ -35,6 +35,7 @@ Classes
     .. automethod:: get_fidelity
     .. automethod:: get_statevector
     .. automethod:: get_amplitude
+    .. automethod:: get_bits
     .. automethod:: get_qubits
     .. automethod:: get_byte_size
     .. automethod:: get_device_id
