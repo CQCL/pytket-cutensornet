@@ -66,6 +66,8 @@ jobs:
       with:
         name: artefact-${{ matrix.os }}
         path: wheelhouse/
+    - name: install poetry
+      run: pip install poetry
     - name: Install docs dependencies
       if: (matrix.os == 'ubuntu-22.04') && (github.event_name == 'pull_request' || github.event_name == 'schedule' )
       run: |
