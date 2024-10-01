@@ -114,10 +114,10 @@ jobs:
       with:
         fetch-depth: '0'
         submodules: true
-    - name: Set up Python 3.10
+    - name: Set up Python 3.11
       uses: actions/setup-python@v5
       with:
-        python-version: '3.10'
+        python-version: '3.11'
     - name: Download all wheels
       uses: actions/download-artifact@v4
       with:
@@ -126,13 +126,14 @@ jobs:
       run: pip install -U pip wheel
     - name: Install poetry
       run: pip install poetry
+    - name: Install extension
+      run: for w in `find wheelhouse/ -type f -name "*.whl"` ; do poetry install $w ; done
     - name: Install docs dependencies
       run: |
-        cd docs && bash ./install.sh
-        for w in `find wheelhouse/ -type f -name "*.whl"` ; do poetry install $w ; done
+        cd docs
+        poetry install
     - name: Build docs
       timeout-minutes: 20
       run: |
-        cd .github/workflows/docs
-        mkdir extensions
-        ./build-docs -d ${GITHUB_WORKSPACE}/.github/workflows/docs/extensions/api
+        cd docs
+        poetry run bash ./build-docs.sh
