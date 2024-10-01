@@ -1,7 +1,5 @@
 name: Pytket cuTensorNet Docs
 
-name: Build Docs
-
 on:
   push:
     branches:
