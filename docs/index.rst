@@ -31,3 +31,9 @@ This will include the necessary dependencies such as CUDA toolkit. Then, to inst
 .. toctree::
     api.rst
     changelog.rst
+
+.. toctree::
+   :caption: Useful links
+
+   Issue tracker <https://github.com/CQCL/pytket-cutensornet/issues>
+   PyPi <https://pypi.org/project/pytket-cutensornet/>

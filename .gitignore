@@ -14,3 +14,7 @@ pytket/extensions/cutensornet/_metadata.py
 result
 .direnv
 .envrc
+.venv
+docs/pyproject.toml
+docs/poetry.lock
+
