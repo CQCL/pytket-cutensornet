@@ -17,7 +17,7 @@
 import warnings
 from abc import abstractmethod
 from collections.abc import Sequence
-from typing import List, Optional, Union
+from typing import Optional, Union
 from uuid import uuid4
 
 from pytket.backends import CircuitNotRunError, CircuitStatus, ResultHandle, StatusEnum
@@ -69,7 +69,7 @@ class _CuTensorNetBaseBackend(Backend):
         return (str,)
 
     @property
-    def required_predicates(self) -> List[Predicate]:
+    def required_predicates(self) -> list[Predicate]:
         """Returns the minimum set of predicates that a circuit must satisfy.
 
         Predicates need to be satisfied before the circuit can be successfully run on
@@ -145,7 +145,7 @@ class _CuTensorNetBaseBackend(Backend):
         n_shots: Optional[Union[int, Sequence[int]]] = None,
         valid_check: bool = True,
         **kwargs: KwargTypes,
-    ) -> List[ResultHandle]:
+    ) -> list[ResultHandle]:
         """Submits circuits to the backend for running.
 
         The results will be stored in the backend's result cache to be retrieved by the
@@ -197,7 +197,7 @@ class CuTensorNetStateBackend(_CuTensorNetBaseBackend):
         n_shots: Optional[Union[int, Sequence[int]]] = None,
         valid_check: bool = True,
         **kwargs: KwargTypes,
-    ) -> List[ResultHandle]:
+    ) -> list[ResultHandle]:
         """Submits circuits to the backend for running.
 
         The results will be stored in the backend's result cache to be retrieved by the
@@ -274,7 +274,7 @@ class CuTensorNetShotsBackend(_CuTensorNetBaseBackend):
         n_shots: Optional[Union[int, Sequence[int]]] = None,
         valid_check: bool = True,
         **kwargs: KwargTypes,
-    ) -> List[ResultHandle]:
+    ) -> list[ResultHandle]:
         """Submits circuits to the backend for running.
 
         The results will be stored in the backend's result cache to be retrieved by the

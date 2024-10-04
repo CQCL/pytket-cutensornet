@@ -16,7 +16,7 @@ from __future__ import annotations  # type: ignore
 import logging
 import warnings
 from logging import Logger
-from typing import Any, Optional
+from typing import Any
 
 try:
     import cupy as cp  # type: ignore
@@ -42,7 +42,7 @@ class CuTensorNetHandle:
             If not provided, defaults to ``cp.cuda.Device()``.
     """
 
-    def __init__(self, device_id: Optional[int] = None):
+    def __init__(self, device_id: int | None = None):
         self._is_destroyed = False
 
         # Make sure CuPy uses the specified device

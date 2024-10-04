@@ -1,7 +1,7 @@
 import cmath
 import random
 import warnings
-from typing import List, Union
+from typing import Union
 
 import numpy as np
 import pytest
@@ -26,7 +26,7 @@ from pytket.pauli import Pauli, QubitPauliString
 from pytket.utils.operators import QubitPauliOperator
 
 
-def state_contract(tn: List[Union[NDArray, List]]) -> NDArray:
+def state_contract(tn: list[Union[NDArray, list]]) -> NDArray:
     """Calls cuQuantum contract function to contract an input state tensor network."""
     state_tn = tn.copy()
     state: NDArray = cq.contract(*state_tn).flatten()

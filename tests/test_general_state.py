@@ -244,10 +244,7 @@ def test_sampler(circuit: Circuit, measure_all: bool) -> None:
     sv_pytket = circuit.get_statevector()
 
     # Add measurements to qubits
-    if measure_all:
-        num_measured = circuit.n_qubits
-    else:
-        num_measured = circuit.n_qubits // 2
+    num_measured = circuit.n_qubits if measure_all else circuit.n_qubits // 2
 
     for i, q in enumerate(circuit.qubits):
         if i < num_measured:  # Skip the least significant qubits

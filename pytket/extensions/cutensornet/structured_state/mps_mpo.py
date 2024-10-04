@@ -14,7 +14,7 @@
 from __future__ import annotations  # type: ignore
 
 import warnings
-from typing import Optional, Union
+from typing import TYPE_CHECKING
 
 import numpy as np  # type: ignore
 
@@ -28,15 +28,18 @@ try:
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
-from pytket.circuit import Bit, Qubit
-from pytket.extensions.cutensornet import CuTensorNetHandle
 
-from .general import Config, Tensor
 from .mps import (
     MPS,
     DirMPS,
 )
 from .mps_gate import MPSxGate
+
+if TYPE_CHECKING:
+    from pytket.circuit import Bit, Qubit
+    from pytket.extensions.cutensornet import CuTensorNetHandle
+
+    from .general import Config, Tensor
 
 
 class MPSxMPO(MPS):
@@ -50,7 +53,7 @@ class MPSxMPO(MPS):
         libhandle: CuTensorNetHandle,
         qubits: list[Qubit],
         config: Config,
-        bits: Optional[list[Bit]] = None,
+        bits: list[Bit] | None = None,
     ):
         """Initialise an MPS on the computational state ``|0>``.
 
@@ -430,7 +433,7 @@ class MPSxMPO(MPS):
                 # The MPO tensor at this position
                 interleaved_rep.append(mpo_tensor)
 
-                mpo_bonds: list[Union[int, str]] = list(self._bond_ids[pos][i])
+                mpo_bonds: list[int | str] = list(self._bond_ids[pos][i])
                 if i == 0:
                     # The input bond of the first MPO tensor must connect to the
                     # physical bond of the correspondong ``self.tensors`` tensor
@@ -479,7 +482,7 @@ class MPSxMPO(MPS):
             self._logger.debug("Completed update of the sweep cache.")
 
         def update_variational_tensor(
-            pos: int, left_tensor: Optional[Tensor], right_tensor: Optional[Tensor]
+            pos: int, left_tensor: Tensor | None, right_tensor: Tensor | None
         ) -> float:
             """Update the tensor at ``pos`` of the variational MPS using ``left_tensor``
             (and ``right_tensor``) which is meant to contain the contraction of all
@@ -501,7 +504,7 @@ class MPSxMPO(MPS):
                 # The MPO tensor at this position
                 interleaved_rep.append(mpo_tensor)
 
-                mpo_bonds: list[Union[int, str]] = list(self._bond_ids[pos][i])
+                mpo_bonds: list[int | str] = list(self._bond_ids[pos][i])
                 if i == 0:
                     # The input bond of the first MPO tensor must connect to the
                     # physical bond of the correspondong ``self.tensors`` tensor

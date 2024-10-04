@@ -16,21 +16,24 @@ from __future__ import annotations
 
 import logging
 import warnings
-from typing import Dict, Optional, Tuple, Union
+from typing import TYPE_CHECKING
 
 try:
     import cupy as cp  # type: ignore
 except ImportError:
     warnings.warn("local settings failed to import cupy", ImportWarning)
 import numpy as np
-from numpy.typing import NDArray
 from sympy import Expr  # type: ignore
 
 from pytket.backends.backendresult import BackendResult
 from pytket.circuit import Bit, Circuit, OpType, Qubit
 from pytket.extensions.cutensornet.general import CuTensorNetHandle, set_logger
 from pytket.utils import OutcomeArray
-from pytket.utils.operators import QubitPauliOperator
+
+if TYPE_CHECKING:
+    from numpy.typing import NDArray
+
+    from pytket.utils.operators import QubitPauliOperator
 
 try:
     import cuquantum as cq  # type: ignore
@@ -115,10 +118,10 @@ class GeneralState:
 
     def get_statevector(
         self,
-        attributes: Optional[dict] = None,
+        attributes: dict | None = None,
         scratch_fraction: float = 0.75,
         on_host: bool = True,
-    ) -> Union[cp.ndarray, np.ndarray]:
+    ) -> cp.ndarray | np.ndarray:
         """Contracts the circuit and returns the final statevector.
 
         Args:
@@ -230,7 +233,7 @@ class GeneralState:
     def expectation_value(
         self,
         operator: QubitPauliOperator,
-        attributes: Optional[dict] = None,
+        attributes: dict | None = None,
         scratch_fraction: float = 0.75,
     ) -> complex:
         """Calculates the expectation value of the given operator.
@@ -275,7 +278,7 @@ class GeneralState:
             self._logger.debug(f"   {numeric_coeff}, {pauli_string}")
 
             # Raise an error if the operator acts on qubits that are not in the circuit
-            if any(q not in self._circuit.qubits for q in pauli_string.map.keys()):
+            if any(q not in self._circuit.qubits for q in pauli_string.map):
                 raise ValueError(
                     f"The operator is acting on qubits {pauli_string.map.keys()}, "
                     "but some of these are not present in the circuit, whose set of "
@@ -289,9 +292,7 @@ class GeneralState:
 
             num_pauli = len(qubit_pauli_map)
             num_modes = (1,) * num_pauli
-            state_modes = tuple(
-                (self._qubit_idx_map[qb],) for qb in qubit_pauli_map
-            )
+            state_modes = tuple((self._qubit_idx_map[qb],) for qb in qubit_pauli_map)
             gate_data = tuple(tensor.data.ptr for tensor in qubit_pauli_map.values())
 
             cutn.network_operator_append_product(
@@ -408,7 +409,7 @@ class GeneralState:
     def sample(
         self,
         n_shots: int,
-        attributes: Optional[dict] = None,
+        attributes: dict | None = None,
         scratch_fraction: float = 0.75,
     ) -> BackendResult:
         """Obtains samples from the measurements at the end of the circuit.
@@ -568,7 +569,7 @@ def _formatted_tensor(matrix: NDArray, n_qubits: int) -> cp.ndarray:
     return cupy_matrix.reshape([2] * (2 * n_qubits), order="F")
 
 
-def _remove_meas_and_implicit_swaps(circ: Circuit) -> Tuple[Circuit, Dict[Qubit, Bit]]:
+def _remove_meas_and_implicit_swaps(circ: Circuit) -> tuple[Circuit, dict[Qubit, Bit]]:
     """Convert a pytket Circuit to an equivalent circuit with no measurements or
     implicit swaps. The measurements are returned as a map between qubits and bits.
 

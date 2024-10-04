@@ -24,7 +24,7 @@ except ImportError:
 import logging
 from collections import defaultdict
 from logging import Logger
-from typing import Any, DefaultDict, List, Optional, Tuple, Union
+from typing import Any, Optional, Union
 
 import networkx as nx  # type: ignore
 import numpy as np
@@ -88,7 +88,7 @@ class TensorNetwork:
         """Returns an interleaved format of the circuit tensor network."""
         return self._cuquantum_interleaved
 
-    def _get_gate_tensors(self, adj: bool = False) -> DefaultDict[Any, List[Any]]:
+    def _get_gate_tensors(self, adj: bool = False) -> defaultdict[Any, list[Any]]:
         """Computes and stores tensors for each gate type from the circuit.
 
         The unitaries are reshaped into tensors of bond dimension two prior to being
@@ -174,7 +174,7 @@ class TensorNetwork:
         self._logger.debug(f"Gate tensors: \n{gate_tensors}\n")
         return gate_tensors
 
-    def _assign_node_tensors(self, adj: bool = False) -> List[Any]:
+    def _assign_node_tensors(self, adj: bool = False) -> list[Any]:
         """Creates a list of tensors representing circuit gates (tensor network nodes).
 
         Args:
@@ -236,7 +236,7 @@ class TensorNetwork:
 
     def _get_tn_indices(
         self, net: nx.MultiDiGraph, adj: bool = False
-    ) -> Tuple[List[Any], dict[Qubit, int]]:
+    ) -> tuple[list[Any], dict[Qubit, int]]:
         """Computes indices of the edges of the tensor network nodes (tensors).
 
         Indices are computed such that they range from high (for circuit leftmost gates)
@@ -283,7 +283,7 @@ class TensorNetwork:
         ]
         eids_sorted = sorted(eids, key=abs)
         qnames_graph_ordered = [qname for qname in self._graph.output_names.values()]
-        oids_graph_ordered = [oid for oid in self._graph.output_names.keys()]
+        oids_graph_ordered = [oid for oid in self._graph.output_names]
         eids_qubit_ordered = [
             eids_sorted[qnames_graph_ordered.index(q)] for q in self._qubit_names_ilo
         ]  # Order eid's in the same way as qnames_graph_ordered as compared to ILO
@@ -363,7 +363,7 @@ class TensorNetwork:
 
     @staticmethod
     def _order_edges_for_multiqubit_gate(
-        edge_indices: DefaultDict[Any, List[Tuple[Any, int]]],
+        edge_indices: defaultdict[Any, list[tuple[Any, int]]],
         edges: OutMultiEdgeView,
         edges_data: OutMultiEdgeDataView,
         offset: int,
@@ -577,7 +577,7 @@ class PauliOperatorTensorNetwork:
         self._logger = set_logger("PauliOperatorTensorNetwork", loglevel)
         self._pauli_tensors = [self.PAULI[pauli.name] for pauli in paulis.map.values()]
         self._logger.debug(f"Pauli tensors: {self._pauli_tensors}")
-        qubits = [q for q in paulis.map.keys()]
+        qubits = [q for q in paulis.map]
         # qubit_names = [
         #    "".join([q.reg_name, "".join([f"[{str(i)}]" for i in q.index])])
         #    for q in paulis.map.keys()
@@ -655,7 +655,7 @@ class ExpectationValueTensorNetwork:
         return tn_concatenated
 
 
-def tk_to_tensor_network(tkc: Circuit) -> List[Union[NDArray, List]]:
+def tk_to_tensor_network(tkc: Circuit) -> list[Union[NDArray, list]]:
     """Converts pytket circuit into a tensor network.
 
     Args:

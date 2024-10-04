@@ -27,9 +27,13 @@ try:
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
-from pytket.circuit import Qubit
+
+from typing import TYPE_CHECKING
 
 from .mps import MPS, DirMPS
+
+if TYPE_CHECKING:
+    from pytket.circuit import Qubit
 
 
 class MPSxGate(MPS):

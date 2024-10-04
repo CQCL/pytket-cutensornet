@@ -17,9 +17,7 @@ import math  # type: ignore
 import warnings
 from enum import IntEnum
 from random import Random  # type: ignore
-from typing import Optional, Union
-
-import numpy as np  # type: ignore
+from typing import TYPE_CHECKING
 
 try:
     import cupy as cp  # type: ignore
@@ -33,9 +31,13 @@ except ImportError:
 
 from pytket.circuit import Bit, Qubit
 from pytket.extensions.cutensornet.general import CuTensorNetHandle, set_logger
-from pytket.pauli import QubitPauliString
 
 from .general import Config, StructuredState, Tensor
+
+if TYPE_CHECKING:
+    import numpy as np
+
+    from pytket.pauli import QubitPauliString
 
 
 class DirTTN(IntEnum):
@@ -66,7 +68,7 @@ class TreeNode:
     def __init__(self, tensor: Tensor, is_leaf: bool = False):
         self.tensor = tensor
         self.is_leaf = is_leaf
-        self.canonical_form: Optional[DirTTN] = None
+        self.canonical_form: DirTTN | None = None
 
     def copy(self) -> TreeNode:
         new_node = TreeNode(
@@ -96,7 +98,7 @@ class TTN(StructuredState):
         libhandle: CuTensorNetHandle,
         qubit_partition: dict[int, list[Qubit]],
         config: Config,
-        bits: Optional[list[Bit]] = None,
+        bits: list[Bit] | None = None,
     ):
         """Initialise a TTN on the computational state ``|0>``.
 
@@ -215,7 +217,7 @@ class TTN(StructuredState):
         """
         chi_ok = all(
             self.get_dimension(path, DirTTN.PARENT) <= self._cfg.chi
-            for path in self.nodes.keys()
+            for path in self.nodes
         )
         phys_ok = all(
             self.nodes[path].tensor.shape[bond] == 2
@@ -227,7 +229,7 @@ class TTN(StructuredState):
         shape_ok = all(
             self.get_dimension(path, DirTTN.PARENT)
             == self.get_dimension(path[:-1], path[-1])
-            for path in self.nodes.keys()
+            for path in self.nodes
             if len(path) != 0
         )
         shape_ok = shape_ok and self.get_dimension((), DirTTN.PARENT) == 1
@@ -332,9 +334,7 @@ class TTN(StructuredState):
         self._logger.debug(f"Relabelled qubits... {qubit_map}")
         return self
 
-    def canonicalise(
-        self, center: Union[RootPath, Qubit], unsafe: bool = False
-    ) -> Tensor:
+    def canonicalise(self, center: RootPath | Qubit, unsafe: bool = False) -> Tensor:
         """Canonicalise the TTN so that all tensors are isometries from ``center``.
 
         Args:
@@ -368,7 +368,7 @@ class TTN(StructuredState):
         # Separate nodes to be canonicalised towards children from those towards parent
         towards_child = []
         towards_parent = []
-        for path in self.nodes.keys():
+        for path in self.nodes:
             # Nodes towards children are closer to the root and coincide in the path
             if len(path) < len(target_path) and all(
                 path[l] == target_path[l] for l in range(len(path))
@@ -759,9 +759,7 @@ class TTN(StructuredState):
         """Returns the set of qubits that this TTN is defined on."""
         return set(self.qubit_position.keys())
 
-    def get_interleaved_representation(
-        self, conj: bool = False
-    ) -> list[Union[Tensor, str]]:
+    def get_interleaved_representation(self, conj: bool = False) -> list[Tensor | str]:
         """Returns the interleaved representation of the TTN used by cuQuantum.
 
         Args:

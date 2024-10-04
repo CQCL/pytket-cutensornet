@@ -333,7 +333,7 @@ def test_correctness_copy_bits() -> None:
         cfg = Config()
         state = simulate(libhandle, circ, SimulationAlgorithm.MPSxGate, cfg)
     # Check that the copied register has the correct values
-    assert state.get_bits()[copied[0]] == False and state.get_bits()[copied[1]] == True
+    assert state.get_bits()[copied[0]] is False and state.get_bits()[copied[1]] is True
 
 
 def test_correctness_teleportation_bit() -> None:

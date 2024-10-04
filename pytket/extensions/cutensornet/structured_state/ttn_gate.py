@@ -26,9 +26,13 @@ try:
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
-from pytket.circuit import Qubit
+
+from typing import TYPE_CHECKING
 
 from .ttn import TTN, DirTTN, RootPath
+
+if TYPE_CHECKING:
+    from pytket.circuit import Qubit
 
 
 class TTNxGate(TTN):
@@ -643,10 +647,7 @@ class TTNxGate(TTN):
 
         # Contract V to the parent node of the bond
         direction = bond_address[-1]
-        if direction == DirTTN.LEFT:
-            indices = "lrp,sl->srp"
-        else:
-            indices = "lrp,sr->lsp"
+        indices = "lrp,sl->srp" if direction == DirTTN.LEFT else "lrp,sr->lsp"
         self.nodes[bond_address[:-1]].tensor = cq.contract(
             indices,
             self.nodes[bond_address[:-1]].tensor,
