@@ -11,28 +11,27 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Optional, Any
 import warnings
-from enum import Enum
-
-from pathlib import Path
 from collections import defaultdict  # type: ignore
-import numpy as np  # type: ignore
+from enum import Enum
+from pathlib import Path
+from typing import Any, Optional
 
 import networkx as nx  # type: ignore
+import numpy as np  # type: ignore
 
 try:
     import kahypar  # type: ignore
 except ImportError:
     warnings.warn("local settings failed to import kahypar", ImportWarning)
 
-from pytket.circuit import Circuit, Command, OpType, Qubit
-from pytket.transform import Transform
 from pytket.architecture import Architecture
+from pytket.circuit import Circuit, Command, OpType, Qubit
+from pytket.extensions.cutensornet.general import CuTensorNetHandle, set_logger
 from pytket.passes import DefaultMappingPass
 from pytket.predicates import CompilationUnit
+from pytket.transform import Transform
 
-from pytket.extensions.cutensornet.general import CuTensorNetHandle, set_logger
 from .general import Config, StructuredState
 from .mps_gate import MPSxGate
 from .mps_mpo import MPSxMPO

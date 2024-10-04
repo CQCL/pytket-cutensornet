@@ -1,25 +1,22 @@
+import numpy as np
 import pytest
 
-import numpy as np
-
 from pytket.circuit import (
-    Circuit,
+    Bit,
     CircBox,
+    Circuit,
     OpType,
     Qubit,
-    Bit,
     if_not_bit,
     reg_eq,
 )
 from pytket.circuit.logic_exp import BitWiseOp, create_bit_logic_exp
-
 from pytket.extensions.cutensornet.structured_state import (
-    CuTensorNetHandle,
     Config,
-    simulate,
+    CuTensorNetHandle,
     SimulationAlgorithm,
+    simulate,
 )
-
 
 # This first suite of tests comes from the pytket-qir extension
 # (see https://github.com/CQCL/pytket-qir/blob/main/tests/conditional_test.py)

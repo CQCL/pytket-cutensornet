@@ -1,13 +1,15 @@
 import random
+
 import numpy as np
 import pytest
-from pytket.circuit import Circuit, ToffoliBox, Qubit, Bit
-from pytket.passes import DecomposeBoxes, CnXPairwiseDecomposition
-from pytket.transform import Transform
-from pytket.pauli import QubitPauliString, Pauli
-from pytket.utils.operators import QubitPauliOperator
+
+from pytket.circuit import Bit, Circuit, Qubit, ToffoliBox
 from pytket.extensions.cutensornet.general_state import GeneralState
 from pytket.extensions.cutensornet.structured_state import CuTensorNetHandle
+from pytket.passes import CnXPairwiseDecomposition, DecomposeBoxes
+from pytket.pauli import Pauli, QubitPauliString
+from pytket.transform import Transform
+from pytket.utils.operators import QubitPauliOperator
 
 
 @pytest.mark.parametrize(

@@ -13,4 +13,4 @@
 # limitations under the License.
 """Backend for utilising the cuQuantum simulator directly from pytket"""
 
-from .cutensornet_backend import CuTensorNetStateBackend, CuTensorNetShotsBackend
+from .cutensornet_backend import CuTensorNetShotsBackend, CuTensorNetStateBackend

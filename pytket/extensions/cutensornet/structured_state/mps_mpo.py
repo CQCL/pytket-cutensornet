@@ -12,8 +12,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from __future__ import annotations  # type: ignore
-import warnings
 
+import warnings
 from typing import Optional, Union
 
 import numpy as np  # type: ignore
@@ -28,12 +28,13 @@ try:
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
-from pytket.circuit import Qubit, Bit
+from pytket.circuit import Bit, Qubit
 from pytket.extensions.cutensornet import CuTensorNetHandle
-from .general import Tensor, Config
+
+from .general import Config, Tensor
 from .mps import (
-    DirMPS,
     MPS,
+    DirMPS,
 )
 from .mps_gate import MPSxGate
 
@@ -569,7 +570,7 @@ class MPSxMPO(MPS):
         # Repeat sweeps until the fidelity converges
         sweep_direction = DirMPS.RIGHT
         while not np.isclose(prev_fidelity, sweep_fidelity, atol=self._cfg.optim_delta):
-            self._logger.info(f"Doing another optimisation sweep...")
+            self._logger.info("Doing another optimisation sweep...")
             prev_fidelity = sweep_fidelity
 
             if sweep_direction == DirMPS.RIGHT:

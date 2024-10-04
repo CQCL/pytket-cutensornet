@@ -13,22 +13,24 @@
 # limitations under the License.
 
 from __future__ import annotations
+
 import logging
-from typing import Union, Optional, Tuple, Dict
 import warnings
+from typing import Dict, Optional, Tuple, Union
 
 try:
     import cupy as cp  # type: ignore
 except ImportError:
     warnings.warn("local settings failed to import cupy", ImportWarning)
 import numpy as np
-from sympy import Expr  # type: ignore
 from numpy.typing import NDArray
-from pytket.circuit import Circuit, Qubit, Bit, OpType
+from sympy import Expr  # type: ignore
+
+from pytket.backends.backendresult import BackendResult
+from pytket.circuit import Bit, Circuit, OpType, Qubit
 from pytket.extensions.cutensornet.general import CuTensorNetHandle, set_logger
 from pytket.utils import OutcomeArray
 from pytket.utils.operators import QubitPauliOperator
-from pytket.backends.backendresult import BackendResult
 
 try:
     import cuquantum as cq  # type: ignore
@@ -288,7 +290,7 @@ class GeneralState:
             num_pauli = len(qubit_pauli_map)
             num_modes = (1,) * num_pauli
             state_modes = tuple(
-                (self._qubit_idx_map[qb],) for qb in qubit_pauli_map.keys()
+                (self._qubit_idx_map[qb],) for qb in qubit_pauli_map
             )
             gate_data = tuple(tensor.data.ptr for tensor in qubit_pauli_map.values())
 

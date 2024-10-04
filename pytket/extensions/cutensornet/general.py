@@ -12,10 +12,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from __future__ import annotations  # type: ignore
-import warnings
-import logging
-from logging import Logger
 
+import logging
+import warnings
+from logging import Logger
 from typing import Any, Optional
 
 try:

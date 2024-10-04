@@ -14,44 +14,45 @@
 
 """Methods to allow tket circuits to be run on the cuTensorNet simulator."""
 
-from abc import abstractmethod
 import warnings
-
-from typing import List, Union, Optional, Sequence
+from abc import abstractmethod
+from collections.abc import Sequence
+from typing import List, Optional, Union
 from uuid import uuid4
-from pytket.circuit import Circuit, OpType
-from pytket.backends import ResultHandle, CircuitStatus, StatusEnum, CircuitNotRunError
-from pytket.backends.backend import KwargTypes, Backend, BackendResult
+
+from pytket.backends import CircuitNotRunError, CircuitStatus, ResultHandle, StatusEnum
+from pytket.backends.backend import Backend, BackendResult, KwargTypes
 from pytket.backends.backendinfo import BackendInfo
 from pytket.backends.resulthandle import _ResultIdTuple
+from pytket.circuit import Circuit, OpType
 from pytket.extensions.cutensornet.general import CuTensorNetHandle
 from pytket.extensions.cutensornet.general_state import (
     GeneralState,
 )
-from pytket.predicates import (  # type: ignore
-    Predicate,
-    NoSymbolsPredicate,
-    NoClassicalControlPredicate,
-    NoMidMeasurePredicate,
-    NoBarriersPredicate,
-    UserDefinedPredicate,
-)
 from pytket.passes import (  # type: ignore
     BasePass,
-    SequencePass,
-    DecomposeBoxes,
-    RemoveRedundancies,
-    SynthesiseTket,
-    FullPeepholeOptimise,
     CustomPass,
+    DecomposeBoxes,
+    FullPeepholeOptimise,
+    RemoveRedundancies,
+    SequencePass,
+    SynthesiseTket,
+)
+from pytket.predicates import (  # type: ignore
+    NoBarriersPredicate,
+    NoClassicalControlPredicate,
+    NoMidMeasurePredicate,
+    NoSymbolsPredicate,
+    Predicate,
+    UserDefinedPredicate,
 )
 
 try:
-    from cuquantum.cutensornet import StateAttribute, SamplerAttribute  # type: ignore
+    from cuquantum.cutensornet import SamplerAttribute, StateAttribute  # type: ignore
 except ImportError:
     warnings.warn("local settings failed to import cuquantum", ImportWarning)
 
-from .._metadata import __extension_version__, __extension_name__
+from .._metadata import __extension_name__, __extension_version__
 
 
 class _CuTensorNetBaseBackend(Backend):

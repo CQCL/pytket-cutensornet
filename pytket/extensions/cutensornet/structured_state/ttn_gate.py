@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from __future__ import annotations  # type: ignore
+
 import warnings
 
 try:
@@ -26,6 +27,7 @@ except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
 from pytket.circuit import Qubit
+
 from .ttn import TTN, DirTTN, RootPath
 
 

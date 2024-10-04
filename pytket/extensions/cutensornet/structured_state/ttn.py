@@ -12,12 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from __future__ import annotations  # type: ignore
-import warnings
-from typing import Optional, Union
-from enum import IntEnum
 
-from random import Random  # type: ignore
 import math  # type: ignore
+import warnings
+from enum import IntEnum
+from random import Random  # type: ignore
+from typing import Optional, Union
+
 import numpy as np  # type: ignore
 
 try:
@@ -30,10 +31,9 @@ try:
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
-from pytket.circuit import Qubit, Bit
-from pytket.pauli import QubitPauliString
-
+from pytket.circuit import Bit, Qubit
 from pytket.extensions.cutensornet.general import CuTensorNetHandle, set_logger
+from pytket.pauli import QubitPauliString
 
 from .general import Config, StructuredState, Tensor
 

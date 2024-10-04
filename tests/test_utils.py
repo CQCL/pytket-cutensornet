@@ -1,10 +1,11 @@
-import pytest
 import numpy
+import pytest
+
+from pytket import Circuit, Qubit  # type: ignore
 from pytket.extensions.cutensornet.general import CuTensorNetHandle, set_logger
 from pytket.extensions.cutensornet.general_state.utils import (
     circuit_statevector_postselect,
 )
-from pytket import Circuit, Qubit  # type: ignore
 
 
 def test_circuit_statevector_postselect() -> None:

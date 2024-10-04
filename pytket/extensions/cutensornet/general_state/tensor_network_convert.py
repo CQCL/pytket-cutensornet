@@ -21,22 +21,25 @@ try:
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
-from collections import defaultdict
 import logging
+from collections import defaultdict
 from logging import Logger
-from typing import List, Tuple, Union, Any, DefaultDict, Optional
+from typing import Any, DefaultDict, List, Optional, Tuple, Union
+
 import networkx as nx  # type: ignore
-from networkx.classes.reportviews import OutMultiEdgeView, OutMultiEdgeDataView  # type: ignore
 import numpy as np
+from networkx.classes.reportviews import (  # type: ignore
+    OutMultiEdgeDataView,
+    OutMultiEdgeView,
+)
 from numpy.typing import NDArray
 from sympy import Expr  # type: ignore
 
-from pytket.utils import Graph
-from pytket.pauli import QubitPauliString
 from pytket.circuit import Circuit, Qubit
-from pytket.utils import permute_rows_cols_in_unitary
-from pytket.utils.operators import QubitPauliOperator
 from pytket.extensions.cutensornet.general import set_logger
+from pytket.pauli import QubitPauliString
+from pytket.utils import Graph, permute_rows_cols_in_unitary
+from pytket.utils.operators import QubitPauliOperator
 
 
 class TensorNetwork:
@@ -212,13 +215,13 @@ class TensorNetwork:
                     )
                     if (src_ports[0] < src_ports[1]) != (unit_idx[0] < unit_idx[1]):
                         node_tensors.append(self._gate_tensors[node[1]["desc"]][1])
-                        self._logger.debug(f"Adding an upward gate tensor")
+                        self._logger.debug("Adding an upward gate tensor")
                     else:
                         node_tensors.append(self._gate_tensors[node[1]["desc"]][0])
-                        self._logger.debug(f"Adding a downward gate tensor")
+                        self._logger.debug("Adding a downward gate tensor")
                 else:
                     node_tensors.append(self._gate_tensors[node[1]["desc"]][0])
-                    self._logger.debug(f"Adding a 1-qubit gate tensor")
+                    self._logger.debug("Adding a 1-qubit gate tensor")
             else:
                 if node[1]["desc"] == "Output":
                     self._output_nodes.append(i)

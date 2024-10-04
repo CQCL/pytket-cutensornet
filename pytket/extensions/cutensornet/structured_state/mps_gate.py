@@ -12,8 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from __future__ import annotations  # type: ignore
-import warnings
+
 import logging
+import warnings
 
 try:
     import cupy as cp  # type: ignore
@@ -27,6 +28,7 @@ except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
 from pytket.circuit import Qubit
+
 from .mps import MPS, DirMPS
 
 
@@ -132,7 +134,7 @@ class MPSxGate(MPS):
         # Contract
         self._logger.debug("Contracting the two-qubit gate with its site tensors...")
         T = cq.contract(
-            f"SLl,abl,SRr,bcr->acLR",
+            "SLl,abl,SRr,bcr->acLR",
             U,
             self.tensors[l_pos],
             V,

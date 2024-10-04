@@ -12,20 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from __future__ import annotations  # type: ignore
-from abc import ABC, abstractmethod
-import warnings
+
 import logging
+import warnings
+from abc import ABC, abstractmethod
 from typing import Any, Optional, Type
 
 import numpy as np  # type: ignore
 
 from pytket.circuit import (
+    Bit,
     Command,
+    Conditional,
     Op,
     OpType,
     Qubit,
-    Bit,
-    Conditional,
 )
 from pytket.pauli import QubitPauliString
 
@@ -35,6 +36,7 @@ except ImportError:
     warnings.warn("local settings failed to import cupy", ImportWarning)
 
 from pytket.extensions.cutensornet import CuTensorNetHandle
+
 from .classical import apply_classical_command, from_little_endian
 
 # An alias for the CuPy type used for tensors
