@@ -1,13 +1,15 @@
 import random
+
 import numpy as np
 import pytest
-from pytket.circuit import Circuit, ToffoliBox, Qubit, Bit
-from pytket.passes import DecomposeBoxes, CnXPairwiseDecomposition
-from pytket.transform import Transform
-from pytket.pauli import QubitPauliString, Pauli
-from pytket.utils.operators import QubitPauliOperator
+
+from pytket.circuit import Bit, Circuit, Qubit, ToffoliBox
 from pytket.extensions.cutensornet.general_state import GeneralState
 from pytket.extensions.cutensornet.structured_state import CuTensorNetHandle
+from pytket.passes import CnXPairwiseDecomposition, DecomposeBoxes
+from pytket.pauli import Pauli, QubitPauliString
+from pytket.transform import Transform
+from pytket.utils.operators import QubitPauliOperator
 
 
 @pytest.mark.parametrize(
@@ -242,10 +244,7 @@ def test_sampler(circuit: Circuit, measure_all: bool) -> None:
     sv_pytket = circuit.get_statevector()
 
     # Add measurements to qubits
-    if measure_all:
-        num_measured = circuit.n_qubits
-    else:
-        num_measured = circuit.n_qubits // 2
+    num_measured = circuit.n_qubits if measure_all else circuit.n_qubits // 2
 
     for i, q in enumerate(circuit.qubits):
         if i < num_measured:  # Skip the least significant qubits

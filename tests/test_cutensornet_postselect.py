@@ -1,18 +1,19 @@
-import numpy as np
 import cuquantum as cq  # type: ignore
+import numpy as np
 import pytest
-from pytket.circuit import Qubit, Circuit  # type: ignore
-from pytket.pauli import Pauli, QubitPauliString  # type: ignore
-from pytket.utils import QubitPauliOperator
+
+from pytket.circuit import Circuit, Qubit  # type: ignore
 from pytket.extensions.cutensornet.backends import CuTensorNetStateBackend
 from pytket.extensions.cutensornet.general_state.tensor_network_convert import (  # type: ignore
     TensorNetwork,
-    measure_qubits_state,
     get_operator_expectation_value,
+    measure_qubits_state,
 )
 from pytket.extensions.cutensornet.general_state.utils import (
     circuit_statevector_postselect,
 )
+from pytket.pauli import Pauli, QubitPauliString  # type: ignore
+from pytket.utils import QubitPauliOperator
 
 
 @pytest.mark.parametrize(

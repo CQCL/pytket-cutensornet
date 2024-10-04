@@ -12,22 +12,21 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Union, Any
+from typing import Any, Union
 
 from pytket.circuit import (
-    Op,
-    OpType,
     Bit,
     BitRegister,
-    SetBitsOp,
-    CopyBitsOp,
-    RangePredicateOp,
-    ClassicalExpBox,
-    LogicExp,
     BitWiseOp,
+    ClassicalExpBox,
+    CopyBitsOp,
+    LogicExp,
+    Op,
+    OpType,
+    RangePredicateOp,
     RegWiseOp,
+    SetBitsOp,
 )
-
 
 ExtendedLogicExp = Union[LogicExp, Bit, BitRegister, int]
 

@@ -12,9 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from __future__ import annotations  # type: ignore
-import warnings
 
-from typing import Optional, Union
+import warnings
+from typing import TYPE_CHECKING
 
 import numpy as np  # type: ignore
 
@@ -28,14 +28,18 @@ try:
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
-from pytket.circuit import Qubit, Bit
-from pytket.extensions.cutensornet import CuTensorNetHandle
-from .general import Tensor, Config
+
 from .mps import (
-    DirMPS,
     MPS,
+    DirMPS,
 )
 from .mps_gate import MPSxGate
+
+if TYPE_CHECKING:
+    from pytket.circuit import Bit, Qubit
+    from pytket.extensions.cutensornet import CuTensorNetHandle
+
+    from .general import Config, Tensor
 
 
 class MPSxMPO(MPS):
@@ -49,7 +53,7 @@ class MPSxMPO(MPS):
         libhandle: CuTensorNetHandle,
         qubits: list[Qubit],
         config: Config,
-        bits: Optional[list[Bit]] = None,
+        bits: list[Bit] | None = None,
     ):
         """Initialise an MPS on the computational state ``|0>``.
 
@@ -236,10 +240,7 @@ class MPSxMPO(MPS):
         # s -> virtual bond after QR decomposition
 
         # Assign the bond IDs for the gate
-        if l_pos == positions[0]:
-            gate_bonds = "LRlr"
-        else:  # Implicit swap
-            gate_bonds = "RLrl"
+        gate_bonds = "LRlr" if l_pos == positions[0] else "RLrl"
 
         # Apply SVD on the gate tensor to remove any zero singular values ASAP
         svd_method = tensor.SVDMethod(
@@ -429,7 +430,7 @@ class MPSxMPO(MPS):
                 # The MPO tensor at this position
                 interleaved_rep.append(mpo_tensor)
 
-                mpo_bonds: list[Union[int, str]] = list(self._bond_ids[pos][i])
+                mpo_bonds: list[int | str] = list(self._bond_ids[pos][i])
                 if i == 0:
                     # The input bond of the first MPO tensor must connect to the
                     # physical bond of the correspondong ``self.tensors`` tensor
@@ -446,11 +447,11 @@ class MPSxMPO(MPS):
                     interleaved_rep.append(r_cached_tensors[-1])
                     r_cached_bonds = self._get_column_bonds(pos + 1, DirMPS.LEFT)
                     interleaved_rep.append(["r", "R"] + r_cached_bonds)
-            elif direction == DirMPS.RIGHT:
-                if pos != 0:  # Otherwise, there is nothing cached yet
-                    interleaved_rep.append(l_cached_tensors[-1])
-                    l_cached_bonds = self._get_column_bonds(pos - 1, DirMPS.RIGHT)
-                    interleaved_rep.append(["l", "L"] + l_cached_bonds)
+            elif direction == DirMPS.RIGHT and pos != 0:
+                # Otherwise, there is nothing cached yet
+                interleaved_rep.append(l_cached_tensors[-1])
+                l_cached_bonds = self._get_column_bonds(pos - 1, DirMPS.RIGHT)
+                interleaved_rep.append(["l", "L"] + l_cached_bonds)
 
             # Figure out the ID of the bonds of the contracted tensor
             if direction == DirMPS.LEFT:
@@ -478,7 +479,7 @@ class MPSxMPO(MPS):
             self._logger.debug("Completed update of the sweep cache.")
 
         def update_variational_tensor(
-            pos: int, left_tensor: Optional[Tensor], right_tensor: Optional[Tensor]
+            pos: int, left_tensor: Tensor | None, right_tensor: Tensor | None
         ) -> float:
             """Update the tensor at ``pos`` of the variational MPS using ``left_tensor``
             (and ``right_tensor``) which is meant to contain the contraction of all
@@ -500,7 +501,7 @@ class MPSxMPO(MPS):
                 # The MPO tensor at this position
                 interleaved_rep.append(mpo_tensor)
 
-                mpo_bonds: list[Union[int, str]] = list(self._bond_ids[pos][i])
+                mpo_bonds: list[int | str] = list(self._bond_ids[pos][i])
                 if i == 0:
                     # The input bond of the first MPO tensor must connect to the
                     # physical bond of the correspondong ``self.tensors`` tensor
@@ -569,7 +570,7 @@ class MPSxMPO(MPS):
         # Repeat sweeps until the fidelity converges
         sweep_direction = DirMPS.RIGHT
         while not np.isclose(prev_fidelity, sweep_fidelity, atol=self._cfg.optim_delta):
-            self._logger.info(f"Doing another optimisation sweep...")
+            self._logger.info("Doing another optimisation sweep...")
             prev_fidelity = sweep_fidelity
 
             if sweep_direction == DirMPS.RIGHT:

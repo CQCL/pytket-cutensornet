@@ -1,11 +1,18 @@
 import numpy as np
 import pytest
-from pytket.circuit import Circuit, BasisOrder, ToffoliBox, DummyBox, OpType  # type: ignore
-from pytket.passes import CliffordSimp  # type: ignore
-from pytket.extensions.cutensornet.backends import (
-    CuTensorNetStateBackend,
-    CuTensorNetShotsBackend,
+
+from pytket.circuit import (  # type: ignore
+    BasisOrder,
+    Circuit,
+    DummyBox,
+    OpType,
+    ToffoliBox,
 )
+from pytket.extensions.cutensornet.backends import (
+    CuTensorNetShotsBackend,
+    CuTensorNetStateBackend,
+)
+from pytket.passes import CliffordSimp  # type: ignore
 
 
 def test_bell() -> None:

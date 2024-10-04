@@ -1,12 +1,14 @@
-from typing import List, Union
-import warnings
-import random
 import cmath
+import random
+import warnings
+from typing import Union
+
 import numpy as np
-from numpy.typing import NDArray
 import pytest
-from pytket.circuit import ToffoliBox, Qubit  # type: ignore
-from pytket.passes import DecomposeBoxes, CnXPairwiseDecomposition  # type: ignore
+from numpy.typing import NDArray
+
+from pytket.circuit import Qubit, ToffoliBox  # type: ignore
+from pytket.passes import CnXPairwiseDecomposition, DecomposeBoxes  # type: ignore
 from pytket.transform import Transform  # type: ignore
 
 try:
@@ -14,18 +16,17 @@ try:
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 from pytket.circuit import Circuit
-
 from pytket.extensions.cutensornet.general_state.tensor_network_convert import (  # type: ignore
-    tk_to_tensor_network,
     TensorNetwork,
     get_circuit_overlap,
     get_operator_expectation_value,
+    tk_to_tensor_network,
 )
 from pytket.pauli import Pauli, QubitPauliString
 from pytket.utils.operators import QubitPauliOperator
 
 
-def state_contract(tn: List[Union[NDArray, List]]) -> NDArray:
+def state_contract(tn: list[Union[NDArray, list]]) -> NDArray:
     """Calls cuQuantum contract function to contract an input state tensor network."""
     state_tn = tn.copy()
     state: NDArray = cq.contract(*state_tn).flatten()

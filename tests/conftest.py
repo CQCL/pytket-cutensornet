@@ -1,8 +1,9 @@
-import pytest
 import numpy as np
+import pytest
 from scipy.stats import unitary_group  # type: ignore
-from pytket.circuit import Circuit, OpType, Unitary2qBox, ToffoliBox, Qubit
-from pytket.passes import DecomposeBoxes, CnXPairwiseDecomposition
+
+from pytket.circuit import Circuit, OpType, Qubit, ToffoliBox, Unitary2qBox
+from pytket.passes import CnXPairwiseDecomposition, DecomposeBoxes
 from pytket.transform import Transform
 
 
