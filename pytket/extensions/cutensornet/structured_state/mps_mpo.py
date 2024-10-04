@@ -240,10 +240,7 @@ class MPSxMPO(MPS):
         # s -> virtual bond after QR decomposition
 
         # Assign the bond IDs for the gate
-        if l_pos == positions[0]:
-            gate_bonds = "LRlr"
-        else:  # Implicit swap
-            gate_bonds = "RLrl"
+        gate_bonds = "LRlr" if l_pos == positions[0] else "RLrl"
 
         # Apply SVD on the gate tensor to remove any zero singular values ASAP
         svd_method = tensor.SVDMethod(
@@ -450,11 +447,11 @@ class MPSxMPO(MPS):
                     interleaved_rep.append(r_cached_tensors[-1])
                     r_cached_bonds = self._get_column_bonds(pos + 1, DirMPS.LEFT)
                     interleaved_rep.append(["r", "R"] + r_cached_bonds)
-            elif direction == DirMPS.RIGHT:
-                if pos != 0:  # Otherwise, there is nothing cached yet
-                    interleaved_rep.append(l_cached_tensors[-1])
-                    l_cached_bonds = self._get_column_bonds(pos - 1, DirMPS.RIGHT)
-                    interleaved_rep.append(["l", "L"] + l_cached_bonds)
+            elif direction == DirMPS.RIGHT and pos != 0:
+                # Otherwise, there is nothing cached yet
+                interleaved_rep.append(l_cached_tensors[-1])
+                l_cached_bonds = self._get_column_bonds(pos - 1, DirMPS.RIGHT)
+                interleaved_rep.append(["l", "L"] + l_cached_bonds)
 
             # Figure out the ID of the bonds of the contracted tensor
             if direction == DirMPS.LEFT:

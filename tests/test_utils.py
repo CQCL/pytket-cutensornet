@@ -40,5 +40,5 @@ def test_device_properties_logger() -> None:
     try:
         with CuTensorNetHandle() as libhandle:
             libhandle.print_device_properties(set_logger("GeneralState", 10))
-    except:
+    except:  # noqa: E722
         pytest.fail("Could not print device properties")

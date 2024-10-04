@@ -119,10 +119,7 @@ class MPSxGate(MPS):
         # S -> shared bond of the gate tensor's SVD
         # a,b,c -> the virtual bonds of the tensors
 
-        if l_pos == positions[0]:
-            gate_bonds = "LRlr"
-        else:  # Implicit swap
-            gate_bonds = "RLrl"
+        gate_bonds = "LRlr" if l_pos == positions[0] else "RLrl"
 
         # Apply SVD on the gate tensor to remove any zero singular values ASAP
         svd_method = tensor.SVDMethod(
@@ -255,10 +252,7 @@ class MPSxGate(MPS):
         # a,b -> virtual bonds of the MPS
         # m,M -> virtual bonds connected to the "message tensor"
 
-        if l_pos == positions[0]:
-            gate_bonds = "LRlr"
-        else:  # Implicit swap
-            gate_bonds = "RLrl"
+        gate_bonds = "LRlr" if l_pos == positions[0] else "RLrl"
 
         # Apply SVD on the gate tensor to remove any zero singular values ASAP
         svd_method = tensor.SVDMethod(

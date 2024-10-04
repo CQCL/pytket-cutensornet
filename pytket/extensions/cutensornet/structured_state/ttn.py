@@ -161,12 +161,12 @@ class TTN(StructuredState):
 
                 # Calculate the root path of this group
                 path = []
-                for l in reversed(range(n_levels)):
-                    if k < 2**l:
+                for le in reversed(range(n_levels)):
+                    if k < 2**le:
                         path.append(DirTTN.LEFT)
                     else:
                         path.append(DirTTN.RIGHT)
-                        k -= 2**l
+                        k -= 2**le
 
                 # Add each qubit to the qubit_position dictionary
                 for i, q in enumerate(qubits):
@@ -371,7 +371,7 @@ class TTN(StructuredState):
         for path in self.nodes:
             # Nodes towards children are closer to the root and coincide in the path
             if len(path) < len(target_path) and all(
-                path[l] == target_path[l] for l in range(len(path))
+                path[le] == target_path[le] for le in range(len(path))
             ):
                 towards_child.append(path)
             # If the center is a physical bond (qubit), its node is skipped

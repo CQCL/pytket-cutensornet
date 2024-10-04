@@ -159,7 +159,8 @@ class TensorNetwork:
                                 .reshape([2] * (2 * com.op.n_qubits))
                             )
                             self._logger.debug(
-                                f"Adding unitary: \n {permute_rows_cols_in_unitary(com.op.get_unitary(), com_qix_permut).T.conjugate()}"  # type: ignore
+                                f"Adding unitary:\
+\n {permute_rows_cols_in_unitary(com.op.get_unitary(), com_qix_permut).T.conjugate()}"  # type: ignore
                             )
                         else:
                             gate_tensors[i].append(
@@ -168,7 +169,8 @@ class TensorNetwork:
                                 ).reshape([2] * (2 * com.op.n_qubits))
                             )
                             self._logger.debug(  # type: ignore
-                                f"Adding unitary: \n {permute_rows_cols_in_unitary(com.op.get_unitary(),com_qix_permut)}"  # type: ignore
+                                f"Adding unitary:\
+\n {permute_rows_cols_in_unitary(com.op.get_unitary(),com_qix_permut)}"  # type: ignore
                             )
                     break
         self._logger.debug(f"Gate tensors: \n{gate_tensors}\n")
@@ -211,7 +213,8 @@ class TensorNetwork:
                     )
                     self._logger.debug(
                         f"criteria: "
-                        f"{(src_ports[0] < src_ports[1]) != (unit_idx[0] < unit_idx[1])}"  # pylint: disable=line-too-long
+                        f"{(src_ports[0] < src_ports[1]) !=
+                            (unit_idx[0] < unit_idx[1])}"  # pylint: disable=line-too-long
                     )
                     if (src_ports[0] < src_ports[1]) != (unit_idx[0] < unit_idx[1]):
                         node_tensors.append(self._gate_tensors[node[1]["desc"]][1])

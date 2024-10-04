@@ -313,10 +313,8 @@ class CuTensorNetShotsBackend(_CuTensorNetBaseBackend):
             raise ValueError(
                 "You must specify n_shots when using CuTensorNetShotsBackend."
             )
-        if type(n_shots) == int:
-            all_shots = [n_shots] * len(circuits)
-        else:
-            all_shots = n_shots  # type: ignore
+
+        all_shots = [n_shots] * len(circuits) if type(n_shots) is int else n_shots
 
         circuit_list = list(circuits)
         if valid_check:
@@ -340,5 +338,5 @@ def _check_all_unitary_or_measurements(circuit: Circuit) -> bool:
             if cmd.op.type != OpType.Measure:
                 cmd.op.get_unitary()
         return True
-    except:
+    except:  # noqa: E722
         return False

@@ -229,7 +229,7 @@ class StructuredState(ABC):
         elif op.is_gate():  # Either a unitary gate or a not supported "gate"
             try:
                 unitary = op.get_unitary()
-            except:
+            except:  # noqa E722
                 raise ValueError(f"The command {op.type} introduced is not supported.")
 
             # Load the gate's unitary to the GPU memory

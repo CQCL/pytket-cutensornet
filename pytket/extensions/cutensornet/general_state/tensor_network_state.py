@@ -96,7 +96,7 @@ class GeneralState:
         for com in self._circuit.get_commands():
             try:
                 gate_unitary = com.op.get_unitary()
-            except:
+            except:  # noqa: E722
                 raise ValueError(
                     "All commands in the circuit must be unitary gates. The circuit "
                     f"contains {com}; no unitary matrix could be retrived for it."
