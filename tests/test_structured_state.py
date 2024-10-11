@@ -253,9 +253,9 @@ def test_entanglement_entropy():
     with CuTensorNetHandle() as libhandle:
         mps = simulate(libhandle, circ, SimulationAlgorithm.MPSxGate, Config())
 
-    assert np.isclose(mps.get_entanglement_entropy(0), np.log(0.5))
-    assert np.isclose(mps.get_entanglement_entropy(1), 0)
-    assert np.isclose(mps.get_entanglement_entropy(2), 0.4165, atol=0.0001)
+        assert np.isclose(mps.get_entanglement_entropy(0), -np.log(0.5))
+        assert np.isclose(mps.get_entanglement_entropy(1), 0)
+        assert np.isclose(mps.get_entanglement_entropy(2), 0.4165, atol=0.0001)
 
 @pytest.mark.parametrize(
     "circuit",
