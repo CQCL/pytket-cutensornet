@@ -245,6 +245,18 @@ def test_canonicalise_ttn(center: RootPath | Qubit) -> None:  # noqa: PLR0912
             assert cp.allclose(result, cp.eye(result.shape[0]))
 
 
+def test_entanglement_entropy():
+    circ = Circuit(4)
+    circ.H(0).CX(0,1)
+    circ.H(2).T(2).H(2).CX(2,3)
+
+    with CuTensorNetHandle() as libhandle:
+        mps = simulate(libhandle, circ, SimulationAlgorithm.MPSxGate, Config())
+
+    assert np.isclose(mps.get_entanglement_entropy(0), np.log(0.5))
+    assert np.isclose(mps.get_entanglement_entropy(1), 0)
+    assert np.isclose(mps.get_entanglement_entropy(2), 0.4165, atol=0.0001)
+
 @pytest.mark.parametrize(
     "circuit",
     [
