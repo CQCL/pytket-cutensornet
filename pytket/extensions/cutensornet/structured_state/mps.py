@@ -1050,7 +1050,7 @@ class MPS(StructuredState):
         self._flush()
 
         # Create a dummy object
-        new_mps = MPS(self._lib, qubits=[], config=self._cfg.copy())
+        new_mps = type(self)(self._lib, qubits=[], config=self._cfg.copy())
         # Copy all data
         new_mps.fidelity = self.fidelity
         new_mps.tensors = [t.copy() for t in self.tensors]
