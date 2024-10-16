@@ -37,13 +37,14 @@ try:
 except ImportError:
     warnings.warn("local settings failed to import cuquantum", ImportWarning)
 
-# TODO: Add the options as argument to be passed to NetworkState
 class GeneralState:  # TODO: Write it as a context manager so that I can call free()
     """Wrapper of cuTensorNet object for exact simulations via path optimisation."""
 
     def __init__(
         self,
         circuit: Circuit,
+        attributes: Optional[dict] = None,
+        scratch_fraction: float = 0.8,
         loglevel: int = logging.WARNING,
     ) -> None:
         """Constructs a tensor network for the output state of a pytket circuit.
@@ -56,10 +57,13 @@ class GeneralState:  # TODO: Write it as a context manager so that I can call fr
 
         Args:
             circuit: A pytket circuit to be converted to a tensor network.
+            attributes: Optional. A dict of cuTensorNet ``TNConfig`` keys and
+                their values.
+            scratch_fraction: Optional. Fraction of free memory on GPU to allocate as
+                scratch space; value between 0 and 1. Defaults to ``0.8``.
             loglevel: Internal logger output level.
         """
         self._logger = set_logger("GeneralState", loglevel)
-        # TODO: Consider supporting scratch_fraction of some form of memory limit
 
         # Remove end-of-circuit measurements and keep track of them separately
         # It also resolves implicit swaps
@@ -76,7 +80,12 @@ class GeneralState:  # TODO: Write it as a context manager so that I can call fr
         self._logger.debug(f"Converting a quantum circuit with {num_qubits} qubits.")
         data_type = "complex128"  # for now let that be hard-coded
 
-        self._state = NetworkState(qubits_dims, dtype=data_type)
+        self._state = NetworkState(
+            qubits_dims,
+            dtype=data_type,
+            config=attributes,
+            options={"memory_limit": f"{int(scratch_fraction*100)}%"},
+        )
 
         commands = self._circuit.get_commands()
 
@@ -111,21 +120,13 @@ class GeneralState:  # TODO: Write it as a context manager so that I can call fr
 
     def get_statevector(
         self,
-        attributes: Optional[dict] = None,
-        scratch_fraction: float = 0.75,
         on_host: bool = True,
     ) -> Union[cp.ndarray, np.ndarray]:
         """Contracts the circuit and returns the final statevector.
 
         Args:
-            attributes: Optional. A dict of cuTensorNet `StateAttribute` keys and
-                their values.
-            scratch_fraction: Optional. Fraction of free memory on GPU to allocate as
-                scratch space.
             on_host: Optional. If ``True``, converts cupy ``ndarray`` to numpy
                 ``ndarray``, copying it to host device (CPU).
-        Raises:
-            MemoryError: If there is insufficient workspace on GPU.
         Returns:
             Either a ``cupy.ndarray`` on a GPU, or a ``numpy.ndarray`` on a
             host device (CPU). Arrays are returned in a 1D shape.
