@@ -78,7 +78,6 @@ class GeneralState:  # TODO: Write it as a context manager so that I can call fr
 
         self._state = NetworkState(qubits_dims, dtype=data_type)
 
-        self._gate_tensors = []  # TODO: Do I still need to keep these myself?
         commands = self._circuit.get_commands()
 
         # Append all gates to the NetworkState
@@ -90,12 +89,11 @@ class GeneralState:  # TODO: Write it as a context manager so that I can call fr
                     "All commands in the circuit must be unitary gates. The circuit "
                     f"contains {com}; no unitary matrix could be retrived from it."
                 )
-            self._gate_tensors.append(_formatted_tensor(gate_unitary, com.op.n_qubits))
             gate_qubit_indices = tuple(self._qubit_idx_map[qb] for qb in com.qubits)
 
             tensor_id = self._state.apply_tensor_operator(
                 gate_qubit_indices,
-                self._gate_tensors[-1],
+                _formatted_tensor(gate_unitary, com.op.n_qubits),
                 immutable=True,  # TODO: Change for parameterised gates
                 unitary=True,
             )
@@ -221,7 +219,7 @@ class GeneralState:  # TODO: Write it as a context manager so that I can call fr
             outcome = [int(b) for b in bitstring]
 
             for _ in range(count):
-                readouts[sample_id] = outcome  # TODO: test endian-ness
+                readouts[sample_id] = outcome
                 sample_id += 1
 
         shots = OutcomeArray.from_readouts(readouts)
