@@ -37,14 +37,13 @@ try:
 except ImportError:
     warnings.warn("local settings failed to import cuquantum", ImportWarning)
 
-
+# TODO: Add the options as argument to be passed to NetworkState
 class GeneralState:  # TODO: Write it as a context manager so that I can call free()
     """Wrapper of cuTensorNet object for exact simulations via path optimisation."""
 
     def __init__(
         self,
         circuit: Circuit,
-        libhandle: CuTensorNetHandle,
         loglevel: int = logging.WARNING,
     ) -> None:
         """Constructs a tensor network for the output state of a pytket circuit.
@@ -53,22 +52,13 @@ class GeneralState:  # TODO: Write it as a context manager so that I can call fr
         The resulting object stores the *uncontracted* tensor network.
 
         Note:
-            A ``libhandle`` is created via a ``with CuTensorNetHandle() as libhandle:``
-            statement. The device where the ``GeneralState`` is stored will match the
-            one specified by the library handle.
-
-        Note:
             The ``circuit`` must not contain any ``CircBox`` or non-unitary command.
 
         Args:
             circuit: A pytket circuit to be converted to a tensor network.
-            libhandle: An instance of a ``CuTensorNetHandle``.
             loglevel: Internal logger output level.
         """
         self._logger = set_logger("GeneralState", loglevel)
-        self._lib = libhandle  # TODO: Looks like I could omit the libhandle, should I?
-        libhandle.print_device_properties(self._logger)
-        options = {"handle": self._lib}
         # TODO: Consider supporting scratch_fraction of some form of memory limit
 
         # Remove end-of-circuit measurements and keep track of them separately
@@ -86,12 +76,13 @@ class GeneralState:  # TODO: Write it as a context manager so that I can call fr
         self._logger.debug(f"Converting a quantum circuit with {num_qubits} qubits.")
         data_type = "complex128"  # for now let that be hard-coded
 
-        self._state = NetworkState(qubits_dims, dtype=data_type, options=options)
+        self._state = NetworkState(qubits_dims, dtype=data_type)
 
         self._gate_tensors = []  # TODO: Do I still need to keep these myself?
+        commands = self._circuit.get_commands()
 
         # Append all gates to the NetworkState
-        for com in self._circuit.get_commands():
+        for com in commands:
             try:
                 gate_unitary = com.op.get_unitary()
             except:
@@ -103,9 +94,20 @@ class GeneralState:  # TODO: Write it as a context manager so that I can call fr
             gate_qubit_indices = tuple(self._qubit_idx_map[qb] for qb in com.qubits)
 
             tensor_id = self._state.apply_tensor_operator(
-                modes=gate_qubit_indices,
-                operand=self._gate_tensors[-1],
+                gate_qubit_indices,
+                self._gate_tensors[-1],
                 immutable=True,  # TODO: Change for parameterised gates
+                unitary=True,
+            )
+
+        # If the circuit has no gates, apply one identity gate so that CuTensorNet does not panic
+        # due to no tensor operator in the NetworkState
+        if len(commands) == 0:
+            identity_tensor = _formatted_tensor(np.identity(2, dtype="complex128"), 1)
+            tensor_id = self._state.apply_tensor_operator(
+                (0, ),
+                identity_tensor,
+                immutable=True,
                 unitary=True,
             )
 
@@ -143,7 +145,7 @@ class GeneralState:  # TODO: Write it as a context manager so that I can call fr
     def expectation_value(
         self,
         operator: QubitPauliOperator,
-    ) -> float:
+    ) -> complex:
         """Calculates the expectation value of the given operator.
 
         Args:
@@ -174,10 +176,10 @@ class GeneralState:  # TODO: Write it as a context manager so that I can call fr
             this_pauli_string = "".join(map(lambda x: paulis[x], pauli_list))
             pauli_strs[this_pauli_string] = complex(coeff)
 
-        tn_operator = NetworkOperator.from_pauli_strs(pauli_strs, dtype="complex128")
+        tn_operator = NetworkOperator.from_pauli_strings(pauli_strs, dtype="complex128")
 
         self._logger.debug("(Expectation value) contracting the TN")
-        return self._state.compute_expectation(tn_operator).real
+        return self._state.compute_expectation(tn_operator)
 
     def sample(  # TODO: Support seeds (and test)
         self,
@@ -211,11 +213,11 @@ class GeneralState:  # TODO: Write it as a context manager so that I can call fr
         )
 
         # Convert the data in `samples` to an `OutcomeArray` using `from_readouts`
-        # which expects a 2D array `samples[QubitId][SampleId]` of 0s and 1s.
+        # which expects a 2D array `samples[SampleId][QubitId]` of 0s and 1s.
         self._logger.debug("(Sampling) converting samples to pytket Backend")
-        readouts = np.empty(shape=(num_measurements, n_shots), dtype=int)
+        readouts = np.empty(shape=(n_shots, num_measurements), dtype=int)
         sample_id = 0
-        for bitstring, count in samples.items:
+        for bitstring, count in samples.items():
             outcome = [int(b) for b in bitstring]
 
             for _ in range(count):

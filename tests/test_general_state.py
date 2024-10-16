@@ -7,7 +7,6 @@ from pytket.transform import Transform
 from pytket.pauli import QubitPauliString, Pauli
 from pytket.utils.operators import QubitPauliOperator
 from pytket.extensions.cutensornet.general_state import GeneralState
-from pytket.extensions.cutensornet.structured_state import CuTensorNetHandle
 
 
 @pytest.mark.parametrize(
@@ -39,24 +38,23 @@ from pytket.extensions.cutensornet.structured_state import CuTensorNetHandle
     ],
 )
 def test_get_statevec(circuit: Circuit) -> None:
-    with CuTensorNetHandle() as libhandle:
-        state = GeneralState(circuit, libhandle)
-        sv = state.get_statevector()
+    state = GeneralState(circuit)
+    sv = state.get_statevector()
 
-        sv_pytket = circuit.get_statevector()
-        assert np.allclose(sv, sv_pytket, atol=1e-10)
+    sv_pytket = circuit.get_statevector()
+    assert np.allclose(sv, sv_pytket, atol=1e-10)
 
-        op = QubitPauliOperator(
-            {
-                QubitPauliString({q: Pauli.I for q in circuit.qubits}): 1.0,
-            }
-        )
+    op = QubitPauliOperator(
+        {
+            QubitPauliString({q: Pauli.I for q in circuit.qubits}): 1.0,
+        }
+    )
 
-        # Calculate the inner product as the expectation value
-        # of the identity operator: <psi|psi> = <psi|I|psi>
-        state = GeneralState(circuit, libhandle)
-        ovl = state.expectation_value(op)
-        assert ovl == pytest.approx(1.0)
+    # Calculate the inner product as the expectation value
+    # of the identity operator: <psi|psi> = <psi|I|psi>
+    state = GeneralState(circuit)
+    ovl = state.expectation_value(op)
+    assert ovl == pytest.approx(1.0)
 
     state.destroy()
 
@@ -83,9 +81,8 @@ def test_sv_toffoli_box_with_implicit_swaps() -> None:
     Transform.OptimiseCliffords().apply(ket_circ)
 
     # Convert and contract
-    with CuTensorNetHandle() as libhandle:
-        state = GeneralState(ket_circ, libhandle)
-        ket_net_vector = state.get_statevector()
+    state = GeneralState(ket_circ)
+    ket_net_vector = state.get_statevector()
     state.destroy()
 
     # Compare to pytket statevector
@@ -119,24 +116,23 @@ def test_sv_generalised_toffoli_box(n_qubits: int) -> None:
     CnXPairwiseDecomposition().apply(ket_circ)
     Transform.OptimiseCliffords().apply(ket_circ)
 
-    with CuTensorNetHandle() as libhandle:
-        state = GeneralState(ket_circ, libhandle)
-        ket_net_vector = state.get_statevector()
+    state = GeneralState(ket_circ)
+    ket_net_vector = state.get_statevector()
 
-        ket_pytket_vector = ket_circ.get_statevector()
-        assert np.allclose(ket_net_vector, ket_pytket_vector)
+    ket_pytket_vector = ket_circ.get_statevector()
+    assert np.allclose(ket_net_vector, ket_pytket_vector)
 
-        # Calculate the inner product as the expectation value
-        # of the identity operator: <psi|psi> = <psi|I|psi>
-        op = QubitPauliOperator(
-            {
-                QubitPauliString({q: Pauli.I for q in ket_circ.qubits}): 1.0,
-            }
-        )
+    # Calculate the inner product as the expectation value
+    # of the identity operator: <psi|psi> = <psi|I|psi>
+    op = QubitPauliOperator(
+        {
+            QubitPauliString({q: Pauli.I for q in ket_circ.qubits}): 1.0,
+        }
+    )
 
-        state = GeneralState(ket_circ, libhandle)
-        ovl = state.expectation_value(op)
-        assert ovl == pytest.approx(1.0)
+    state = GeneralState(ket_circ)
+    ovl = state.expectation_value(op)
+    assert ovl == pytest.approx(1.0)
 
     state.destroy()
 
@@ -197,9 +193,8 @@ def test_expectation_value(circuit: Circuit, observable: QubitPauliOperator) -> 
     exp_val_tket = observable.state_expectation(circuit.get_statevector())
 
     # Calculate using GeneralState
-    with CuTensorNetHandle() as libhandle:
-        state = GeneralState(circuit, libhandle)
-        exp_val = state.expectation_value(observable)
+    state = GeneralState(circuit)
+    exp_val = state.expectation_value(observable)
 
     assert np.isclose(exp_val, exp_val_tket)
     state.destroy()
@@ -253,9 +248,8 @@ def test_sampler(circuit: Circuit, measure_all: bool) -> None:
             circuit.Measure(q, Bit(i))
 
     # Sample using our library
-    with CuTensorNetHandle() as libhandle:
-        state = GeneralState(circuit, libhandle)
-        results = state.sample(n_shots)
+    state = GeneralState(circuit)
+    results = state.sample(n_shots)
 
     # Verify distribution matches theoretical probabilities
     for bit_tuple, count in results.get_counts().items():
