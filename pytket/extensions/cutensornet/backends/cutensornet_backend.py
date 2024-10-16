@@ -24,7 +24,6 @@ from pytket.backends import ResultHandle, CircuitStatus, StatusEnum, CircuitNotR
 from pytket.backends.backend import KwargTypes, Backend, BackendResult
 from pytket.backends.backendinfo import BackendInfo
 from pytket.backends.resulthandle import _ResultIdTuple
-from pytket.extensions.cutensornet.general import CuTensorNetHandle
 from pytket.extensions.cutensornet.general_state import (
     GeneralState,
 )
@@ -227,16 +226,15 @@ class CuTensorNetStateBackend(_CuTensorNetBaseBackend):
         if valid_check:
             self._check_all_circuits(circuit_list)
         handle_list = []
-        with CuTensorNetHandle() as libhandle:
-            for circuit in circuit_list:
-                tn = GeneralState(circuit, libhandle)
-                sv = tn.get_statevector(attributes, scratch_fraction)
-                res_qubits = [qb for qb in sorted(circuit.qubits)]
-                handle = ResultHandle(str(uuid4()))
-                self._cache[handle] = {
-                    "result": BackendResult(q_bits=res_qubits, state=sv)
-                }
-                handle_list.append(handle)
+        for circuit in circuit_list:
+            tn = GeneralState(circuit)
+            sv = tn.get_statevector(attributes, scratch_fraction)
+            res_qubits = [qb for qb in sorted(circuit.qubits)]
+            handle = ResultHandle(str(uuid4()))
+            self._cache[handle] = {
+                "result": BackendResult(q_bits=res_qubits, state=sv)
+            }
+            handle_list.append(handle)
         return handle_list
 
 
@@ -321,14 +319,13 @@ class CuTensorNetShotsBackend(_CuTensorNetBaseBackend):
         if valid_check:
             self._check_all_circuits(circuit_list)
         handle_list = []
-        with CuTensorNetHandle() as libhandle:
-            for circuit, circ_shots in zip(circuit_list, all_shots):
-                tn = GeneralState(circuit, libhandle)
-                handle = ResultHandle(str(uuid4()))
-                self._cache[handle] = {
-                    "result": tn.sample(circ_shots, attributes, scratch_fraction)
-                }
-                handle_list.append(handle)
+        for circuit, circ_shots in zip(circuit_list, all_shots):
+            tn = GeneralState(circuit)
+            handle = ResultHandle(str(uuid4()))
+            self._cache[handle] = {
+                "result": tn.sample(circ_shots)  # TODO: recover use of (attributes, scratch_fraction)
+            }
+            handle_list.append(handle)
         return handle_list
 
 
