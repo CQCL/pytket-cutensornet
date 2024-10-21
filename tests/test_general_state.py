@@ -56,6 +56,10 @@ def test_get_statevec(circuit: Circuit) -> None:
     ovl = state.expectation_value(op)
     assert ovl == pytest.approx(1.0)
 
+    # Check that all amplitudes agree
+    for i in range(len(sv)):
+        assert sv[i] == state.get_amplitude(i)
+
     state.destroy()
 
 

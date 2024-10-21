@@ -37,6 +37,7 @@ try:
 except ImportError:
     warnings.warn("local settings failed to import cuquantum", ImportWarning)
 
+
 class GeneralState:  # TODO: Write it as a context manager so that I can call free()
     """Wrapper of cuTensorNet object for exact simulations via path optimisation."""
 
@@ -112,7 +113,7 @@ class GeneralState:  # TODO: Write it as a context manager so that I can call fr
         if len(commands) == 0:
             identity_tensor = _formatted_tensor(np.identity(2, dtype="complex128"), 1)
             tensor_id = self._state.apply_tensor_operator(
-                (0, ),
+                (0,),
                 identity_tensor,
                 immutable=True,
                 unitary=True,
@@ -131,7 +132,6 @@ class GeneralState:  # TODO: Write it as a context manager so that I can call fr
             Either a ``cupy.ndarray`` on a GPU, or a ``numpy.ndarray`` on a
             host device (CPU). Arrays are returned in a 1D shape.
         """
-
         self._logger.debug("(Statevector) contracting the TN")
         state_vector = self._state.compute_state_vector()
         sv = state_vector.flatten()  # Convert to 1D
@@ -140,6 +140,30 @@ class GeneralState:  # TODO: Write it as a context manager so that I can call fr
         # Apply the phase from the circuit
         sv *= np.exp(1j * np.pi * self._circuit.phase)
         return sv
+
+    def get_amplitude(
+        self,
+        state: int,
+    ) -> complex:
+        """Returns the amplitude of the chosen computational state.
+
+        Notes:
+            The result is equivalent to ``state.get_statevector[b]``, but this method
+            is faster when querying a single amplitude (or just a few).
+
+        Args:
+            state: The integer whose bitstring describes the computational state.
+                The qubits in the bitstring are in increasing lexicographic order.
+
+        Returns:
+            The amplitude of the computational state in ``self``.
+        """
+        self._logger.debug("(Amplitude) contracting the TN")
+        bitstring = format(state, "b").zfill(self._circuit.n_qubits)
+        amplitude = self._state.compute_amplitude(bitstring)
+        # Apply the phase from the circuit
+        amplitude *= np.exp(1j * np.pi * self._circuit.phase)
+        return complex(amplitude)
 
     def expectation_value(
         self,
@@ -156,7 +180,6 @@ class GeneralState:  # TODO: Write it as a context manager so that I can call fr
         Returns:
             The expectation value.
         """
-
         self._logger.debug("(Expectation value) converting operator to NetworkOperator")
 
         paulis = ["I", "X", "Y", "Z"]
@@ -178,7 +201,7 @@ class GeneralState:  # TODO: Write it as a context manager so that I can call fr
         tn_operator = NetworkOperator.from_pauli_strings(pauli_strs, dtype="complex128")
 
         self._logger.debug("(Expectation value) contracting the TN")
-        return self._state.compute_expectation(tn_operator)
+        return complex(self._state.compute_expectation(tn_operator))
 
     def sample(  # TODO: Support seeds (and test)
         self,
