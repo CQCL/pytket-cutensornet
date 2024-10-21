@@ -58,7 +58,7 @@ def test_get_statevec(circuit: Circuit) -> None:
 
     # Check that all amplitudes agree
     for i in range(len(sv)):
-        assert sv[i] == state.get_amplitude(i)
+        assert np.isclose(sv[i], state.get_amplitude(i))
 
     state.destroy()
 
