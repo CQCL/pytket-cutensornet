@@ -1,5 +1,6 @@
 import pytest
 import numpy as np
+from sympy import Symbol
 from scipy.stats import unitary_group  # type: ignore
 from pytket.circuit import Circuit, OpType, Unitary2qBox, ToffoliBox, Qubit
 from pytket.passes import DecomposeBoxes, CnXPairwiseDecomposition
@@ -181,6 +182,20 @@ def q4_lcu1() -> Circuit:
 
 
 @pytest.fixture
+def q4_lcu1_parameterised() -> Circuit:
+    a, b, c = Symbol("a"), Symbol("b"), Symbol("c")
+    circuit = Circuit(4)
+    circuit.Ry(a, 3).Ry(0.27, 2).CX(2, 3).Ry(b, 2).Ry(0.21, 3)
+    circuit.Ry(0.12, 0).Ry(a, 1)
+    circuit.add_gate(OpType.CnX, [0, 1, 2]).add_gate(OpType.CnX, [0, 1, 3])
+    circuit.X(0).X(1).add_gate(OpType.CnY, [0, 1, 2]).add_gate(OpType.CnY, [0, 1, 3]).X(
+        0
+    ).X(1)
+    circuit.Ry(-b, 0).Ry(-c, 1)
+    return circuit
+
+
+@pytest.fixture
 def q4_multicontrols() -> Circuit:
     circ = Circuit(4)
     circ.X(0)
@@ -226,6 +241,19 @@ def q5_h0s1rz2ry3tk4tk13() -> Circuit:
     circuit.Ry(0.1, 3)
     circuit.TK1(0.2, 0.9, 0.8, 4)
     circuit.TK2(0.6, 0.5, 0.7, 1, 3)
+    return circuit
+
+
+@pytest.fixture
+def q5_h0s1rz2ry3tk4tk13_parameterised() -> Circuit:
+    a, b, c = Symbol("a"), Symbol("b"), Symbol("c")
+    circuit = Circuit(5)
+    circuit.H(0)
+    circuit.S(1)
+    circuit.Rz(a * c, 2)
+    circuit.Ry(b + a, 3)
+    circuit.TK1(a, b, c, 4)
+    circuit.TK2(a - b, c - a, (a + b) * c, 1, 3)
     return circuit
 
 

@@ -1,6 +1,7 @@
 import random
 import numpy as np
 import pytest
+from sympy import Symbol
 from pytket.circuit import Circuit, ToffoliBox, Qubit, Bit
 from pytket.passes import DecomposeBoxes, CnXPairwiseDecomposition
 from pytket.transform import Transform
@@ -287,4 +288,51 @@ def test_sampler(circuit: Circuit, measure_all: bool) -> None:
 
         assert np.isclose(count / n_shots, prob, atol=0.01)
 
+    state.destroy()
+
+
+@pytest.mark.parametrize(
+    "circuit",
+    [
+        pytest.lazy_fixture("q4_lcu1_parameterised"),  # type: ignore
+        pytest.lazy_fixture("q5_h0s1rz2ry3tk4tk13_parameterised"),  # type: ignore
+    ],
+)
+@pytest.mark.parametrize(
+    "symbol_map",
+    [
+        {Symbol("a"): 0.3, Symbol("b"): 0.42, Symbol("c"): -0.13},
+        {Symbol("a"): 5.3, Symbol("b"): 1.42, Symbol("c"): -0.07, Symbol("d"): 0.53},
+    ],
+)
+def test_parameterised(circuit: Circuit, symbol_map: dict[Symbol, float]) -> None:
+    state = GeneralState(circuit)
+    sv = state.get_statevector(symbol_map)
+
+    circuit.symbol_substitution(symbol_map)
+    sv_pytket = circuit.get_statevector()
+    assert np.allclose(sv, sv_pytket, atol=1e-10)
+
+    op = QubitPauliOperator(
+        {
+            QubitPauliString({q: Pauli.I for q in circuit.qubits}): 1.0,
+        }
+    )
+
+    # Calculate the inner product as the expectation value
+    # of the identity operator: <psi|psi> = <psi|I|psi>
+    state = GeneralState(circuit)
+    ovl = state.expectation_value(op)
+    assert ovl == pytest.approx(1.0)
+
+    # Check that all amplitudes agree
+    for i in range(len(sv)):
+        assert np.isclose(sv[i], state.get_amplitude(i))
+
+    # Calculate the inner product again, using GeneralBraOpKet
+    braket = GeneralBraOpKet(circuit, circuit)
+    ovl = braket.contract()
+    assert ovl == pytest.approx(1.0)
+
+    braket.destroy()
     state.destroy()

@@ -22,7 +22,7 @@ try:
 except ImportError:
     warnings.warn("local settings failed to import cupy", ImportWarning)
 import numpy as np
-from sympy import Expr  # type: ignore
+from sympy import Expr, Symbol  # type: ignore
 from numpy.typing import NDArray
 from pytket.circuit import Circuit, Qubit, Bit, OpType, Op
 from pytket.extensions.cutensornet.general import set_logger
@@ -68,19 +68,19 @@ class GeneralState:  # TODO: Write it as a context manager so that I can call fr
 
         # Remove end-of-circuit measurements and keep track of them separately
         # It also resolves implicit swaps
-        # TODO: Is there any point in keeping the circuit around?
-        self._circuit, self._measurements = _remove_meas_and_implicit_swaps(circuit)
+        circuit, self._measurements = _remove_meas_and_implicit_swaps(circuit)
         # Identify each qubit with the index of the bond that represents it in the
         # tensor network stored in this GeneralState. Qubits are sorted in increasing
         # lexicographical order, which is the TKET standard.
-        self._qubit_idx_map = {q: i for i, q in enumerate(sorted(self._circuit.qubits))}
+        self._qubit_idx_map = {q: i for i, q in enumerate(sorted(circuit.qubits))}
 
-        num_qubits = self._circuit.n_qubits
+        self._phase = circuit.phase
+        self.n_qubits = circuit.n_qubits
         dim = 2  # We are always dealing with qubits, not qudits
-        qubits_dims = (dim,) * num_qubits  # qubit size
+        qubits_dims = (dim,) * len(circuit.qubits)  # qubit size
         data_type = "complex128"  # for now let that be hard-coded
 
-        self._state = NetworkState(
+        self.tn_state = NetworkState(
             qubits_dims,
             dtype=data_type,
             config=attributes,
@@ -90,30 +90,40 @@ class GeneralState:  # TODO: Write it as a context manager so that I can call fr
             },
         )
 
-        commands = self._circuit.get_commands()
-
+        # Maintain a dict of tensor_id->Op for symbolic Ops to be update when the user
+        # calls any evaluation function with the symbols specified.
+        self._symbolic_ops: dict[int, Op] = dict()
         # Append all gates to the NetworkState
+        commands = circuit.get_commands()
         for com in commands:
-            try:
-                gate_unitary = com.op.get_unitary()
-            except:
-                raise ValueError(
-                    "All commands in the circuit must be unitary gates. The circuit "
-                    f"contains {com}; no unitary matrix could be retrived from it."
-                )
-            gate_qubit_indices = tuple(self._qubit_idx_map[qb] for qb in com.qubits)
+            is_fixed = len(com.op.free_symbols()) == 0
+            if is_fixed:
+                try:
+                    gate_unitary = com.op.get_unitary()
+                except:
+                    raise ValueError(
+                        "All commands in the circuit must be unitary gates. The circuit"
+                        f" contains {com}; no unitary matrix could be retrived from it."
+                    )
+            else:
+                # Dummy unitary to be updated later with user specified paramaters
+                gate_unitary = np.identity(2**com.op.n_qubits, dtype="complex128")
 
-            tensor_id = self._state.apply_tensor_operator(
+            gate_qubit_indices = tuple(self._qubit_idx_map[qb] for qb in com.qubits)
+            tensor_id = self.tn_state.apply_tensor_operator(
                 gate_qubit_indices,
                 _formatted_tensor(gate_unitary, com.op.n_qubits),
-                immutable=True,  # TODO: Change for parameterised gates
+                immutable=is_fixed,
                 unitary=True,
             )
+
+            if not is_fixed:
+                self._symbolic_ops[tensor_id] = com.op
 
         # If the circuit has no gates, apply one identity gate so that CuTensorNet does
         # not panic due to no tensor operator in the NetworkState
         if len(commands) == 0:
-            tensor_id = self._state.apply_tensor_operator(
+            tensor_id = self.tn_state.apply_tensor_operator(
                 (0,),
                 _formatted_tensor(np.identity(2), 1),
                 immutable=True,
@@ -122,29 +132,40 @@ class GeneralState:  # TODO: Write it as a context manager so that I can call fr
 
     def get_statevector(
         self,
+        symbol_map: Optional[dict[Symbol, float]] = None,
         on_host: bool = True,
     ) -> Union[cp.ndarray, np.ndarray]:
         """Contracts the circuit and returns the final statevector.
 
         Args:
+            symbol_map: A dictionary where each element of ``sef.free_symbols`` is
+                assigned a real number.
             on_host: Optional. If ``True``, converts cupy ``ndarray`` to numpy
-                ``ndarray``, copying it to host device (CPU).
+                ``ndarray``, copying it to host device (CPU). Defaults to ``True``.
         Returns:
             Either a ``cupy.ndarray`` on a GPU, or a ``numpy.ndarray`` on a
             host device (CPU). Arrays are returned in a 1D shape.
+
+        Raises:
+            ValueError: If not every free symbol in the circuits is assigned a
+                value in ``symbol_map``.
         """
+        if symbol_map is not None:
+            _update_tensors(self.tn_state, self._symbolic_ops, symbol_map)
+
         self._logger.debug("(Statevector) contracting the TN")
-        state_vector = self._state.compute_state_vector()
+        state_vector = self.tn_state.compute_state_vector()
         sv = state_vector.flatten()  # Convert to 1D
         if on_host:
             sv = cp.asnumpy(sv)
         # Apply the phase from the circuit
-        sv *= np.exp(1j * np.pi * self._circuit.phase)
+        sv *= np.exp(1j * np.pi * self._phase)
         return sv
 
     def get_amplitude(
         self,
         state: int,
+        symbol_map: Optional[dict[Symbol, float]] = None,
     ) -> complex:
         """Returns the amplitude of the chosen computational state.
 
@@ -155,32 +176,49 @@ class GeneralState:  # TODO: Write it as a context manager so that I can call fr
         Args:
             state: The integer whose bitstring describes the computational state.
                 The qubits in the bitstring are in increasing lexicographic order.
+            symbol_map: A dictionary where each element of ``sef.free_symbols`` is
+                assigned a real number.
 
         Returns:
             The amplitude of the computational state in ``self``.
+
+        Raises:
+            ValueError: If not every free symbol in the circuits is assigned a
+                value in ``symbol_map``.
         """
+        if symbol_map is not None:
+            _update_tensors(self.tn_state, self._symbolic_ops, symbol_map)
+
         self._logger.debug("(Amplitude) contracting the TN")
-        bitstring = format(state, "b").zfill(self._circuit.n_qubits)
-        amplitude = self._state.compute_amplitude(bitstring)
+        bitstring = format(state, "b").zfill(self.n_qubits)
+        amplitude = self.tn_state.compute_amplitude(bitstring)
         # Apply the phase from the circuit
-        amplitude *= np.exp(1j * np.pi * self._circuit.phase)
+        amplitude *= np.exp(1j * np.pi * self._phase)
         return complex(amplitude)
 
     def expectation_value(
         self,
         operator: QubitPauliOperator,
+        symbol_map: Optional[dict[Symbol, float]] = None,
     ) -> complex:
         """Calculates the expectation value of the given operator.
 
         Args:
             operator: The operator whose expectation value is to be measured.
-
-        Raises:
-            ValueError: If the operator acts on qubits not present in the circuit.
+            symbol_map: A dictionary where each element of ``sef.free_symbols`` is
+                assigned a real number.
 
         Returns:
             The expectation value.
+
+        Raises:
+            ValueError: If the operator acts on qubits not present in the circuit.
+            ValueError: If not every free symbol in the circuits is assigned a
+                value in ``symbol_map``.
         """
+        if symbol_map is not None:
+            _update_tensors(self.tn_state, self._symbolic_ops, symbol_map)
+
         self._logger.debug("(Expectation value) converting operator to NetworkOperator")
 
         paulis = ["I", "X", "Y", "Z"]
@@ -188,11 +226,11 @@ class GeneralState:  # TODO: Write it as a context manager so that I can call fr
         for pstr, coeff in operator._dict.items():
 
             # Raise an error if the operator acts on qubits that are not in the circuit
-            if any(q not in self._circuit.qubits for q in pstr.map.keys()):
+            if any(q not in self._qubit_idx_map.keys() for q in pstr.map.keys()):
                 raise ValueError(
                     f"The operator is acting on qubits {pstr.map.keys()}, "
                     "but some of these are not present in the circuit, whose set of "
-                    f"qubits is: {self._circuit.qubits}."
+                    f"qubits is: {self._qubit_idx_map.keys()}."
                 )
 
             pauli_list = [pstr[q] for q in self._qubit_idx_map.keys()]
@@ -202,21 +240,30 @@ class GeneralState:  # TODO: Write it as a context manager so that I can call fr
         tn_operator = NetworkOperator.from_pauli_strings(pauli_strs, dtype="complex128")
 
         self._logger.debug("(Expectation value) contracting the TN")
-        return complex(self._state.compute_expectation(tn_operator))
+        return complex(self.tn_state.compute_expectation(tn_operator))
 
     def sample(  # TODO: Support seeds (and test)
         self,
         n_shots: int,
+        symbol_map: Optional[dict[Symbol, float]] = None,
     ) -> BackendResult:
         """Obtains samples from the measurements at the end of the circuit.
 
         Args:
             n_shots: The number of samples to obtain.
-        Raises:
-            ValueError: If the circuit contains no measurements.
+            symbol_map: A dictionary where each element of ``sef.free_symbols`` is
+                assigned a real number.
+
         Returns:
             A pytket ``BackendResult`` with the data from the shots.
+
+        Raises:
+            ValueError: If the circuit contains no measurements.
+            ValueError: If not every free symbol in the circuits is assigned a
+                value in ``symbol_map``.
         """
+        if symbol_map is not None:
+            _update_tensors(self.tn_state, self._symbolic_ops, symbol_map)
 
         num_measurements = len(self._measurements)
         if num_measurements == 0:
@@ -230,7 +277,7 @@ class GeneralState:  # TODO: Write it as a context manager so that I can call fr
         measured_modes = tuple(self._qubit_idx_map[qb] for qb in qbit_list)
 
         self._logger.debug("(Sampling) contracting the TN")
-        samples = self._state.compute_sampling(
+        samples = self.tn_state.compute_sampling(
             nshots=n_shots,
             modes=measured_modes,
         )
@@ -266,7 +313,7 @@ class GeneralState:  # TODO: Write it as a context manager so that I can call fr
             guaranteed otherwise.
         """
         self._logger.debug("Freeing memory of GeneralState")
-        self._state.free()
+        self.tn_state.free()
 
 
 class GeneralBraOpKet:  # TODO: Write it as a context manager
@@ -324,7 +371,7 @@ class GeneralBraOpKet:  # TODO: Write it as a context manager
         # Identify each qubit with the index of the bond that represents it in the
         # tensor network stored in this GeneralState. Qubits are sorted in increasing
         # lexicographical order, which is the TKET standard.
-        self.qubit_idx_map = {q: i for i, q in enumerate(sorted(ket.qubits))}
+        self._qubit_idx_map = {q: i for i, q in enumerate(sorted(ket.qubits))}
         self.n_qubits = ket.n_qubits
 
         dim = 2  # We are always dealing with qubits, not qudits
@@ -341,25 +388,37 @@ class GeneralBraOpKet:  # TODO: Write it as a context manager
             },
         )
 
+        # Maintain a dict of tensor_id->Op for symbolic Ops to be update when the user
+        # calls any evaluation function with the symbols specified.
+        self._symbolic_ops: dict[int, Op] = dict()
         # Apply all commands from the ket circuit
         self._logger.debug("Converting the ket circuit to a NetworkState")
         commands = ket.get_commands()
         for com in commands:
-            try:
-                gate_unitary = com.op.get_unitary()
-            except:
-                raise ValueError(
-                    "All commands in the circuit must be unitary gates. The ket circuit"
-                    f" contains {com}; no unitary matrix could be retrived from it."
-                )
-            gate_qubit_indices = tuple(self.qubit_idx_map[qb] for qb in com.qubits)
+            is_fixed = len(com.op.free_symbols()) == 0
+            if is_fixed:
+                try:
+                    gate_unitary = com.op.get_unitary()
+                except:
+                    raise ValueError(
+                        "All commands in the circuit must be unitary gates. The circuit"
+                        f" contains {com}; no unitary matrix could be retrived from it."
+                    )
+            else:
+                # Dummy unitary to be updated later with user specified paramaters
+                gate_unitary = np.identity(2**com.op.n_qubits, dtype="complex128")
 
+            gate_qubit_indices = tuple(self._qubit_idx_map[qb] for qb in com.qubits)
             tensor_id = self.tn.apply_tensor_operator(
                 gate_qubit_indices,
                 _formatted_tensor(gate_unitary, com.op.n_qubits),
-                immutable=True,  # TODO: Change for parameterised gates
+                immutable=is_fixed,
                 unitary=True,
             )
+
+            if not is_fixed:
+                self._symbolic_ops[tensor_id] = com.op
+
         # If the circuit has no gates, apply one identity gate so that CuTensorNet does
         # not panic due to no tensor operator in the NetworkState
         if len(commands) == 0:
@@ -388,21 +447,30 @@ class GeneralBraOpKet:  # TODO: Write it as a context manager
         self._logger.debug("Applying the dagger of the bra circuit to the NetworkState")
         commands = bra.dagger().get_commands()
         for com in commands:
-            try:
-                gate_unitary = com.op.get_unitary()
-            except:
-                raise ValueError(
-                    "All commands in the circuit must be unitary gates. The bra circuit"
-                    f" contains {com}; no unitary matrix could be retrived from it."
-                )
-            gate_qubit_indices = tuple(self.qubit_idx_map[qb] for qb in com.qubits)
+            is_fixed = len(com.op.free_symbols()) == 0
+            if is_fixed:
+                try:
+                    gate_unitary = com.op.get_unitary()
+                except:
+                    raise ValueError(
+                        "All commands in the circuit must be unitary gates. The circuit"
+                        f" contains {com}; no unitary matrix could be retrived from it."
+                    )
+            else:
+                # Dummy unitary to be updated later with user specified paramaters
+                gate_unitary = np.identity(2**com.op.n_qubits, dtype="complex128")
 
+            gate_qubit_indices = tuple(self._qubit_idx_map[qb] for qb in com.qubits)
             tensor_id = self.tn.apply_tensor_operator(
                 gate_qubit_indices,
                 _formatted_tensor(gate_unitary, com.op.n_qubits),
-                immutable=True,  # TODO: Change for parameterised gates
+                immutable=is_fixed,
                 unitary=True,
             )
+
+            if not is_fixed:
+                self._symbolic_ops[tensor_id] = com.op
+
         # If the circuit has no gates, apply one identity gate so that CuTensorNet does
         # not panic due to no tensor operator in the NetworkState
         if len(commands) == 0:
@@ -414,13 +482,18 @@ class GeneralBraOpKet:  # TODO: Write it as a context manager
             )
         self.bra_phase = bra.phase
 
-    # TODO: Add the list of parameters here
-    def contract(self, operator: Optional[QubitPauliOperator] = None) -> complex:
+    def contract(
+        self,
+        operator: Optional[QubitPauliOperator] = None,
+        symbol_map: Optional[dict[Symbol, float]] = None,
+    ) -> complex:
         """Contract the tensor network to obtain the value of ``<bra|operator|ket>``.
 
         Args:
             operator: A pytket ``QubitPauliOperator`` describing the operator. If not
                 given, then the identity operator is used, so it computes inner product.
+            symbol_map: A dictionary where each element of ``sef.free_symbols`` is
+                assigned a real number.
 
         Returns:
             The value of ``<bra|operator|ket>``
@@ -428,6 +501,9 @@ class GeneralBraOpKet:  # TODO: Write it as a context manager
         Raises:
             ValueError: If ``operator`` acts on qubits that are not in the circuits.
         """
+        if symbol_map is not None:
+            _update_tensors(self.tn, self._symbolic_ops, symbol_map)
+
         paulis = ["I", "X", "Y", "Z"]
         pauli_matrix = {
             "I": np.identity(2),
@@ -444,13 +520,13 @@ class GeneralBraOpKet:  # TODO: Write it as a context manager
         else:
             for tk_pstr, coeff in operator._dict.items():
                 # Raise an error if the operator acts on qubits missing from the circuit
-                if any(q not in self.qubit_idx_map.keys() for q in tk_pstr.map.keys()):
+                if any(q not in self._qubit_idx_map.keys() for q in tk_pstr.map.keys()):
                     raise ValueError(
                         f"The operator is acting on qubits {tk_pstr.map.keys()}, some "
                         "of these are missing from the set of qubits present in the "
-                        f"circuits: {self.qubit_idx_map.keys()}."
+                        f"circuits: {self._qubit_idx_map.keys()}."
                     )
-                pauli_list = [tk_pstr[q] for q in self.qubit_idx_map.keys()]
+                pauli_list = [tk_pstr[q] for q in self._qubit_idx_map.keys()]
                 this_pauli_string = "".join(map(lambda x: paulis[x], pauli_list))
                 pauli_strs[this_pauli_string] = complex(coeff)
 
@@ -538,3 +614,41 @@ def _remove_meas_and_implicit_swaps(circ: Circuit) -> Tuple[Circuit, Dict[Qubit,
 
     pure_circ.add_phase(circ.phase)
     return pure_circ, measure_map  # type: ignore
+
+
+def _update_tensors(
+    tn: NetworkState,
+    symbolic_ops: dict[int, Op],
+    symbol_map: dict[Symbol, float],
+) -> None:
+    """Updates the tensors with the specified values for symbols.
+
+    Args:
+        tn: The NetworkState that we intend to update.
+        symbolic_ops: A dictionary mapping ``tensor_id`` to the parameterised Op.
+        symbol_map: A dictionary mapping symbols to real values.
+
+    Raises:
+        ValueError: If not every free symbol in the circuits is assigned a
+            value in ``symbol_map``.
+    """
+    for tensor_id, op in symbolic_ops.items():
+        subs_params = op.params.copy()
+        if any(symb not in symbol_map.keys() for symb in op.free_symbols()):
+            raise ValueError(
+                f"Missing values for some of the free symbols {op.free_symbols()}. "
+                f"Symbols given: {symbol_map}."
+            )
+
+        for symb in op.free_symbols():
+            subs_params = [
+                p.subs(symb, symbol_map[symb]) if isinstance(p, Expr) else p
+                for p in subs_params
+            ]
+        gate_unitary = Op.create(op.type, subs_params).get_unitary()
+
+        tn.update_tensor_operator(
+            tensor_id,
+            _formatted_tensor(gate_unitary, op.n_qubits),
+            unitary=True,
+        )
