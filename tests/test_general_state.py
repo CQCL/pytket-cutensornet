@@ -6,7 +6,7 @@ from pytket.passes import DecomposeBoxes, CnXPairwiseDecomposition
 from pytket.transform import Transform
 from pytket.pauli import QubitPauliString, Pauli
 from pytket.utils.operators import QubitPauliOperator
-from pytket.extensions.cutensornet.general_state import GeneralState
+from pytket.extensions.cutensornet.general_state import GeneralState, GeneralBraOpKet
 
 
 @pytest.mark.parametrize(
@@ -37,7 +37,7 @@ from pytket.extensions.cutensornet.general_state import GeneralState
         pytest.lazy_fixture("q8_x0h2v5z6"),  # type: ignore
     ],
 )
-def test_get_statevec(circuit: Circuit) -> None:
+def test_basic_circs_state(circuit: Circuit) -> None:
     state = GeneralState(circuit)
     sv = state.get_statevector()
 
@@ -60,6 +60,12 @@ def test_get_statevec(circuit: Circuit) -> None:
     for i in range(len(sv)):
         assert np.isclose(sv[i], state.get_amplitude(i))
 
+    # Calculate the inner product again, using GeneralBraOpKet
+    braket = GeneralBraOpKet(circuit, circuit)
+    ovl = braket.contract()
+    assert ovl == pytest.approx(1.0)
+
+    braket.destroy()
     state.destroy()
 
 
@@ -202,6 +208,13 @@ def test_expectation_value(circuit: Circuit, observable: QubitPauliOperator) -> 
 
     assert np.isclose(exp_val, exp_val_tket)
     state.destroy()
+
+    # Calculate using GeneralBraOpKet
+    braket = GeneralBraOpKet(circuit, circuit)
+    exp_val = braket.contract(observable)
+
+    assert np.isclose(exp_val, exp_val_tket)
+    braket.destroy()
 
 
 @pytest.mark.parametrize(

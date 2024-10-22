@@ -24,8 +24,8 @@ except ImportError:
 import numpy as np
 from sympy import Expr  # type: ignore
 from numpy.typing import NDArray
-from pytket.circuit import Circuit, Qubit, Bit, OpType
-from pytket.extensions.cutensornet.general import CuTensorNetHandle, set_logger
+from pytket.circuit import Circuit, Qubit, Bit, OpType, Op
+from pytket.extensions.cutensornet.general import set_logger
 from pytket.utils import OutcomeArray
 from pytket.utils.operators import QubitPauliOperator
 from pytket.backends.backendresult import BackendResult
@@ -39,7 +39,7 @@ except ImportError:
 
 
 class GeneralState:  # TODO: Write it as a context manager so that I can call free()
-    """Wrapper of cuTensorNet object for exact simulations via path optimisation."""
+    """Wrapper of cuTensorNet's NetworkState for exact simulation of states."""
 
     def __init__(
         self,
@@ -78,14 +78,16 @@ class GeneralState:  # TODO: Write it as a context manager so that I can call fr
         num_qubits = self._circuit.n_qubits
         dim = 2  # We are always dealing with qubits, not qudits
         qubits_dims = (dim,) * num_qubits  # qubit size
-        self._logger.debug(f"Converting a quantum circuit with {num_qubits} qubits.")
         data_type = "complex128"  # for now let that be hard-coded
 
         self._state = NetworkState(
             qubits_dims,
             dtype=data_type,
             config=attributes,
-            options={"memory_limit": f"{int(scratch_fraction*100)}%"},
+            options={
+                "memory_limit": f"{int(scratch_fraction*100)}%",
+                "logger": self._logger,
+            },
         )
 
         commands = self._circuit.get_commands()
@@ -108,13 +110,12 @@ class GeneralState:  # TODO: Write it as a context manager so that I can call fr
                 unitary=True,
             )
 
-        # If the circuit has no gates, apply one identity gate so that CuTensorNet does not panic
-        # due to no tensor operator in the NetworkState
+        # If the circuit has no gates, apply one identity gate so that CuTensorNet does
+        # not panic due to no tensor operator in the NetworkState
         if len(commands) == 0:
-            identity_tensor = _formatted_tensor(np.identity(2, dtype="complex128"), 1)
             tensor_id = self._state.apply_tensor_operator(
                 (0,),
-                identity_tensor,
+                _formatted_tensor(np.identity(2), 1),
                 immutable=True,
                 unitary=True,
             )
@@ -264,14 +265,241 @@ class GeneralState:  # TODO: Write it as a context manager so that I can call fr
             `GeneralState` object. GPU memory deallocation is not
             guaranteed otherwise.
         """
-        self._logger.debug("Freeing memory of NetworkState")
+        self._logger.debug("Freeing memory of GeneralState")
         self._state.free()
+
+
+class GeneralBraOpKet:  # TODO: Write it as a context manager
+    """Wrapper of cuTensorNet's NetworkState for exact simulation of ``<bra|O|ket>``."""
+
+    def __init__(
+        self,
+        bra: Circuit,
+        ket: Circuit,
+        attributes: Optional[dict] = None,
+        scratch_fraction: float = 0.8,
+        loglevel: int = logging.WARNING,
+    ) -> None:
+        """Constructs a tensor network for ``<bra|operator|ket>``.
+
+        The qubits in ``ket`` and ``bra`` are assumed to be initialised in the ``|0>``
+        state. The resulting object stores the *uncontracted* tensor network.
+
+        Note:
+            The ``circuit`` must not contain any ``CircBox`` or non-unitary command.
+            The operator is provided when ``contract`` is called.
+
+        Args:
+            bra: A pytket circuit describing the |bra> state.
+            ket: A pytket circuit describing the |ket> state.
+            attributes: Optional. A dict of cuTensorNet ``TNConfig`` keys and
+                their values.
+            scratch_fraction: Optional. Fraction of free memory on GPU to allocate as
+                scratch space; value between 0 and 1. Defaults to ``0.8``.
+            loglevel: Internal logger output level.
+
+        Raises:
+            ValueError: If the circuits for ``ket`` or ``bra`` contain measurements.
+            ValueError: If the set of qubits of ``ket`` and ``bra`` do not match.
+        """
+        self._logger = set_logger("GeneralBraOpKet", loglevel)
+
+        # Check that the circuits have the same qubits
+        if set(ket.qubits) != set(bra.qubits):
+            raise ValueError(
+                "The circuits given to GeneralBraOpKet must act on the same qubits."
+            )
+        # Remove end-of-circuit measurements and keep track of them separately
+        # It also resolves implicit swaps
+        ket, meas = _remove_meas_and_implicit_swaps(ket)
+        if len(meas) != 0:
+            raise ValueError(
+                "The circuits given to a GeneralBraOpKet cannot have measurements."
+            )
+        bra, meas = _remove_meas_and_implicit_swaps(bra)
+        if len(meas) != 0:
+            raise ValueError(
+                "The circuits given to a GeneralBraOpKet cannot have measurements."
+            )
+        # Identify each qubit with the index of the bond that represents it in the
+        # tensor network stored in this GeneralState. Qubits are sorted in increasing
+        # lexicographical order, which is the TKET standard.
+        self.qubit_idx_map = {q: i for i, q in enumerate(sorted(ket.qubits))}
+        self.n_qubits = ket.n_qubits
+
+        dim = 2  # We are always dealing with qubits, not qudits
+        qubits_dims = (dim,) * self.n_qubits  # qubit size
+        data_type = "complex128"  # for now let that be hard-coded
+
+        self.tn = NetworkState(
+            qubits_dims,
+            dtype=data_type,
+            config=attributes,
+            options={
+                "memory_limit": f"{int(scratch_fraction*100)}%",
+                "logger": self._logger,
+            },
+        )
+
+        # Apply all commands from the ket circuit
+        self._logger.debug("Converting the ket circuit to a NetworkState")
+        commands = ket.get_commands()
+        for com in commands:
+            try:
+                gate_unitary = com.op.get_unitary()
+            except:
+                raise ValueError(
+                    "All commands in the circuit must be unitary gates. The ket circuit"
+                    f" contains {com}; no unitary matrix could be retrived from it."
+                )
+            gate_qubit_indices = tuple(self.qubit_idx_map[qb] for qb in com.qubits)
+
+            tensor_id = self.tn.apply_tensor_operator(
+                gate_qubit_indices,
+                _formatted_tensor(gate_unitary, com.op.n_qubits),
+                immutable=True,  # TODO: Change for parameterised gates
+                unitary=True,
+            )
+        # If the circuit has no gates, apply one identity gate so that CuTensorNet does
+        # not panic due to no tensor operator in the NetworkState
+        if len(commands) == 0:
+            tensor_id = self.tn.apply_tensor_operator(
+                (0,),
+                _formatted_tensor(np.identity(2), 1),
+                immutable=True,
+                unitary=True,
+            )
+        self.ket_phase = ket.phase
+
+        # Create a placeholder Pauli identity operator, to be replaced when calling
+        # contract.
+        self._logger.debug("Creating a placeholder operator and appending it")
+        self._pauli_op_ids = []
+        for mode in range(self.n_qubits):
+            tensor_id = self.tn.apply_tensor_operator(
+                (mode,),
+                _formatted_tensor(np.identity(2), 1),
+                immutable=False,
+                unitary=True,
+            )
+            self._pauli_op_ids.append(tensor_id)
+
+        # Apply all commands from the adjoint of the bra circuit
+        self._logger.debug("Applying the dagger of the bra circuit to the NetworkState")
+        commands = bra.dagger().get_commands()
+        for com in commands:
+            try:
+                gate_unitary = com.op.get_unitary()
+            except:
+                raise ValueError(
+                    "All commands in the circuit must be unitary gates. The bra circuit"
+                    f" contains {com}; no unitary matrix could be retrived from it."
+                )
+            gate_qubit_indices = tuple(self.qubit_idx_map[qb] for qb in com.qubits)
+
+            tensor_id = self.tn.apply_tensor_operator(
+                gate_qubit_indices,
+                _formatted_tensor(gate_unitary, com.op.n_qubits),
+                immutable=True,  # TODO: Change for parameterised gates
+                unitary=True,
+            )
+        # If the circuit has no gates, apply one identity gate so that CuTensorNet does
+        # not panic due to no tensor operator in the NetworkState
+        if len(commands) == 0:
+            tensor_id = self.tn.apply_tensor_operator(
+                (0,),
+                _formatted_tensor(np.identity(2), 1),
+                immutable=True,
+                unitary=True,
+            )
+        self.bra_phase = bra.phase
+
+    # TODO: Add the list of parameters here
+    def contract(self, operator: Optional[QubitPauliOperator] = None) -> complex:
+        """Contract the tensor network to obtain the value of ``<bra|operator|ket>``.
+
+        Args:
+            operator: A pytket ``QubitPauliOperator`` describing the operator. If not
+                given, then the identity operator is used, so it computes inner product.
+
+        Returns:
+            The value of ``<bra|operator|ket>``
+
+        Raises:
+            ValueError: If ``operator`` acts on qubits that are not in the circuits.
+        """
+        paulis = ["I", "X", "Y", "Z"]
+        pauli_matrix = {
+            "I": np.identity(2),
+            "X": Op.create(OpType.X).get_unitary(),
+            "Y": Op.create(OpType.Y).get_unitary(),
+            "Z": Op.create(OpType.Z).get_unitary(),
+        }
+        pauli_strs: dict[str, complex] = dict()
+
+        # Some care has to be taken when handling QubitPauliOperators, since identity
+        # Paulis may be omitted from the dictionary.
+        if operator is None:
+            pauli_strs = {"".join("I" for _ in range(self.n_qubits)): complex(1.0)}
+        else:
+            for tk_pstr, coeff in operator._dict.items():
+                # Raise an error if the operator acts on qubits missing from the circuit
+                if any(q not in self.qubit_idx_map.keys() for q in tk_pstr.map.keys()):
+                    raise ValueError(
+                        f"The operator is acting on qubits {tk_pstr.map.keys()}, some "
+                        "of these are missing from the set of qubits present in the "
+                        f"circuits: {self.qubit_idx_map.keys()}."
+                    )
+                pauli_list = [tk_pstr[q] for q in self.qubit_idx_map.keys()]
+                this_pauli_string = "".join(map(lambda x: paulis[x], pauli_list))
+                pauli_strs[this_pauli_string] = complex(coeff)
+
+        # Calculate the value by iterating over all components of the QubitPauliOperator
+        value = 0.0
+        zero_bitstring = "".join("0" for _ in range(self.n_qubits))
+        for pstr, coeff in pauli_strs.items():
+            # Update the NetworkState with this Pauli
+            self._logger.debug(f"Updating the tensors of the Pauli operator {pstr}")
+            for mode, pauli in enumerate(pstr):
+                self.tn.update_tensor_operator(
+                    self._pauli_op_ids[mode],
+                    _formatted_tensor(pauli_matrix[pauli], 1),
+                    unitary=True,
+                )
+
+            if isinstance(coeff, Expr):
+                numeric_coeff = complex(coeff.evalf())  # type: ignore
+            else:
+                numeric_coeff = complex(coeff)
+
+            # Compute the amplitude of the |0> state. Since NetworkState holds the
+            # circuit bra.dagger()*operator*ket|0>, the value of the amplitude at <0|
+            # will be <bra|operator|ket>.
+            self._logger.debug(f"Computing the contribution of Pauli operator {pstr}")
+            value += numeric_coeff * self.tn.compute_amplitude(zero_bitstring)
+
+        # Apply the phases from the circuits
+        value *= np.exp(1j * np.pi * self.ket_phase)
+        value *= np.exp(-1j * np.pi * self.bra_phase)
+
+        return complex(value)
+
+    def destroy(self) -> None:
+        """Destroy the tensor network and free up GPU memory.
+
+        Note:
+            Users are required to call `destroy()` when done using a
+            `GeneralState` object. GPU memory deallocation is not
+            guaranteed otherwise.
+        """
+        self._logger.debug("Freeing memory of GeneralBraOpKet")
+        self.tn.free()
 
 
 def _formatted_tensor(matrix: NDArray, n_qubits: int) -> cp.ndarray:
     """Convert a matrix to the tensor format accepted by NVIDIA's API."""
 
-    cupy_matrix = cp.asarray(matrix).astype(dtype="complex128")
+    cupy_matrix = cp.asarray(matrix, order="C").astype(dtype="complex128")
     # We also need to reshape since a matrix only has 2 bonds, but for an
     # n-qubit gate we want 2^n bonds for input and another 2^n for output
     return cupy_matrix.reshape([2] * (2 * n_qubits))
