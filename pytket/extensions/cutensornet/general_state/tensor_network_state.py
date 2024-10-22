@@ -31,8 +31,6 @@ from pytket.utils.operators import QubitPauliOperator
 from pytket.backends.backendresult import BackendResult
 
 try:
-    import cuquantum as cq  # type: ignore
-    from cuquantum import cutensornet as cutn  # type: ignore
     from cuquantum.cutensornet.experimental import NetworkState, NetworkOperator  # type: ignore
 except ImportError:
     warnings.warn("local settings failed to import cuquantum", ImportWarning)

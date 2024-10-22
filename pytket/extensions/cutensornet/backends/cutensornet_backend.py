@@ -15,7 +15,6 @@
 """Methods to allow tket circuits to be run on the cuTensorNet simulator."""
 
 from abc import abstractmethod
-import warnings
 
 from typing import List, Union, Optional, Sequence
 from uuid import uuid4
