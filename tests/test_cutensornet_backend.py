@@ -62,7 +62,7 @@ def test_config_options() -> None:
     h = b1.process_circuit(
         c,
         scratch_fraction=0.3,
-        CONFIG_NUM_HYPER_SAMPLES=100,
+        tn_config={"num_hyper_samples": 100},
     )
     assert np.allclose(
         b1.get_result(h).get_state(), np.asarray([1, 0, 0, 1]) * 1 / np.sqrt(2)
@@ -76,7 +76,7 @@ def test_config_options() -> None:
         c,
         n_shots=n_shots,
         scratch_fraction=0.3,
-        CONFIG_NUM_HYPER_SAMPLES=100,
+        tn_config={"num_hyper_samples": 100},
     )
     assert res.get_shots().shape == (n_shots, 2)
     assert np.isclose(res.get_counts()[(0, 0)] / n_shots, 0.5, atol=0.01)
