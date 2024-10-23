@@ -39,9 +39,22 @@ except ImportError:
 class GeneralState:
     """Wrapper of cuTensorNet's NetworkState for exact simulation of states.
 
+    Constructs a tensor network for the output state of a pytket circuit.
+    The qubits are assumed to be initialised in the ``|0>`` state.
+    The object stores the *uncontracted* tensor network.
+
     Note:
         Preferably used as ``with GeneralState(...) as state:`` so that GPU memory is
         automatically released after execution.
+        The ``circuit`` must not contain any ``CircBox`` or non-unitary command.
+
+    Args:
+        circuit: A pytket circuit to be converted to a tensor network.
+        attributes: Optional. A dict of cuTensorNet ``TNConfig`` keys and
+            their values.
+        scratch_fraction: Optional. Fraction of free memory on GPU to allocate as
+            scratch space; value between 0 and 1. Defaults to ``0.8``.
+        loglevel: Internal logger output level.
     """
 
     def __init__(
@@ -51,22 +64,6 @@ class GeneralState:
         scratch_fraction: float = 0.8,
         loglevel: int = logging.WARNING,
     ) -> None:
-        """Constructs a tensor network for the output state of a pytket circuit.
-
-        The qubits are assumed to be initialised in the ``|0>`` state.
-        The resulting object stores the *uncontracted* tensor network.
-
-        Note:
-            The ``circuit`` must not contain any ``CircBox`` or non-unitary command.
-
-        Args:
-            circuit: A pytket circuit to be converted to a tensor network.
-            attributes: Optional. A dict of cuTensorNet ``TNConfig`` keys and
-                their values.
-            scratch_fraction: Optional. Fraction of free memory on GPU to allocate as
-                scratch space; value between 0 and 1. Defaults to ``0.8``.
-            loglevel: Internal logger output level.
-        """
         self._logger = set_logger("GeneralState", loglevel)
 
         # Remove end-of-circuit measurements and keep track of them separately
@@ -332,11 +329,29 @@ class GeneralState:
 
 
 class GeneralBraOpKet:
-    """Wrapper of cuTensorNet's NetworkState for exact simulation of ``<bra|O|ket>``.
+    """Constructs a tensor network for ``<bra|operator|ket>``.
+
+    The qubits in ``ket`` and ``bra`` are assumed to be initialised in the ``|0>``
+    state. The object stores the *uncontracted* tensor network.
 
     Note:
         Preferably used as ``with GeneralBraOpKet(...) as braket:`` so that GPU memory
         is automatically released after execution.
+        The ``circuit`` must not contain any ``CircBox`` or non-unitary command.
+        The operator is provided when ``contract`` is called.
+
+    Args:
+        bra: A pytket circuit describing the |bra> state.
+        ket: A pytket circuit describing the |ket> state.
+        attributes: Optional. A dict of cuTensorNet ``TNConfig`` keys and
+            their values.
+        scratch_fraction: Optional. Fraction of free memory on GPU to allocate as
+            scratch space; value between 0 and 1. Defaults to ``0.8``.
+        loglevel: Internal logger output level.
+
+    Raises:
+        ValueError: If the circuits for ``ket`` or ``bra`` contain measurements.
+        ValueError: If the set of qubits of ``ket`` and ``bra`` do not match.
     """
 
     def __init__(
@@ -347,28 +362,6 @@ class GeneralBraOpKet:
         scratch_fraction: float = 0.8,
         loglevel: int = logging.WARNING,
     ) -> None:
-        """Constructs a tensor network for ``<bra|operator|ket>``.
-
-        The qubits in ``ket`` and ``bra`` are assumed to be initialised in the ``|0>``
-        state. The resulting object stores the *uncontracted* tensor network.
-
-        Note:
-            The ``circuit`` must not contain any ``CircBox`` or non-unitary command.
-            The operator is provided when ``contract`` is called.
-
-        Args:
-            bra: A pytket circuit describing the |bra> state.
-            ket: A pytket circuit describing the |ket> state.
-            attributes: Optional. A dict of cuTensorNet ``TNConfig`` keys and
-                their values.
-            scratch_fraction: Optional. Fraction of free memory on GPU to allocate as
-                scratch space; value between 0 and 1. Defaults to ``0.8``.
-            loglevel: Internal logger output level.
-
-        Raises:
-            ValueError: If the circuits for ``ket`` or ``bra`` contain measurements.
-            ValueError: If the set of qubits of ``ket`` and ``bra`` do not match.
-        """
         self._logger = set_logger("GeneralBraOpKet", loglevel)
 
         # Check that the circuits have the same qubits
