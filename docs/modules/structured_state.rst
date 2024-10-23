@@ -3,6 +3,9 @@ Structured state evolution
 
 .. automodule:: pytket.extensions.cutensornet.structured_state
 
+Library handle
+~~~~~~~~~~~~~~
+
 .. autoclass:: pytket.extensions.cutensornet.CuTensorNetHandle
 
     .. automethod:: destroy
