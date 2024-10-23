@@ -8,26 +8,26 @@
   #cuda-bundle,
 }:
 let
-  version = "24.03.0.4";
+  version = "24.08.0.5";
   package_map = {
     x86_64-linux = {
       "11" = fetchzip {
         url = "https://developer.download.nvidia.com/compute/cuquantum/redist/cuquantum/linux-x86_64/cuquantum-linux-x86_64-${version}_cuda11-archive.tar.xz";
-        sha256 = sha256:tvUEKdUp3dluY7uzm6NJBZxcjJsVhMtwJmV061vR0XU=;
+        sha256 = sha256:FPrmmOccmQynFKo5A49B5k6iGZBwgpTR6JEK/kREY7E=;
       };
       "12" = fetchzip {
         url = "https://developer.download.nvidia.com/compute/cuquantum/redist/cuquantum/linux-x86_64/cuquantum-linux-x86_64-${version}_cuda12-archive.tar.xz";
-        sha256 = sha256:ws9dPv4Tkdu9XSE4zI3WdFccQuhiycrEchduzPNBiCc=;
+        sha256 = sha256:nNv/oon6QNMMX3kQ+7pJXzzagfwHx+p9nvq9Q7H2/e8=;
       };
     };
     aarch64-linux = {
       "11" = fetchzip {
         url = "https://developer.download.nvidia.com/compute/cuquantum/redist/cuquantum/linux-sbsa/cuquantum-linux-sbsa-${version}_cuda11-archive.tar.xz";
-        sha256 = sha256:Wc0HgfnDgTpyDKMQpnJdJ95FkBe+7XAqQ48XkkrWiKU=;
+        sha256 = sha256:oYgBYgN4F8JJW5E6DdoffaktIXvqHf3cW9J9SXjBQiE=;
       };
       "12" = fetchzip {
         url = "https://developer.download.nvidia.com/compute/cuquantum/redist/cuquantum/linux-sbsa/cuquantum-linux-sbsa-${version}_cuda12-archive.tar.xz";
-        sha256 = sha256:ZnjnMja0565Mi9GE6IE3uDXXY1jisz/VS1Yl7nZSaVw=;
+        sha256 = sha256:gzNYunkA6qLrVj7Put0o8WEjaPkUPE6kbnxEKKCMWS8=;
       };
     };
   };
@@ -42,9 +42,4 @@ in
       cp -r $src/* $out
       chmod -R 0755 $out
     '';
-    #fixupPhase = ''
-    #  for f in $out/lib/*.so; do
-    #    patchelf --set-rpath ${cuda-bundle}/lib $f;
-    #  done;
-    #'';
   }
