@@ -221,10 +221,10 @@ class CuTensorNetStateBackend(_CuTensorNetBaseBackend):
             self._check_all_circuits(circuit_list)
         handle_list = []
         for circuit in circuit_list:
-            tn = GeneralState(
+            with GeneralState(
                 circuit, attributes=tnconfig, scratch_fraction=scratch_fraction
-            )
-            sv = tn.get_statevector()
+            ) as tn:
+                sv = tn.get_statevector()
             res_qubits = [qb for qb in sorted(circuit.qubits)]
             handle = ResultHandle(str(uuid4()))
             self._cache[handle] = {"result": BackendResult(q_bits=res_qubits, state=sv)}
@@ -310,11 +310,11 @@ class CuTensorNetShotsBackend(_CuTensorNetBaseBackend):
             self._check_all_circuits(circuit_list)
         handle_list = []
         for circuit, circ_shots in zip(circuit_list, all_shots):
-            tn = GeneralState(
-                circuit, attributes=tnconfig, scratch_fraction=scratch_fraction
-            )
             handle = ResultHandle(str(uuid4()))
-            self._cache[handle] = {"result": tn.sample(circ_shots, seed=seed)}
+            with GeneralState(
+                circuit, attributes=tnconfig, scratch_fraction=scratch_fraction
+            ) as tn:
+                self._cache[handle] = {"result": tn.sample(circ_shots, seed=seed)}
             handle_list.append(handle)
         return handle_list
 

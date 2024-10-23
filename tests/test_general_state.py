@@ -39,11 +39,7 @@ from pytket.extensions.cutensornet.general_state import GeneralState, GeneralBra
     ],
 )
 def test_basic_circs_state(circuit: Circuit) -> None:
-    state = GeneralState(circuit)
-    sv = state.get_statevector()
-
     sv_pytket = circuit.get_statevector()
-    assert np.allclose(sv, sv_pytket, atol=1e-10)
 
     op = QubitPauliOperator(
         {
@@ -51,23 +47,23 @@ def test_basic_circs_state(circuit: Circuit) -> None:
         }
     )
 
-    # Calculate the inner product as the expectation value
-    # of the identity operator: <psi|psi> = <psi|I|psi>
-    state = GeneralState(circuit)
-    ovl = state.expectation_value(op)
-    assert ovl == pytest.approx(1.0)
+    with GeneralState(circuit) as state:
+        sv = state.get_statevector()
+        assert np.allclose(sv, sv_pytket, atol=1e-10)
 
-    # Check that all amplitudes agree
-    for i in range(len(sv)):
-        assert np.isclose(sv[i], state.get_amplitude(i))
+        # Calculate the inner product as the expectation value
+        # of the identity operator: <psi|psi> = <psi|I|psi>
+        ovl = state.expectation_value(op)
+        assert ovl == pytest.approx(1.0)
+
+        # Check that all amplitudes agree
+        for i in range(len(sv)):
+            assert np.isclose(sv[i], state.get_amplitude(i))
 
     # Calculate the inner product again, using GeneralBraOpKet
-    braket = GeneralBraOpKet(circuit, circuit)
-    ovl = braket.contract()
-    assert ovl == pytest.approx(1.0)
-
-    braket.destroy()
-    state.destroy()
+    with GeneralBraOpKet(circuit, circuit) as braket:
+        ovl = braket.contract()
+        assert ovl == pytest.approx(1.0)
 
 
 def test_sv_toffoli_box_with_implicit_swaps() -> None:
@@ -92,9 +88,8 @@ def test_sv_toffoli_box_with_implicit_swaps() -> None:
     Transform.OptimiseCliffords().apply(ket_circ)
 
     # Convert and contract
-    state = GeneralState(ket_circ)
-    ket_net_vector = state.get_statevector()
-    state.destroy()
+    with GeneralState(ket_circ) as state:
+        ket_net_vector = state.get_statevector()
 
     # Compare to pytket statevector
     ket_pytket_vector = ket_circ.get_statevector()
@@ -127,8 +122,8 @@ def test_sv_generalised_toffoli_box(n_qubits: int) -> None:
     CnXPairwiseDecomposition().apply(ket_circ)
     Transform.OptimiseCliffords().apply(ket_circ)
 
-    state = GeneralState(ket_circ)
-    ket_net_vector = state.get_statevector()
+    with GeneralState(ket_circ) as state:
+        ket_net_vector = state.get_statevector()
 
     ket_pytket_vector = ket_circ.get_statevector()
     assert np.allclose(ket_net_vector, ket_pytket_vector)
@@ -141,11 +136,9 @@ def test_sv_generalised_toffoli_box(n_qubits: int) -> None:
         }
     )
 
-    state = GeneralState(ket_circ)
-    ovl = state.expectation_value(op)
+    with GeneralState(ket_circ) as state:
+        ovl = state.expectation_value(op)
     assert ovl == pytest.approx(1.0)
-
-    state.destroy()
 
 
 @pytest.mark.parametrize(
@@ -204,18 +197,16 @@ def test_expectation_value(circuit: Circuit, observable: QubitPauliOperator) -> 
     exp_val_tket = observable.state_expectation(circuit.get_statevector())
 
     # Calculate using GeneralState
-    state = GeneralState(circuit)
-    exp_val = state.expectation_value(observable)
+    with GeneralState(circuit) as state:
+        exp_val = state.expectation_value(observable)
 
     assert np.isclose(exp_val, exp_val_tket)
-    state.destroy()
 
     # Calculate using GeneralBraOpKet
-    braket = GeneralBraOpKet(circuit, circuit)
-    exp_val = braket.contract(observable)
+    with GeneralBraOpKet(circuit, circuit) as braket:
+        exp_val = braket.contract(observable)
 
     assert np.isclose(exp_val, exp_val_tket)
-    braket.destroy()
 
 
 @pytest.mark.parametrize(
@@ -266,8 +257,8 @@ def test_sampler(circuit: Circuit, measure_all: bool) -> None:
             circuit.Measure(q, Bit(i))
 
     # Sample using our library
-    state = GeneralState(circuit)
-    results = state.sample(n_shots)
+    with GeneralState(circuit) as state:
+        results = state.sample(n_shots)
 
     # Verify distribution matches theoretical probabilities
     for bit_tuple, count in results.get_counts().items():
@@ -287,8 +278,6 @@ def test_sampler(circuit: Circuit, measure_all: bool) -> None:
             prob = sum(abs(sv_pytket[v]) ** 2 for v in compatible)
 
         assert np.isclose(count / n_shots, prob, atol=0.01)
-
-    state.destroy()
 
 
 @pytest.mark.parametrize(
@@ -321,18 +310,15 @@ def test_parameterised(circuit: Circuit, symbol_map: dict[Symbol, float]) -> Non
 
     # Calculate the inner product as the expectation value
     # of the identity operator: <psi|psi> = <psi|I|psi>
-    state = GeneralState(circuit)
-    ovl = state.expectation_value(op)
-    assert ovl == pytest.approx(1.0)
+    with GeneralState(circuit) as state:
+        ovl = state.expectation_value(op)
+        assert ovl == pytest.approx(1.0)
 
-    # Check that all amplitudes agree
-    for i in range(len(sv)):
-        assert np.isclose(sv[i], state.get_amplitude(i))
+        # Check that all amplitudes agree
+        for i in range(len(sv)):
+            assert np.isclose(sv[i], state.get_amplitude(i))
 
     # Calculate the inner product again, using GeneralBraOpKet
-    braket = GeneralBraOpKet(circuit, circuit)
-    ovl = braket.contract()
+    with GeneralBraOpKet(circuit, circuit) as braket:
+        ovl = braket.contract()
     assert ovl == pytest.approx(1.0)
-
-    braket.destroy()
-    state.destroy()

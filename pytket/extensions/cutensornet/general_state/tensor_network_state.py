@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 import logging
-from typing import Union, Optional, Tuple, Dict
+from typing import Union, Optional, Tuple, Dict, Any
 import warnings
 
 try:
@@ -37,7 +37,12 @@ except ImportError:
 
 
 class GeneralState:  # TODO: Write it as a context manager so that I can call free()
-    """Wrapper of cuTensorNet's NetworkState for exact simulation of states."""
+    """Wrapper of cuTensorNet's NetworkState for exact simulation of states.
+
+    Note:
+        Preferably used as ``with GeneralState(...) as state:`` so that GPU memory is
+        automatically released after execution.
+    """
 
     def __init__(
         self,
@@ -312,16 +317,27 @@ class GeneralState:  # TODO: Write it as a context manager so that I can call fr
         """Destroy the tensor network and free up GPU memory.
 
         Note:
-            Users are required to call `destroy()` when done using a
-            `GeneralState` object. GPU memory deallocation is not
-            guaranteed otherwise.
+            The preferred approach is to use a context manager as in
+            ``with GeneralState(...) as state:``. Otherwise, the user must release
+            memory explicitly by calling ``destroy()``.
         """
         self._logger.debug("Freeing memory of GeneralState")
         self.tn_state.free()
 
+    def __enter__(self) -> GeneralState:
+        return self
+
+    def __exit__(self, exc_type: Any, exc_value: Any, exc_tb: Any) -> None:
+        self.destroy()
+
 
 class GeneralBraOpKet:  # TODO: Write it as a context manager
-    """Wrapper of cuTensorNet's NetworkState for exact simulation of ``<bra|O|ket>``."""
+    """Wrapper of cuTensorNet's NetworkState for exact simulation of ``<bra|O|ket>``.
+
+    Note:
+        Preferably used as ``with GeneralBraOpKet(...) as braket:`` so that GPU memory
+        is automatically released after execution.
+    """
 
     def __init__(
         self,
@@ -568,12 +584,18 @@ class GeneralBraOpKet:  # TODO: Write it as a context manager
         """Destroy the tensor network and free up GPU memory.
 
         Note:
-            Users are required to call `destroy()` when done using a
-            `GeneralState` object. GPU memory deallocation is not
-            guaranteed otherwise.
+            The preferred approach is to use a context manager as in
+            ``with GeneralBraOpKet(...) as braket:``. Otherwise, the user must release
+            memory explicitly by calling ``destroy()``.
         """
         self._logger.debug("Freeing memory of GeneralBraOpKet")
         self.tn.free()
+
+    def __enter__(self) -> GeneralBraOpKet:
+        return self
+
+    def __exit__(self, exc_type: Any, exc_value: Any, exc_tb: Any) -> None:
+        self.destroy()
 
 
 def _formatted_tensor(matrix: NDArray, n_qubits: int) -> cp.ndarray:
