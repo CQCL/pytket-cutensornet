@@ -11,7 +11,7 @@ on:
 jobs:
 
   changes:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     outputs:
       examples: ${{ steps.filter.outputs.examples }}
     steps:
@@ -29,7 +29,7 @@ jobs:
     name: check examples
     needs: changes
     if: github.event_name == 'schedule' || needs.changes.outputs.examples == 'true'
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
       with:
