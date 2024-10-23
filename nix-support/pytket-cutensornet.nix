@@ -55,12 +55,14 @@ EOF
       pytest
       pytest-lazy-fixture
     ]);
+    nixgl-bin = self.lib.getExe self.nixgl.auto.nixGLNvidia;
   in super.writeShellScriptBin "run-pytket-cutensornet-tests" ''
       HOME=$(mktemp -d);
       export HOME;
-      echo "---------------------------";
-      env;
-      echo "---------------------------";
+      NIXGL_PATH="$(${nixgl-bin} printenv LD_LIBRARY_PATH)";
+      WSL_PATH="/usr/lib/wsl/lib";
+      LD_LIBRARY_PATH="$NIXGL_PATH:$WSL_PATH:$LD_LIBRARY_PATH";
+      export LD_LIBRARY_PATH;
       ${test-env}/bin/pytest -s ${../tests};
   '';
 }
