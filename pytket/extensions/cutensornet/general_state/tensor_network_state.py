@@ -240,10 +240,11 @@ class GeneralState:  # TODO: Write it as a context manager so that I can call fr
         self._logger.debug("(Expectation value) contracting the TN")
         return complex(self.tn_state.compute_expectation(tn_operator))
 
-    def sample(  # TODO: Support seeds (and test)
+    def sample(
         self,
         n_shots: int,
         symbol_map: Optional[dict[Symbol, float]] = None,
+        seed: Optional[int] = None,
     ) -> BackendResult:
         """Obtains samples from the measurements at the end of the circuit.
 
@@ -251,6 +252,8 @@ class GeneralState:  # TODO: Write it as a context manager so that I can call fr
             n_shots: The number of samples to obtain.
             symbol_map: A dictionary where each element of ``sef.free_symbols`` is
                 assigned a real number.
+            seed: An optional RNG seed. Different calls to ``sample`` with the same
+                seed will generate the same list of shot outcomes.
 
         Returns:
             A pytket ``BackendResult`` with the data from the shots.
@@ -275,9 +278,12 @@ class GeneralState:  # TODO: Write it as a context manager so that I can call fr
         measured_modes = tuple(self._qubit_idx_map[qb] for qb in qbit_list)
 
         self._logger.debug("(Sampling) contracting the TN")
+        if seed is not None:
+            seed = abs(seed)  # Must be a positive integer
         samples = self.tn_state.compute_sampling(
             nshots=n_shots,
             modes=measured_modes,
+            seed=seed,
         )
 
         # Convert the data in `samples` to an `OutcomeArray` using `from_readouts`

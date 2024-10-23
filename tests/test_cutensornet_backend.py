@@ -34,6 +34,22 @@ def test_sampler_bell() -> None:
     assert np.isclose(res.get_counts()[(1, 1)] / n_shots, 0.5, atol=0.01)
 
 
+def test_sampler_bell_seed() -> None:
+    n_shots = 1000
+    c = Circuit(2, 2)
+    c.H(0)
+    c.CX(0, 1)
+    c.measure_all()
+    b = CuTensorNetShotsBackend()
+    c = b.get_compiled_circuit(c)
+    res1 = b.run_circuit(c, n_shots=n_shots, seed=1234)
+    res2 = b.run_circuit(c, n_shots=n_shots, seed=1234)
+    res3 = b.run_circuit(c, n_shots=n_shots, seed=4321)
+    print(type(res1.get_shots()))
+    assert np.all(res1.get_shots() == res2.get_shots())
+    assert np.any(res1.get_shots() != res3.get_shots())
+
+
 def test_config_options() -> None:
     c = Circuit(2, 2)
     c.H(0)

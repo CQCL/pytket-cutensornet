@@ -281,6 +281,8 @@ class CuTensorNetShotsBackend(_CuTensorNetBaseBackend):
             n_shots: Number of shots in case of shot-based calculation.
                 Optionally, this can be a list of shots specifying the number of shots
                 for each circuit separately.
+            seed: An optional RNG seed. Different calls to ``process_circuits`` with the
+                same seed will generate the same list of shot outcomes.
             valid_check: Whether to check for circuit correctness.
             tnconfig: Optional. A dict of cuTensorNet ``TNConfig`` keys and
                 their values.
@@ -292,13 +294,7 @@ class CuTensorNetShotsBackend(_CuTensorNetBaseBackend):
         """
         scratch_fraction = float(kwargs.get("scratch_fraction", 0.8))  # type: ignore
         tnconfig = kwargs.get("tnconfig", dict())  # type: ignore
-
-        if "seed" in kwargs and kwargs["seed"] is not None:
-            # Current CuTensorNet does not support seeds for Sampler. I created
-            # a feature request in their repository.
-            raise NotImplementedError(  # TODO: Support seeds!
-                "The backend does not currently support user-defined seeds."
-            )
+        seed = kwargs.get("seed", None)
 
         if n_shots is None:
             raise ValueError(
@@ -318,7 +314,7 @@ class CuTensorNetShotsBackend(_CuTensorNetBaseBackend):
                 circuit, attributes=tnconfig, scratch_fraction=scratch_fraction
             )
             handle = ResultHandle(str(uuid4()))
-            self._cache[handle] = {"result": tn.sample(circ_shots)}
+            self._cache[handle] = {"result": tn.sample(circ_shots, seed=seed)}
             handle_list.append(handle)
         return handle_list
 
