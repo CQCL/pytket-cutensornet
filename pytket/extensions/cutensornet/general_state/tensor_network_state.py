@@ -36,7 +36,7 @@ except ImportError:
     warnings.warn("local settings failed to import cuquantum", ImportWarning)
 
 
-class GeneralState:  # TODO: Write it as a context manager so that I can call free()
+class GeneralState:
     """Wrapper of cuTensorNet's NetworkState for exact simulation of states.
 
     Note:
@@ -331,7 +331,7 @@ class GeneralState:  # TODO: Write it as a context manager so that I can call fr
         self.destroy()
 
 
-class GeneralBraOpKet:  # TODO: Write it as a context manager
+class GeneralBraOpKet:
     """Wrapper of cuTensorNet's NetworkState for exact simulation of ``<bra|O|ket>``.
 
     Note:
