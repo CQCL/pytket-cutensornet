@@ -281,9 +281,9 @@ class CuTensorNetShotsBackend(_CuTensorNetBaseBackend):
             n_shots: Number of shots in case of shot-based calculation.
                 Optionally, this can be a list of shots specifying the number of shots
                 for each circuit separately.
+            valid_check: Whether to check for circuit correctness.
             seed: An optional RNG seed. Different calls to ``process_circuits`` with the
                 same seed will generate the same list of shot outcomes.
-            valid_check: Whether to check for circuit correctness.
             tnconfig: Optional. A dict of cuTensorNet ``TNConfig`` keys and
                 their values.
             scratch_fraction: Optional. Fraction of free memory on GPU to allocate as

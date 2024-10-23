@@ -5,10 +5,10 @@ General state (exact) simulation
 
 .. autoclass:: pytket.extensions.cutensornet.general_state.GeneralState()
 
-    .. automethod:: get_statevector
-    .. automethod:: get_amplitude
-    .. automethod:: expectation_value
     .. automethod:: sample
+    .. automethod:: get_amplitude
+    .. automethod:: get_statevector
+    .. automethod:: expectation_value
     .. automethod:: destroy
 
 .. autoclass:: pytket.extensions.cutensornet.general_state.GeneralBraOpKet()

@@ -46,15 +46,17 @@ class GeneralState:
     Note:
         Preferably used as ``with GeneralState(...) as state:`` so that GPU memory is
         automatically released after execution.
+
         The ``circuit`` must not contain any ``CircBox`` or non-unitary command.
 
     Args:
-        circuit: A pytket circuit to be converted to a tensor network.
+        circuit: A pytket circuit to be converted into a tensor network.
         attributes: Optional. A dict of cuTensorNet ``TNConfig`` keys and
             their values.
         scratch_fraction: Optional. Fraction of free memory on GPU to allocate as
             scratch space; value between 0 and 1. Defaults to ``0.8``.
-        loglevel: Internal logger output level.
+        loglevel: Internal logger output level. Use 30 for warnings only, 20 for
+            verbose and 10 for debug mode.
     """
 
     def __init__(
@@ -138,8 +140,8 @@ class GeneralState:
         """Contracts the circuit and returns the final statevector.
 
         Args:
-            symbol_map: A dictionary where each element of ``sef.free_symbols`` is
-                assigned a real number.
+            symbol_map: A dictionary where each element of the pytket circuit's
+                ``.free_symbols()`` is assigned a real number.
             on_host: Optional. If ``True``, converts cupy ``ndarray`` to numpy
                 ``ndarray``, copying it to host device (CPU). Defaults to ``True``.
         Returns:
@@ -147,7 +149,7 @@ class GeneralState:
             host device (CPU). Arrays are returned in a 1D shape.
 
         Raises:
-            ValueError: If not every free symbol in the circuits is assigned a
+            ValueError: If not every free symbol in the circuit is assigned a
                 value in ``symbol_map``.
         """
         if symbol_map is not None:
@@ -169,21 +171,21 @@ class GeneralState:
     ) -> complex:
         """Returns the amplitude of the chosen computational state.
 
-        Notes:
+        Note:
             The result is equivalent to ``state.get_statevector[b]``, but this method
             is faster when querying a single amplitude (or just a few).
 
         Args:
             state: The integer whose bitstring describes the computational state.
                 The qubits in the bitstring are in increasing lexicographic order.
-            symbol_map: A dictionary where each element of ``sef.free_symbols`` is
-                assigned a real number.
+            symbol_map: A dictionary where each element of the pytket circuit's
+                ``.free_symbols()`` is assigned a real number.
 
         Returns:
             The amplitude of the computational state in ``self``.
 
         Raises:
-            ValueError: If not every free symbol in the circuits is assigned a
+            ValueError: If not every free symbol in the circuit is assigned a
                 value in ``symbol_map``.
         """
         if symbol_map is not None:
@@ -204,16 +206,16 @@ class GeneralState:
         """Calculates the expectation value of the given operator.
 
         Args:
-            operator: The operator whose expectation value is to be measured.
-            symbol_map: A dictionary where each element of ``sef.free_symbols`` is
-                assigned a real number.
+            operator: The operator whose expectation value is to be calculated.
+            symbol_map: A dictionary where each element of the pytket circuit's
+                ``.free_symbols()`` is assigned a real number.
 
         Returns:
             The expectation value.
 
         Raises:
             ValueError: If the operator acts on qubits not present in the circuit.
-            ValueError: If not every free symbol in the circuits is assigned a
+            ValueError: If not every free symbol in the circuit is assigned a
                 value in ``symbol_map``.
         """
         if symbol_map is not None:
@@ -252,8 +254,8 @@ class GeneralState:
 
         Args:
             n_shots: The number of samples to obtain.
-            symbol_map: A dictionary where each element of ``sef.free_symbols`` is
-                assigned a real number.
+            symbol_map: A dictionary where each element of the pytket circuit's
+                ``.free_symbols()`` is assigned a real number.
             seed: An optional RNG seed. Different calls to ``sample`` with the same
                 seed will generate the same list of shot outcomes.
 
@@ -262,7 +264,7 @@ class GeneralState:
 
         Raises:
             ValueError: If the circuit contains no measurements.
-            ValueError: If not every free symbol in the circuits is assigned a
+            ValueError: If not every free symbol in the circuit is assigned a
                 value in ``symbol_map``.
         """
         if symbol_map is not None:
@@ -313,10 +315,9 @@ class GeneralState:
     def destroy(self) -> None:
         """Destroy the tensor network and free up GPU memory.
 
-        Note:
-            The preferred approach is to use a context manager as in
-            ``with GeneralState(...) as state:``. Otherwise, the user must release
-            memory explicitly by calling ``destroy()``.
+        The preferred approach is to use a context manager as in
+        ``with GeneralState(...) as state:``. Otherwise, the user must release
+        memory explicitly by calling ``destroy()``.
         """
         self._logger.debug("Freeing memory of GeneralState")
         self.tn_state.free()
@@ -337,7 +338,9 @@ class GeneralBraOpKet:
     Note:
         Preferably used as ``with GeneralBraOpKet(...) as braket:`` so that GPU memory
         is automatically released after execution.
-        The ``circuit`` must not contain any ``CircBox`` or non-unitary command.
+
+        The circuits must not contain any ``CircBox`` or non-unitary command.
+
         The operator is provided when ``contract`` is called.
 
     Args:
@@ -347,7 +350,8 @@ class GeneralBraOpKet:
             their values.
         scratch_fraction: Optional. Fraction of free memory on GPU to allocate as
             scratch space; value between 0 and 1. Defaults to ``0.8``.
-        loglevel: Internal logger output level.
+        loglevel: Internal logger output level. Use 30 for warnings only, 20 for
+            verbose and 10 for debug mode.
 
     Raises:
         ValueError: If the circuits for ``ket`` or ``bra`` contain measurements.
@@ -505,11 +509,11 @@ class GeneralBraOpKet:
         Args:
             operator: A pytket ``QubitPauliOperator`` describing the operator. If not
                 given, then the identity operator is used, so it computes inner product.
-            symbol_map: A dictionary where each element of ``sef.free_symbols`` is
-                assigned a real number.
+            symbol_map: A dictionary where each element of both pytket circuits'
+                ``.free_symbols()`` is assigned a real number.
 
         Returns:
-            The value of ``<bra|operator|ket>``
+            The value of ``<bra|operator|ket>``.
 
         Raises:
             ValueError: If ``operator`` acts on qubits that are not in the circuits.
@@ -576,10 +580,9 @@ class GeneralBraOpKet:
     def destroy(self) -> None:
         """Destroy the tensor network and free up GPU memory.
 
-        Note:
-            The preferred approach is to use a context manager as in
-            ``with GeneralBraOpKet(...) as braket:``. Otherwise, the user must release
-            memory explicitly by calling ``destroy()``.
+        The preferred approach is to use a context manager as in
+        ``with GeneralBraOpKet(...) as braket:``. Otherwise, the user must release
+        memory explicitly by calling ``destroy()``.
         """
         self._logger.debug("Freeing memory of GeneralBraOpKet")
         self.tn.free()
