@@ -33,6 +33,13 @@ This will include the necessary dependencies such as CUDA toolkit. Then, to inst
     changelog.rst
 
 .. toctree::
+   :caption: Example Notebooks
+
+   examples/general_state_tutorial.ipynb
+   examples/mps_tutorial.ipynb
+   examples/ttn_tutorial.ipynb
+
+.. toctree::
    :caption: Useful links
 
    Issue tracker <https://github.com/CQCL/pytket-cutensornet/issues>
