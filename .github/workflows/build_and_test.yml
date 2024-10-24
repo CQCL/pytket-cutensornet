@@ -22,7 +22,7 @@ jobs:
     name: cuTensorNet - Build and test module
     strategy:
       matrix:
-        os: ['ubuntu-22.04', 'macos-12']
+        os: ['ubuntu-latest', 'macos-latest']
     runs-on: ${{ matrix.os }}
     steps:
     - uses: actions/checkout@v4
@@ -36,7 +36,7 @@ jobs:
         python-version: '3.10'
     - name: Build and mypy (3.10)
       shell: bash
-      if:  (matrix.os == 'macos-12') && (github.event_name == 'push' || (github.event_name == 'pull_request' &&  github.event.pull_request.head.repo.full_name == github.repository) || github.event_name == 'release' || github.event_name == 'schedule' )
+      if:  (matrix.os == 'macos-latest') && (github.event_name == 'push' || (github.event_name == 'pull_request' &&  github.event.pull_request.head.repo.full_name == github.repository) || github.event_name == 'release' || github.event_name == 'schedule' )
       run: |
         chmod +x ./.github/workflows/build-test
         ./.github/workflows/build-test mypy
@@ -70,13 +70,13 @@ jobs:
     - name: install poetry
       run: pip install poetry
     - name: Install docs dependencies
-      if: (matrix.os == 'ubuntu-22.04') && (github.event_name == 'pull_request' || github.event_name == 'schedule' )
+      if: (matrix.os == 'ubuntu-latest') && (github.event_name == 'pull_request' || github.event_name == 'schedule' )
       run: |
         cd docs
         bash ./install.sh
         for w in `find wheelhouse/ -type f -name "*.whl"` ; do poetry install $w ; done
     - name: Build docs
-      if: (matrix.os == 'ubuntu-22.04') && (github.event_name == 'pull_request' || github.event_name == 'schedule' )
+      if: (matrix.os == 'ubuntu-latest') && (github.event_name == 'pull_request' || github.event_name == 'schedule' )
       timeout-minutes: 20
       run: |
         cd docs
@@ -87,7 +87,7 @@ jobs:
     name: Publish to pypi
     if: github.event_name == 'release'
     needs: cutensornet-checks
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
     - name: Download all wheels
       # downloading all three files into the wheelhouse
@@ -112,7 +112,7 @@ jobs:
     name: Build docs
     if: github.event_name == 'release'
     needs: publish_to_pypi
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
       with:
