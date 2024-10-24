@@ -39,3 +39,6 @@ jobs:
     - name: Test pytket-cutensornet
       # impure is necessary due to nixgl usage (system-dependent cuda)
       run: nix run .#tests --impure --accept-flake-config
+    - name: Test example notebooks
+      # impure is necessary due to nixgl usage (system-dependent cuda)
+      run: nix run .#example-tests --impure --accept-flake-config

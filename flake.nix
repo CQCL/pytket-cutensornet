@@ -43,9 +43,9 @@
       in {
         packages = {
           default = pkgs.pytket-cutensornet;
-          cupy = pkgs.cupy';
           pytket-cutensornet = pkgs.pytket-cutensornet;
           tests = pkgs.run-pytket-cutensornet-tests;
+          example-tests = pkgs.run-pytket-cutensornet-examples;
         };
         devShells = {
           default = pkgs.mkShell { buildInputs = [ pkgs.pytket-cutensornet ]; };

@@ -10,6 +10,11 @@ do
     cmp ${name}.ipynb ${name}-gen.ipynb
     rm ${name}-gen.ipynb
 
-    # Run script:
-    python python/${name}.py
+    # run tests are performed in nix, allowing
+    # us to manage the testing environment in a
+    # reproducible way.
+    #
+    # See /nix-support/pytket-cutensornet.nix,
+    # in the derivation called
+    # run-pytket-cutensornet-examples.
 done
