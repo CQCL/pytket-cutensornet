@@ -82,6 +82,7 @@ EOF
       NIXGL_PATH="$(${nixgl-bin} printenv LD_LIBRARY_PATH)";
       WSL_PATH="/usr/lib/wsl/lib";
       LD_LIBRARY_PATH="$NIXGL_PATH:$WSL_PATH:$LD_LIBRARY_PATH";
+      export LD_LIBRARY_PATH;
       
       example_dir=${../examples};
       set -e;
