@@ -1,13 +1,13 @@
 import random
 import numpy as np
 import pytest
+from sympy import Symbol
 from pytket.circuit import Circuit, ToffoliBox, Qubit, Bit
 from pytket.passes import DecomposeBoxes, CnXPairwiseDecomposition
 from pytket.transform import Transform
 from pytket.pauli import QubitPauliString, Pauli
 from pytket.utils.operators import QubitPauliOperator
-from pytket.extensions.cutensornet.general_state import GeneralState
-from pytket.extensions.cutensornet.structured_state import CuTensorNetHandle
+from pytket.extensions.cutensornet.general_state import GeneralState, GeneralBraOpKet
 
 
 @pytest.mark.parametrize(
@@ -38,27 +38,32 @@ from pytket.extensions.cutensornet.structured_state import CuTensorNetHandle
         pytest.lazy_fixture("q8_x0h2v5z6"),  # type: ignore
     ],
 )
-def test_get_statevec(circuit: Circuit) -> None:
-    with CuTensorNetHandle() as libhandle:
-        state = GeneralState(circuit, libhandle)
+def test_basic_circs_state(circuit: Circuit) -> None:
+    sv_pytket = circuit.get_statevector()
+
+    op = QubitPauliOperator(
+        {
+            QubitPauliString({q: Pauli.I for q in circuit.qubits}): 1.0,
+        }
+    )
+
+    with GeneralState(circuit) as state:
         sv = state.get_statevector()
-
-        sv_pytket = circuit.get_statevector()
         assert np.allclose(sv, sv_pytket, atol=1e-10)
-
-        op = QubitPauliOperator(
-            {
-                QubitPauliString({q: Pauli.I for q in circuit.qubits}): 1.0,
-            }
-        )
 
         # Calculate the inner product as the expectation value
         # of the identity operator: <psi|psi> = <psi|I|psi>
-        state = GeneralState(circuit, libhandle)
         ovl = state.expectation_value(op)
         assert ovl == pytest.approx(1.0)
 
-    state.destroy()
+        # Check that all amplitudes agree
+        for i in range(len(sv)):
+            assert np.isclose(sv[i], state.get_amplitude(i))
+
+    # Calculate the inner product again, using GeneralBraOpKet
+    with GeneralBraOpKet(circuit, circuit) as braket:
+        ovl = braket.contract()
+        assert ovl == pytest.approx(1.0)
 
 
 def test_sv_toffoli_box_with_implicit_swaps() -> None:
@@ -83,10 +88,8 @@ def test_sv_toffoli_box_with_implicit_swaps() -> None:
     Transform.OptimiseCliffords().apply(ket_circ)
 
     # Convert and contract
-    with CuTensorNetHandle() as libhandle:
-        state = GeneralState(ket_circ, libhandle)
+    with GeneralState(ket_circ) as state:
         ket_net_vector = state.get_statevector()
-    state.destroy()
 
     # Compare to pytket statevector
     ket_pytket_vector = ket_circ.get_statevector()
@@ -119,26 +122,23 @@ def test_sv_generalised_toffoli_box(n_qubits: int) -> None:
     CnXPairwiseDecomposition().apply(ket_circ)
     Transform.OptimiseCliffords().apply(ket_circ)
 
-    with CuTensorNetHandle() as libhandle:
-        state = GeneralState(ket_circ, libhandle)
+    with GeneralState(ket_circ) as state:
         ket_net_vector = state.get_statevector()
 
-        ket_pytket_vector = ket_circ.get_statevector()
-        assert np.allclose(ket_net_vector, ket_pytket_vector)
+    ket_pytket_vector = ket_circ.get_statevector()
+    assert np.allclose(ket_net_vector, ket_pytket_vector)
 
-        # Calculate the inner product as the expectation value
-        # of the identity operator: <psi|psi> = <psi|I|psi>
-        op = QubitPauliOperator(
-            {
-                QubitPauliString({q: Pauli.I for q in ket_circ.qubits}): 1.0,
-            }
-        )
+    # Calculate the inner product as the expectation value
+    # of the identity operator: <psi|psi> = <psi|I|psi>
+    op = QubitPauliOperator(
+        {
+            QubitPauliString({q: Pauli.I for q in ket_circ.qubits}): 1.0,
+        }
+    )
 
-        state = GeneralState(ket_circ, libhandle)
+    with GeneralState(ket_circ) as state:
         ovl = state.expectation_value(op)
-        assert ovl == pytest.approx(1.0)
-
-    state.destroy()
+    assert ovl == pytest.approx(1.0)
 
 
 @pytest.mark.parametrize(
@@ -197,12 +197,16 @@ def test_expectation_value(circuit: Circuit, observable: QubitPauliOperator) -> 
     exp_val_tket = observable.state_expectation(circuit.get_statevector())
 
     # Calculate using GeneralState
-    with CuTensorNetHandle() as libhandle:
-        state = GeneralState(circuit, libhandle)
+    with GeneralState(circuit) as state:
         exp_val = state.expectation_value(observable)
 
     assert np.isclose(exp_val, exp_val_tket)
-    state.destroy()
+
+    # Calculate using GeneralBraOpKet
+    with GeneralBraOpKet(circuit, circuit) as braket:
+        exp_val = braket.contract(observable)
+
+    assert np.isclose(exp_val, exp_val_tket)
 
 
 @pytest.mark.parametrize(
@@ -253,8 +257,7 @@ def test_sampler(circuit: Circuit, measure_all: bool) -> None:
             circuit.Measure(q, Bit(i))
 
     # Sample using our library
-    with CuTensorNetHandle() as libhandle:
-        state = GeneralState(circuit, libhandle)
+    with GeneralState(circuit) as state:
         results = state.sample(n_shots)
 
     # Verify distribution matches theoretical probabilities
@@ -276,4 +279,46 @@ def test_sampler(circuit: Circuit, measure_all: bool) -> None:
 
         assert np.isclose(count / n_shots, prob, atol=0.01)
 
-    state.destroy()
+
+@pytest.mark.parametrize(
+    "circuit",
+    [
+        pytest.lazy_fixture("q4_lcu1_parameterised"),  # type: ignore
+        pytest.lazy_fixture("q5_h0s1rz2ry3tk4tk13_parameterised"),  # type: ignore
+    ],
+)
+@pytest.mark.parametrize(
+    "symbol_map",
+    [
+        {Symbol("a"): 0.3, Symbol("b"): 0.42, Symbol("c"): -0.13},
+        {Symbol("a"): 5.3, Symbol("b"): 1.42, Symbol("c"): -0.07, Symbol("d"): 0.53},
+    ],
+)
+def test_parameterised(circuit: Circuit, symbol_map: dict[Symbol, float]) -> None:
+    state = GeneralState(circuit)
+    sv = state.get_statevector(symbol_map)
+
+    circuit.symbol_substitution(symbol_map)
+    sv_pytket = circuit.get_statevector()
+    assert np.allclose(sv, sv_pytket, atol=1e-10)
+
+    op = QubitPauliOperator(
+        {
+            QubitPauliString({q: Pauli.I for q in circuit.qubits}): 1.0,
+        }
+    )
+
+    # Calculate the inner product as the expectation value
+    # of the identity operator: <psi|psi> = <psi|I|psi>
+    with GeneralState(circuit) as state:
+        ovl = state.expectation_value(op)
+        assert ovl == pytest.approx(1.0)
+
+        # Check that all amplitudes agree
+        for i in range(len(sv)):
+            assert np.isclose(sv[i], state.get_amplitude(i))
+
+    # Calculate the inner product again, using GeneralBraOpKet
+    with GeneralBraOpKet(circuit, circuit) as braket:
+        ovl = braket.contract()
+    assert ovl == pytest.approx(1.0)

@@ -14,7 +14,7 @@
 
 from __future__ import annotations
 import logging
-from typing import Union, Optional, Tuple, Dict
+from typing import Union, Optional, Any
 import warnings
 
 try:
@@ -22,407 +22,249 @@ try:
 except ImportError:
     warnings.warn("local settings failed to import cupy", ImportWarning)
 import numpy as np
-from sympy import Expr  # type: ignore
+from sympy import Expr, Symbol  # type: ignore
 from numpy.typing import NDArray
-from pytket.circuit import Circuit, Qubit, Bit, OpType
-from pytket.extensions.cutensornet.general import CuTensorNetHandle, set_logger
+from pytket.circuit import Circuit, Qubit, Bit, OpType, Op
+from pytket.extensions.cutensornet.general import set_logger
 from pytket.utils import OutcomeArray
 from pytket.utils.operators import QubitPauliOperator
 from pytket.backends.backendresult import BackendResult
 
 try:
-    import cuquantum as cq  # type: ignore
-    from cuquantum import cutensornet as cutn  # type: ignore
+    from cuquantum.cutensornet.experimental import NetworkState, NetworkOperator  # type: ignore
 except ImportError:
     warnings.warn("local settings failed to import cuquantum", ImportWarning)
 
 
 class GeneralState:
-    """Wrapper of cuTensorNet object for exact simulations via path optimisation."""
+    """Wrapper of cuTensorNet's NetworkState for exact simulation of states.
+
+    Constructs a tensor network for the output state of a pytket circuit.
+    The qubits are assumed to be initialised in the ``|0>`` state.
+    The object stores the *uncontracted* tensor network.
+
+    Note:
+        Preferably used as ``with GeneralState(...) as state:`` so that GPU memory is
+        automatically released after execution.
+
+        The ``circuit`` must not contain any ``CircBox`` or non-unitary command.
+
+    Args:
+        circuit: A pytket circuit to be converted into a tensor network.
+        attributes: Optional. A dict of cuTensorNet ``TNConfig`` keys and
+            their values.
+        scratch_fraction: Optional. Fraction of free memory on GPU to allocate as
+            scratch space; value between 0 and 1. Defaults to ``0.8``.
+        loglevel: Internal logger output level. Use 30 for warnings only, 20 for
+            verbose and 10 for debug mode.
+    """
 
     def __init__(
         self,
         circuit: Circuit,
-        libhandle: CuTensorNetHandle,
+        attributes: Optional[dict] = None,
+        scratch_fraction: float = 0.8,
         loglevel: int = logging.WARNING,
     ) -> None:
-        """Constructs a tensor network for the output state of a pytket circuit.
-
-        The qubits are assumed to be initialised in the ``|0>`` state.
-        The resulting object stores the *uncontracted* tensor network.
-
-        Note:
-            A ``libhandle`` is created via a ``with CuTensorNetHandle() as libhandle:``
-            statement. The device where the ``GeneralState`` is stored will match the
-            one specified by the library handle.
-
-        Note:
-            The ``circuit`` must not contain any ``CircBox`` or non-unitary command.
-
-        Args:
-            circuit: A pytket circuit to be converted to a tensor network.
-            libhandle: An instance of a ``CuTensorNetHandle``.
-            loglevel: Internal logger output level.
-        """
         self._logger = set_logger("GeneralState", loglevel)
-        self._lib = libhandle
-        libhandle.print_device_properties(self._logger)
 
         # Remove end-of-circuit measurements and keep track of them separately
         # It also resolves implicit swaps
-        self._circuit, self._measurements = _remove_meas_and_implicit_swaps(circuit)
-        # Identify each qubit with the index of  the bond that represents it in the
+        circuit, self._measurements = _remove_meas_and_implicit_swaps(circuit)
+        # Identify each qubit with the index of the bond that represents it in the
         # tensor network stored in this GeneralState. Qubits are sorted in increasing
         # lexicographical order, which is the TKET standard.
-        self._qubit_idx_map = {q: i for i, q in enumerate(sorted(self._circuit.qubits))}
+        self._qubit_idx_map = {q: i for i, q in enumerate(sorted(circuit.qubits))}
 
-        num_qubits = self._circuit.n_qubits
+        self._phase = circuit.phase
+        self.n_qubits = circuit.n_qubits
         dim = 2  # We are always dealing with qubits, not qudits
-        qubits_dims = (dim,) * num_qubits  # qubit size
-        self._logger.debug(f"Converting a quantum circuit with {num_qubits} qubits.")
-        data_type = cq.cudaDataType.CUDA_C_64F  # for now let that be hard-coded
+        qubits_dims = (dim,) * len(circuit.qubits)  # qubit size
+        data_type = "complex128"  # for now let that be hard-coded
 
-        self._state = cutn.create_state(
-            self._lib.handle, cutn.StatePurity.PURE, num_qubits, qubits_dims, data_type
+        self.tn_state = NetworkState(
+            qubits_dims,
+            dtype=data_type,
+            config=attributes,
+            options={
+                "memory_limit": f"{int(scratch_fraction*100)}%",
+                "logger": self._logger,
+            },
         )
-        self._gate_tensors = []
 
-        # Append all gates to the TN
-        for com in self._circuit.get_commands():
-            try:
-                gate_unitary = com.op.get_unitary()
-            except:
-                raise ValueError(
-                    "All commands in the circuit must be unitary gates. The circuit "
-                    f"contains {com}; no unitary matrix could be retrived for it."
-                )
-            self._gate_tensors.append(_formatted_tensor(gate_unitary, com.op.n_qubits))
+        # Maintain a dict of tensor_id->Op for symbolic Ops to be update when the user
+        # calls any evaluation function with the symbols specified.
+        self._symbolic_ops: dict[int, Op] = dict()
+        # Append all gates to the NetworkState
+        commands = circuit.get_commands()
+        for com in commands:
+            is_fixed = len(com.op.free_symbols()) == 0
+            if is_fixed:
+                try:
+                    gate_unitary = com.op.get_unitary()
+                except Exception as e:
+                    raise ValueError(
+                        "All commands in the circuit must be unitary gates. The circuit"
+                        f" contains {com}; no unitary matrix could be retrived from it."
+                    ) from e
+            else:
+                # Dummy unitary to be updated later with user specified paramaters
+                gate_unitary = np.identity(2**com.op.n_qubits, dtype="complex128")
+
             gate_qubit_indices = tuple(self._qubit_idx_map[qb] for qb in com.qubits)
+            tensor_id = self.tn_state.apply_tensor_operator(
+                gate_qubit_indices,
+                _formatted_tensor(gate_unitary, com.op.n_qubits),
+                immutable=is_fixed,
+                unitary=True,
+            )
 
-            cutn.state_apply_tensor_operator(
-                handle=self._lib.handle,
-                tensor_network_state=self._state,
-                num_state_modes=com.op.n_qubits,
-                state_modes=gate_qubit_indices,
-                tensor_data=self._gate_tensors[-1].data.ptr,
-                tensor_mode_strides=0,
-                immutable=1,
-                adjoint=0,
-                unitary=1,
+            if not is_fixed:
+                self._symbolic_ops[tensor_id] = com.op
+
+        # If the circuit has no gates, apply one identity gate so that CuTensorNet does
+        # not panic due to no tensor operator in the NetworkState
+        if len(commands) == 0:
+            tensor_id = self.tn_state.apply_tensor_operator(
+                (0,),
+                _formatted_tensor(np.identity(2), 1),
+                immutable=True,
+                unitary=True,
             )
 
     def get_statevector(
         self,
-        attributes: Optional[dict] = None,
-        scratch_fraction: float = 0.75,
+        symbol_map: Optional[dict[Symbol, float]] = None,
         on_host: bool = True,
     ) -> Union[cp.ndarray, np.ndarray]:
         """Contracts the circuit and returns the final statevector.
 
         Args:
-            attributes: Optional. A dict of cuTensorNet `StateAttribute` keys and
-                their values.
-            scratch_fraction: Optional. Fraction of free memory on GPU to allocate as
-                scratch space.
+            symbol_map: A dictionary where each element of the pytket circuit's
+                ``.free_symbols()`` is assigned a real number.
             on_host: Optional. If ``True``, converts cupy ``ndarray`` to numpy
-                ``ndarray``, copying it to host device (CPU).
-        Raises:
-            MemoryError: If there is insufficient workspace on GPU.
+                ``ndarray``, copying it to host device (CPU). Defaults to ``True``.
         Returns:
             Either a ``cupy.ndarray`` on a GPU, or a ``numpy.ndarray`` on a
             host device (CPU). Arrays are returned in a 1D shape.
+
+        Raises:
+            ValueError: If not every free symbol in the circuit is assigned a
+                value in ``symbol_map``.
         """
+        _update_tensors(self.tn_state, self._symbolic_ops, symbol_map)
 
-        ####################################
-        # Configure the TN for contraction #
-        ####################################
-        if attributes is None:
-            attributes = dict()
-        attribute_pairs = [
-            (getattr(cutn.StateAttribute, k), v) for k, v in attributes.items()
-        ]
+        self._logger.debug("(Statevector) contracting the TN")
+        state_vector = self.tn_state.compute_state_vector()
+        sv = state_vector.flatten()  # Convert to 1D
+        if on_host:
+            sv = cp.asnumpy(sv)
+        # Apply the phase from the circuit
+        sv *= np.exp(1j * np.pi * self._phase)
+        return sv
 
-        for attr, val in attribute_pairs:
-            attr_dtype = cutn.state_get_attribute_dtype(attr)
-            attr_arr = np.asarray(val, dtype=attr_dtype)
-            cutn.state_configure(
-                self._lib.handle,
-                self._state,
-                attr,
-                attr_arr.ctypes.data,
-                attr_arr.dtype.itemsize,
-            )
+    def get_amplitude(
+        self,
+        state: int,
+        symbol_map: Optional[dict[Symbol, float]] = None,
+    ) -> complex:
+        """Returns the amplitude of the chosen computational state.
 
-        try:
-            ######################################
-            # Allocate workspace for contraction #
-            ######################################
-            stream = cp.cuda.Stream()
-            free_mem = self._lib.dev.mem_info[0]
-            scratch_size = int(scratch_fraction * free_mem)
-            scratch_space = cp.cuda.alloc(scratch_size)
-            self._logger.debug(
-                f"Allocated {scratch_size} bytes of scratch memory on GPU"
-            )
-            work_desc = cutn.create_workspace_descriptor(self._lib.handle)
+        Note:
+            The result is equivalent to ``state.get_statevector[b]``, but this method
+            is faster when querying a single amplitude (or just a few).
 
-            cutn.state_prepare(
-                self._lib.handle,
-                self._state,
-                scratch_size,
-                work_desc,
-                stream.ptr,
-            )
-            workspace_size_d = cutn.workspace_get_memory_size(
-                self._lib.handle,
-                work_desc,
-                cutn.WorksizePref.RECOMMENDED,
-                cutn.Memspace.DEVICE,
-                cutn.WorkspaceKind.SCRATCH,
-            )
+        Args:
+            state: The integer whose bitstring describes the computational state.
+                The qubits in the bitstring are in increasing lexicographic order.
+            symbol_map: A dictionary where each element of the pytket circuit's
+                ``.free_symbols()`` is assigned a real number.
 
-            if workspace_size_d <= scratch_size:
-                cutn.workspace_set_memory(
-                    self._lib.handle,
-                    work_desc,
-                    cutn.Memspace.DEVICE,
-                    cutn.WorkspaceKind.SCRATCH,
-                    scratch_space.ptr,
-                    workspace_size_d,
-                )
-                self._logger.debug(
-                    f"Set {workspace_size_d} bytes of workspace memory out of the"
-                    f" allocated scratch space."
-                )
+        Returns:
+            The amplitude of the computational state in ``self``.
 
-            else:
-                raise MemoryError(
-                    f"Insufficient workspace size on the GPU device {self._lib.dev.id}"
-                )
+        Raises:
+            ValueError: If not every free symbol in the circuit is assigned a
+                value in ``symbol_map``.
+        """
+        _update_tensors(self.tn_state, self._symbolic_ops, symbol_map)
 
-            ###################
-            # Contract the TN #
-            ###################
-            state_vector = cp.empty(
-                (2,) * self._circuit.n_qubits, dtype="complex128", order="F"
-            )
-            cutn.state_compute(
-                self._lib.handle,
-                self._state,
-                work_desc,
-                (state_vector.data.ptr,),
-                stream.ptr,
-            )
-            stream.synchronize()
-            sv = state_vector.flatten()
-            if on_host:
-                sv = cp.asnumpy(sv)
-            # Apply the phase from the circuit
-            sv *= np.exp(1j * np.pi * self._circuit.phase)
-            return sv
-
-        finally:
-            cutn.destroy_workspace_descriptor(work_desc)  # type: ignore
-            del scratch_space
+        self._logger.debug("(Amplitude) contracting the TN")
+        bitstring = format(state, "b").zfill(self.n_qubits)
+        amplitude = self.tn_state.compute_amplitude(bitstring)
+        # Apply the phase from the circuit
+        amplitude *= np.exp(1j * np.pi * self._phase)
+        return complex(amplitude)
 
     def expectation_value(
         self,
         operator: QubitPauliOperator,
-        attributes: Optional[dict] = None,
-        scratch_fraction: float = 0.75,
+        symbol_map: Optional[dict[Symbol, float]] = None,
     ) -> complex:
         """Calculates the expectation value of the given operator.
 
         Args:
-            operator: The operator whose expectation value is to be measured.
-            attributes: Optional. A dict of cuTensorNet `ExpectationAttribute` keys
-                and their values.
-            scratch_fraction: Optional. Fraction of free memory on GPU to allocate as
-                 scratch space.
-
-        Raises:
-            ValueError: If the operator acts on qubits not present in the circuit.
+            operator: The operator whose expectation value is to be calculated.
+            symbol_map: A dictionary where each element of the pytket circuit's
+                ``.free_symbols()`` is assigned a real number.
 
         Returns:
             The expectation value.
+
+        Raises:
+            ValueError: If the operator acts on qubits not present in the circuit.
+            ValueError: If not every free symbol in the circuit is assigned a
+                value in ``symbol_map``.
         """
+        _update_tensors(self.tn_state, self._symbolic_ops, symbol_map)
 
-        ############################################
-        # Generate the cuTensorNet operator object #
-        ############################################
-        pauli_tensors = {
-            "X": _formatted_tensor(np.asarray([[0, 1], [1, 0]]), 1),
-            "Y": _formatted_tensor(np.asarray([[0, -1j], [1j, 0]]), 1),
-            "Z": _formatted_tensor(np.asarray([[1, 0], [0, -1]]), 1),
-            "I": _formatted_tensor(np.asarray([[1, 0], [0, 1]]), 1),
-        }
-        num_qubits = self._circuit.n_qubits
-        qubits_dims = (2,) * num_qubits
-        data_type = cq.cudaDataType.CUDA_C_64F
+        self._logger.debug("(Expectation value) converting operator to NetworkOperator")
 
-        tn_operator = cutn.create_network_operator(
-            self._lib.handle, num_qubits, qubits_dims, data_type
-        )
-
-        self._logger.debug("Adding operator terms:")
-        for pauli_string, coeff in operator._dict.items():
-            if isinstance(coeff, Expr):
-                numeric_coeff = complex(coeff.evalf())  # type: ignore
-            else:
-                numeric_coeff = complex(coeff)  # type: ignore
-            self._logger.debug(f"   {numeric_coeff}, {pauli_string}")
+        paulis = ["I", "X", "Y", "Z"]
+        pauli_strs = dict()
+        for pstr, coeff in operator._dict.items():
 
             # Raise an error if the operator acts on qubits that are not in the circuit
-            if any(q not in self._circuit.qubits for q in pauli_string.map.keys()):
+            if any(q not in self._qubit_idx_map.keys() for q in pstr.map.keys()):
                 raise ValueError(
-                    f"The operator is acting on qubits {pauli_string.map.keys()}, "
+                    f"The operator is acting on qubits {pstr.map.keys()}, "
                     "but some of these are not present in the circuit, whose set of "
-                    f"qubits is: {self._circuit.qubits}."
+                    f"qubits is: {self._qubit_idx_map.keys()}."
                 )
 
-            # Obtain the tensors corresponding to this operator
-            qubit_pauli_map = {
-                q: pauli_tensors[pauli.name] for q, pauli in pauli_string.map.items()
-            }
+            pauli_list = [pstr[q] for q in self._qubit_idx_map.keys()]
+            this_pauli_string = "".join(map(lambda x: paulis[x], pauli_list))
+            pauli_strs[this_pauli_string] = complex(coeff)
 
-            num_pauli = len(qubit_pauli_map)
-            num_modes = (1,) * num_pauli
-            state_modes = tuple(
-                (self._qubit_idx_map[qb],) for qb in qubit_pauli_map.keys()
-            )
-            gate_data = tuple(tensor.data.ptr for tensor in qubit_pauli_map.values())
+        tn_operator = NetworkOperator.from_pauli_strings(pauli_strs, dtype="complex128")
 
-            cutn.network_operator_append_product(
-                handle=self._lib.handle,
-                tensor_network_operator=tn_operator,
-                coefficient=numeric_coeff,
-                num_tensors=num_pauli,
-                num_state_modes=num_modes,
-                state_modes=state_modes,
-                tensor_mode_strides=0,
-                tensor_data=gate_data,
-            )
-
-        ######################################################
-        # Configure the cuTensorNet expectation value object #
-        ######################################################
-        expectation = cutn.create_expectation(
-            self._lib.handle, self._state, tn_operator
-        )
-
-        if attributes is None:
-            attributes = dict()
-        attribute_pairs = [
-            (getattr(cutn.ExpectationAttribute, k), v) for k, v in attributes.items()
-        ]
-
-        for attr, val in attribute_pairs:
-            attr_dtype = cutn.expectation_get_attribute_dtype(attr)
-            attr_arr = np.asarray(val, dtype=attr_dtype)
-            cutn.expectation_configure(
-                self._lib.handle,
-                expectation,
-                attr,
-                attr_arr.ctypes.data,
-                attr_arr.dtype.itemsize,
-            )
-
-        try:
-            ######################################
-            # Allocate workspace for contraction #
-            ######################################
-            stream = cp.cuda.Stream()
-            free_mem = self._lib.dev.mem_info[0]
-            scratch_size = int(scratch_fraction * free_mem)
-            scratch_space = cp.cuda.alloc(scratch_size)
-
-            self._logger.debug(
-                f"Allocated {scratch_size} bytes of scratch memory on GPU"
-            )
-            work_desc = cutn.create_workspace_descriptor(self._lib.handle)
-            cutn.expectation_prepare(
-                self._lib.handle,
-                expectation,
-                scratch_size,
-                work_desc,
-                stream.ptr,
-            )
-            workspace_size_d = cutn.workspace_get_memory_size(
-                self._lib.handle,
-                work_desc,
-                cutn.WorksizePref.RECOMMENDED,
-                cutn.Memspace.DEVICE,
-                cutn.WorkspaceKind.SCRATCH,
-            )
-
-            if workspace_size_d <= scratch_size:
-                cutn.workspace_set_memory(
-                    self._lib.handle,
-                    work_desc,
-                    cutn.Memspace.DEVICE,
-                    cutn.WorkspaceKind.SCRATCH,
-                    scratch_space.ptr,
-                    workspace_size_d,
-                )
-                self._logger.debug(
-                    f"Set {workspace_size_d} bytes of workspace memory out of the"
-                    f" allocated scratch space."
-                )
-            else:
-                raise MemoryError(
-                    f"Insufficient workspace size on the GPU device {self._lib.dev.id}"
-                )
-
-            #################################
-            # Compute the expectation value #
-            #################################
-            expectation_value = np.empty(1, dtype="complex128")
-            state_norm = np.empty(1, dtype="complex128")
-            cutn.expectation_compute(
-                self._lib.handle,
-                expectation,
-                work_desc,
-                expectation_value.ctypes.data,
-                state_norm.ctypes.data,
-                stream.ptr,
-            )
-            stream.synchronize()
-
-            # Note: we can also return `state_norm.item()`, but this should be 1 since
-            # we are always running unitary circuits
-            assert np.isclose(state_norm.item(), 1.0)
-
-            return expectation_value.item()  # type: ignore
-
-        finally:
-            #####################################################
-            # Destroy the Operator and ExpectationValue objects #
-            #####################################################
-            cutn.destroy_workspace_descriptor(work_desc)  # type: ignore
-            cutn.destroy_expectation(expectation)
-            cutn.destroy_network_operator(tn_operator)
-            del scratch_space
+        self._logger.debug("(Expectation value) contracting the TN")
+        return complex(self.tn_state.compute_expectation(tn_operator))
 
     def sample(
         self,
         n_shots: int,
-        attributes: Optional[dict] = None,
-        scratch_fraction: float = 0.75,
+        symbol_map: Optional[dict[Symbol, float]] = None,
+        seed: Optional[int] = None,
     ) -> BackendResult:
         """Obtains samples from the measurements at the end of the circuit.
 
         Args:
             n_shots: The number of samples to obtain.
-            attributes: Optional. A dict of cuTensorNet `SamplerAttribute` keys and
-                their values.
-            scratch_fraction: Optional. Fraction of free memory on GPU to allocate as
-                scratch space.
-        Raises:
-            ValueError: If the circuit contains no measurements.
-            MemoryError: If there is insufficient workspace on GPU.
+            symbol_map: A dictionary where each element of the pytket circuit's
+                ``.free_symbols()`` is assigned a real number.
+            seed: An optional RNG seed. Different calls to ``sample`` with the same
+                seed will generate the same list of shot outcomes.
+
         Returns:
             A pytket ``BackendResult`` with the data from the shots.
+
+        Raises:
+            ValueError: If the circuit contains no measurements.
+            ValueError: If not every free symbol in the circuit is assigned a
+                value in ``symbol_map``.
         """
+        _update_tensors(self.tn_state, self._symbolic_ops, symbol_map)
 
         num_measurements = len(self._measurements)
         if num_measurements == 0:
@@ -435,138 +277,328 @@ class GeneralState:
         qbit_list, cbit_list = zip(*self._measurements.items())
         measured_modes = tuple(self._qubit_idx_map[qb] for qb in qbit_list)
 
-        ############################################
-        # Configure the cuTensorNet sampler object #
-        ############################################
-
-        sampler = cutn.create_sampler(
-            handle=self._lib.handle,
-            tensor_network_state=self._state,
-            num_modes_to_sample=num_measurements,
-            modes_to_sample=measured_modes,
+        self._logger.debug("(Sampling) contracting the TN")
+        if seed is not None:
+            seed = abs(seed)  # Must be a positive integer
+        samples = self.tn_state.compute_sampling(
+            nshots=n_shots,
+            modes=measured_modes,
+            seed=seed,
         )
 
-        if attributes is None:
-            attributes = dict()
-        attribute_pairs = [
-            (getattr(cutn.SamplerAttribute, k), v) for k, v in attributes.items()
-        ]
+        # Convert the data in `samples` to an `OutcomeArray` using `from_readouts`
+        # which expects a 2D array `samples[SampleId][QubitId]` of 0s and 1s.
+        self._logger.debug("(Sampling) converting samples to pytket Backend")
+        readouts = np.empty(shape=(n_shots, num_measurements), dtype=int)
+        sample_id = 0
+        for bitstring, count in samples.items():
+            outcome = [int(b) for b in bitstring]
 
-        for attr, val in attribute_pairs:
-            attr_dtype = cutn.sampler_get_attribute_dtype(attr)
-            attr_arr = np.asarray(val, dtype=attr_dtype)
-            cutn.sampler_configure(
-                self._lib.handle,
-                sampler,
-                attr,
-                attr_arr.ctypes.data,
-                attr_arr.dtype.itemsize,
-            )
+            for _ in range(count):
+                readouts[sample_id] = outcome
+                sample_id += 1
 
-        try:
-            ######################################
-            # Allocate workspace for contraction #
-            ######################################
-            stream = cp.cuda.Stream()
-            free_mem = self._lib.dev.mem_info[0]
-            scratch_size = int(scratch_fraction * free_mem)
-            scratch_space = cp.cuda.alloc(scratch_size)
+        shots = OutcomeArray.from_readouts(readouts)
 
-            self._logger.debug(
-                f"Allocated {scratch_size} bytes of scratch memory on GPU"
-            )
-            work_desc = cutn.create_workspace_descriptor(self._lib.handle)
-            cutn.sampler_prepare(
-                self._lib.handle,
-                sampler,
-                scratch_size,
-                work_desc,
-                stream.ptr,
-            )
-            workspace_size_d = cutn.workspace_get_memory_size(
-                self._lib.handle,
-                work_desc,
-                cutn.WorksizePref.RECOMMENDED,
-                cutn.Memspace.DEVICE,
-                cutn.WorkspaceKind.SCRATCH,
-            )
-
-            if workspace_size_d <= scratch_size:
-                cutn.workspace_set_memory(
-                    self._lib.handle,
-                    work_desc,
-                    cutn.Memspace.DEVICE,
-                    cutn.WorkspaceKind.SCRATCH,
-                    scratch_space.ptr,
-                    workspace_size_d,
-                )
-                self._logger.debug(
-                    f"Set {workspace_size_d} bytes of workspace memory out of the"
-                    f" allocated scratch space."
-                )
-            else:
-                raise MemoryError(
-                    f"Insufficient workspace size on the GPU device {self._lib.dev.id}"
-                )
-
-            ###########################
-            # Sample from the circuit #
-            ###########################
-            samples = np.empty((num_measurements, n_shots), dtype="int64", order="F")
-            cutn.sampler_sample(
-                self._lib.handle,
-                sampler,
-                n_shots,
-                work_desc,
-                samples.ctypes.data,
-                stream.ptr,
-            )
-            stream.synchronize()
-
-            # Convert the data in `samples` to an `OutcomeArray`
-            # `samples` is a 2D numpy array `samples[SampleId][QubitId]`, which is
-            # the transpose of what `OutcomeArray.from_readouts` expects
-            shots = OutcomeArray.from_readouts(samples.T)
-            # We need to specify which bits correspond to which columns in the shots
-            # table. Since cuTensorNet promises that the ordering of outcomes is
-            # determined by the ordering we provided as `measured_modes`, which in
-            # turn corresponds to the ordering of qubits in `qbit_list`, the fact that
-            # `cbit_list` has the appropriate order in relation to `self._measurements`
-            # determines this defines the ordering of classical bits we intend.
-            return BackendResult(c_bits=cbit_list, shots=shots)
-
-        finally:
-            ##############################
-            # Destroy the Sampler object #
-            ##############################
-            cutn.destroy_workspace_descriptor(work_desc)  # type: ignore
-            cutn.destroy_sampler(sampler)
-            del scratch_space
+        # We need to specify which bits correspond to which columns in the shots
+        # table. Since cuTensorNet promises that the ordering of outcomes is
+        # determined by the ordering we provided as `measured_modes`, which in
+        # turn corresponds to the ordering of qubits in `qbit_list`, the fact that
+        # `cbit_list` has the appropriate order in relation to `self._measurements`
+        # implies this defines the ordering of classical bits we intend.
+        return BackendResult(c_bits=cbit_list, shots=shots)
 
     def destroy(self) -> None:
         """Destroy the tensor network and free up GPU memory.
 
-        Note:
-            Users are required to call `destroy()` when done using a
-            `GeneralState` object. GPU memory deallocation is not
-            guaranteed otherwise.
+        The preferred approach is to use a context manager as in
+        ``with GeneralState(...) as state:``. Otherwise, the user must release
+        memory explicitly by calling ``destroy()``.
         """
-        cutn.destroy_state(self._state)
+        self._logger.debug("Freeing memory of GeneralState")
+        self.tn_state.free()
+
+    def __enter__(self) -> GeneralState:
+        return self
+
+    def __exit__(self, exc_type: Any, exc_value: Any, exc_tb: Any) -> None:
+        self.destroy()
+
+
+class GeneralBraOpKet:
+    """Constructs a tensor network for ``<bra|operator|ket>``.
+
+    The qubits in ``ket`` and ``bra`` are assumed to be initialised in the ``|0>``
+    state. The object stores the *uncontracted* tensor network.
+
+    Note:
+        Preferably used as ``with GeneralBraOpKet(...) as braket:`` so that GPU memory
+        is automatically released after execution.
+
+        The circuits must not contain any ``CircBox`` or non-unitary command.
+
+        The operator is provided when ``contract`` is called.
+
+    Args:
+        bra: A pytket circuit describing the |bra> state.
+        ket: A pytket circuit describing the |ket> state.
+        attributes: Optional. A dict of cuTensorNet ``TNConfig`` keys and
+            their values.
+        scratch_fraction: Optional. Fraction of free memory on GPU to allocate as
+            scratch space; value between 0 and 1. Defaults to ``0.8``.
+        loglevel: Internal logger output level. Use 30 for warnings only, 20 for
+            verbose and 10 for debug mode.
+
+    Raises:
+        ValueError: If the circuits for ``ket`` or ``bra`` contain measurements.
+        ValueError: If the set of qubits of ``ket`` and ``bra`` do not match.
+    """
+
+    def __init__(
+        self,
+        bra: Circuit,
+        ket: Circuit,
+        attributes: Optional[dict] = None,
+        scratch_fraction: float = 0.8,
+        loglevel: int = logging.WARNING,
+    ) -> None:
+        self._logger = set_logger("GeneralBraOpKet", loglevel)
+
+        # Check that the circuits have the same qubits
+        if set(ket.qubits) != set(bra.qubits):
+            raise ValueError(
+                "The circuits given to GeneralBraOpKet must act on the same qubits."
+            )
+        # Remove end-of-circuit measurements and keep track of them separately
+        # It also resolves implicit swaps
+        ket, meas = _remove_meas_and_implicit_swaps(ket)
+        if len(meas) != 0:
+            raise ValueError(
+                "The circuits given to a GeneralBraOpKet cannot have measurements."
+            )
+        bra, meas = _remove_meas_and_implicit_swaps(bra)
+        if len(meas) != 0:
+            raise ValueError(
+                "The circuits given to a GeneralBraOpKet cannot have measurements."
+            )
+        # Identify each qubit with the index of the bond that represents it in the
+        # tensor network stored in this GeneralState. Qubits are sorted in increasing
+        # lexicographical order, which is the TKET standard.
+        self._qubit_idx_map = {q: i for i, q in enumerate(sorted(ket.qubits))}
+        self.n_qubits = ket.n_qubits
+
+        dim = 2  # We are always dealing with qubits, not qudits
+        qubits_dims = (dim,) * self.n_qubits  # qubit size
+        data_type = "complex128"  # for now let that be hard-coded
+
+        self.tn = NetworkState(
+            qubits_dims,
+            dtype=data_type,
+            config=attributes,
+            options={
+                "memory_limit": f"{int(scratch_fraction*100)}%",
+                "logger": self._logger,
+            },
+        )
+
+        # Maintain a dict of tensor_id->Op for symbolic Ops to be update when the user
+        # calls any evaluation function with the symbols specified.
+        self._symbolic_ops: dict[int, Op] = dict()
+        # Apply all commands from the ket circuit
+        self._logger.debug("Converting the ket circuit to a NetworkState")
+        commands = ket.get_commands()
+        for com in commands:
+            is_fixed = len(com.op.free_symbols()) == 0
+            if is_fixed:
+                try:
+                    gate_unitary = com.op.get_unitary()
+                except Exception as e:
+                    raise ValueError(
+                        "All commands in the circuit must be unitary gates. The circuit"
+                        f" contains {com}; no unitary matrix could be retrived from it."
+                    ) from e
+            else:
+                # Dummy unitary to be updated later with user specified paramaters
+                gate_unitary = np.identity(2**com.op.n_qubits, dtype="complex128")
+
+            gate_qubit_indices = tuple(self._qubit_idx_map[qb] for qb in com.qubits)
+            tensor_id = self.tn.apply_tensor_operator(
+                gate_qubit_indices,
+                _formatted_tensor(gate_unitary, com.op.n_qubits),
+                immutable=is_fixed,
+                unitary=True,
+            )
+
+            if not is_fixed:
+                self._symbolic_ops[tensor_id] = com.op
+
+        # If the circuit has no gates, apply one identity gate so that CuTensorNet does
+        # not panic due to no tensor operator in the NetworkState
+        if len(commands) == 0:
+            tensor_id = self.tn.apply_tensor_operator(
+                (0,),
+                _formatted_tensor(np.identity(2), 1),
+                immutable=True,
+                unitary=True,
+            )
+        self.ket_phase = ket.phase
+
+        # Create a placeholder Pauli identity operator, to be replaced when calling
+        # contract.
+        self._logger.debug("Creating a placeholder operator and appending it")
+        self._pauli_op_ids = []
+        for mode in range(self.n_qubits):
+            tensor_id = self.tn.apply_tensor_operator(
+                (mode,),
+                _formatted_tensor(np.identity(2), 1),
+                immutable=False,
+                unitary=True,
+            )
+            self._pauli_op_ids.append(tensor_id)
+
+        # Apply all commands from the adjoint of the bra circuit
+        self._logger.debug("Applying the dagger of the bra circuit to the NetworkState")
+        commands = bra.dagger().get_commands()
+        for com in commands:
+            is_fixed = len(com.op.free_symbols()) == 0
+            if is_fixed:
+                try:
+                    gate_unitary = com.op.get_unitary()
+                except Exception as e:
+                    raise ValueError(
+                        "All commands in the circuit must be unitary gates. The circuit"
+                        f" contains {com}; no unitary matrix could be retrived from it."
+                    ) from e
+            else:
+                # Dummy unitary to be updated later with user specified paramaters
+                gate_unitary = np.identity(2**com.op.n_qubits, dtype="complex128")
+
+            gate_qubit_indices = tuple(self._qubit_idx_map[qb] for qb in com.qubits)
+            tensor_id = self.tn.apply_tensor_operator(
+                gate_qubit_indices,
+                _formatted_tensor(gate_unitary, com.op.n_qubits),
+                immutable=is_fixed,
+                unitary=True,
+            )
+
+            if not is_fixed:
+                self._symbolic_ops[tensor_id] = com.op
+
+        # If the circuit has no gates, apply one identity gate so that CuTensorNet does
+        # not panic due to no tensor operator in the NetworkState
+        if len(commands) == 0:
+            tensor_id = self.tn.apply_tensor_operator(
+                (0,),
+                _formatted_tensor(np.identity(2), 1),
+                immutable=True,
+                unitary=True,
+            )
+        self.bra_phase = bra.phase
+
+    def contract(
+        self,
+        operator: Optional[QubitPauliOperator] = None,
+        symbol_map: Optional[dict[Symbol, float]] = None,
+    ) -> complex:
+        """Contract the tensor network to obtain the value of ``<bra|operator|ket>``.
+
+        Args:
+            operator: A pytket ``QubitPauliOperator`` describing the operator. If not
+                given, then the identity operator is used, so it computes inner product.
+            symbol_map: A dictionary where each element of both pytket circuits'
+                ``.free_symbols()`` is assigned a real number.
+
+        Returns:
+            The value of ``<bra|operator|ket>``.
+
+        Raises:
+            ValueError: If ``operator`` acts on qubits that are not in the circuits.
+        """
+        _update_tensors(self.tn, self._symbolic_ops, symbol_map)
+
+        paulis = ["I", "X", "Y", "Z"]
+        pauli_matrix = {
+            "I": np.identity(2),
+            "X": Op.create(OpType.X).get_unitary(),
+            "Y": Op.create(OpType.Y).get_unitary(),
+            "Z": Op.create(OpType.Z).get_unitary(),
+        }
+        pauli_strs: dict[str, complex] = dict()
+
+        # Some care has to be taken when handling QubitPauliOperators, since identity
+        # Paulis may be omitted from the dictionary.
+        if operator is None:
+            pauli_strs = {"".join("I" for _ in range(self.n_qubits)): complex(1.0)}
+        else:
+            for tk_pstr, coeff in operator._dict.items():
+                # Raise an error if the operator acts on qubits missing from the circuit
+                if any(q not in self._qubit_idx_map.keys() for q in tk_pstr.map.keys()):
+                    raise ValueError(
+                        f"The operator is acting on qubits {tk_pstr.map.keys()}, some "
+                        "of these are missing from the set of qubits present in the "
+                        f"circuits: {self._qubit_idx_map.keys()}."
+                    )
+                pauli_list = [tk_pstr[q] for q in self._qubit_idx_map.keys()]
+                this_pauli_string = "".join(map(lambda x: paulis[x], pauli_list))
+                pauli_strs[this_pauli_string] = complex(coeff)
+
+        # Calculate the value by iterating over all components of the QubitPauliOperator
+        value = 0.0
+        zero_bitstring = "".join("0" for _ in range(self.n_qubits))
+        for pstr, coeff in pauli_strs.items():
+            # Update the NetworkState with this Pauli
+            self._logger.debug(f"Updating the tensors of the Pauli operator {pstr}")
+            for mode, pauli in enumerate(pstr):
+                self.tn.update_tensor_operator(
+                    self._pauli_op_ids[mode],
+                    _formatted_tensor(pauli_matrix[pauli], 1),
+                    unitary=True,
+                )
+
+            if isinstance(coeff, Expr):
+                numeric_coeff = complex(coeff.evalf())  # type: ignore
+            else:
+                numeric_coeff = complex(coeff)
+
+            # Compute the amplitude of the |0> state. Since NetworkState holds the
+            # circuit bra.dagger()*operator*ket|0>, the value of the amplitude at <0|
+            # will be <bra|operator|ket>.
+            self._logger.debug(f"Computing the contribution of Pauli operator {pstr}")
+            value += numeric_coeff * self.tn.compute_amplitude(zero_bitstring)
+
+        # Apply the phases from the circuits
+        value *= np.exp(1j * np.pi * self.ket_phase)
+        value *= np.exp(-1j * np.pi * self.bra_phase)
+
+        return complex(value)
+
+    def destroy(self) -> None:
+        """Destroy the tensor network and free up GPU memory.
+
+        The preferred approach is to use a context manager as in
+        ``with GeneralBraOpKet(...) as braket:``. Otherwise, the user must release
+        memory explicitly by calling ``destroy()``.
+        """
+        self._logger.debug("Freeing memory of GeneralBraOpKet")
+        self.tn.free()
+
+    def __enter__(self) -> GeneralBraOpKet:
+        return self
+
+    def __exit__(self, exc_type: Any, exc_value: Any, exc_tb: Any) -> None:
+        self.destroy()
 
 
 def _formatted_tensor(matrix: NDArray, n_qubits: int) -> cp.ndarray:
     """Convert a matrix to the tensor format accepted by NVIDIA's API."""
 
-    # Transpose is needed because of the way cuTN stores tensors.
-    # See https://github.com/NVIDIA/cuQuantum/discussions/124
-    # #discussioncomment-8683146 for details.
-    cupy_matrix = cp.asarray(matrix).T.astype(dtype="complex128", order="F")
+    cupy_matrix = cp.asarray(matrix, order="C").astype(dtype="complex128")
     # We also need to reshape since a matrix only has 2 bonds, but for an
     # n-qubit gate we want 2^n bonds for input and another 2^n for output
-    return cupy_matrix.reshape([2] * (2 * n_qubits), order="F")
+    return cupy_matrix.reshape([2] * (2 * n_qubits))
 
 
-def _remove_meas_and_implicit_swaps(circ: Circuit) -> Tuple[Circuit, Dict[Qubit, Bit]]:
+def _remove_meas_and_implicit_swaps(circ: Circuit) -> tuple[Circuit, dict[Qubit, Bit]]:
     """Convert a pytket Circuit to an equivalent circuit with no measurements or
     implicit swaps. The measurements are returned as a map between qubits and bits.
 
@@ -599,3 +631,44 @@ def _remove_meas_and_implicit_swaps(circ: Circuit) -> Tuple[Circuit, Dict[Qubit,
 
     pure_circ.add_phase(circ.phase)
     return pure_circ, measure_map  # type: ignore
+
+
+def _update_tensors(
+    tn: NetworkState,
+    symbolic_ops: dict[int, Op],
+    symbol_map: Optional[dict[Symbol, float]],
+) -> None:
+    """Updates the tensors with the specified values for symbols.
+
+    Args:
+        tn: The NetworkState that we intend to update.
+        symbolic_ops: A dictionary mapping ``tensor_id`` to the parameterised Op.
+        symbol_map: A dictionary mapping symbols to real values.
+
+    Raises:
+        ValueError: If not every free symbol in the circuits is assigned a
+            value in ``symbol_map``.
+    """
+    if symbol_map is None:
+        symbol_map = dict()
+
+    for tensor_id, op in symbolic_ops.items():
+        subs_params = op.params.copy()
+        if any(symb not in symbol_map.keys() for symb in op.free_symbols()):
+            raise ValueError(
+                f"Missing values for some of the free symbols {op.free_symbols()}. "
+                f"Symbols given: {symbol_map}."
+            )
+
+        for symb in op.free_symbols():
+            subs_params = [
+                p.subs(symb, symbol_map[symb]) if isinstance(p, Expr) else p
+                for p in subs_params
+            ]
+        gate_unitary = Op.create(op.type, subs_params).get_unitary()
+
+        tn.update_tensor_operator(
+            tensor_id,
+            _formatted_tensor(gate_unitary, op.n_qubits),
+            unitary=True,
+        )

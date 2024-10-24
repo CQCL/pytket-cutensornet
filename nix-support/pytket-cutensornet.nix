@@ -65,4 +65,33 @@ EOF
       export LD_LIBRARY_PATH;
       ${test-env}/bin/pytest -s ${../tests};
   '';
+  run-pytket-cutensornet-examples = let
+    example-env = super.python3.withPackages(ps: with ps; [
+      self.pytket-cutensornet
+      matplotlib
+      numpy
+      networkx
+      ipython
+      nbmake
+      pytest
+    ]);
+    nixgl-bin = self.lib.getExe self.nixgl.auto.nixGLNvidia;
+  in super.writeShellScriptBin "run-pytket-cutensornet-examples" ''
+      HOME=$(mktemp -d);
+      export HOME;
+      NIXGL_PATH="$(${nixgl-bin} printenv LD_LIBRARY_PATH)";
+      WSL_PATH="/usr/lib/wsl/lib";
+      LD_LIBRARY_PATH="$NIXGL_PATH:$WSL_PATH:$LD_LIBRARY_PATH";
+      export LD_LIBRARY_PATH;
+      
+      example_dir=${../examples};
+      set -e;
+      for name in `cat ''${example_dir}/ci-tested-notebooks.txt`;
+      do
+          ${example-env}/bin/pytest \
+            --nbmake \
+            -p no:cacheprovider \
+            $example_dir/$name.ipynb;
+      done;
+  '';
 }
