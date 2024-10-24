@@ -152,8 +152,7 @@ class GeneralState:
             ValueError: If not every free symbol in the circuit is assigned a
                 value in ``symbol_map``.
         """
-        if symbol_map is not None:
-            _update_tensors(self.tn_state, self._symbolic_ops, symbol_map)
+        _update_tensors(self.tn_state, self._symbolic_ops, symbol_map)
 
         self._logger.debug("(Statevector) contracting the TN")
         state_vector = self.tn_state.compute_state_vector()
@@ -188,8 +187,7 @@ class GeneralState:
             ValueError: If not every free symbol in the circuit is assigned a
                 value in ``symbol_map``.
         """
-        if symbol_map is not None:
-            _update_tensors(self.tn_state, self._symbolic_ops, symbol_map)
+        _update_tensors(self.tn_state, self._symbolic_ops, symbol_map)
 
         self._logger.debug("(Amplitude) contracting the TN")
         bitstring = format(state, "b").zfill(self.n_qubits)
@@ -218,8 +216,7 @@ class GeneralState:
             ValueError: If not every free symbol in the circuit is assigned a
                 value in ``symbol_map``.
         """
-        if symbol_map is not None:
-            _update_tensors(self.tn_state, self._symbolic_ops, symbol_map)
+        _update_tensors(self.tn_state, self._symbolic_ops, symbol_map)
 
         self._logger.debug("(Expectation value) converting operator to NetworkOperator")
 
@@ -267,8 +264,7 @@ class GeneralState:
             ValueError: If not every free symbol in the circuit is assigned a
                 value in ``symbol_map``.
         """
-        if symbol_map is not None:
-            _update_tensors(self.tn_state, self._symbolic_ops, symbol_map)
+        _update_tensors(self.tn_state, self._symbolic_ops, symbol_map)
 
         num_measurements = len(self._measurements)
         if num_measurements == 0:
@@ -518,8 +514,7 @@ class GeneralBraOpKet:
         Raises:
             ValueError: If ``operator`` acts on qubits that are not in the circuits.
         """
-        if symbol_map is not None:
-            _update_tensors(self.tn, self._symbolic_ops, symbol_map)
+        _update_tensors(self.tn, self._symbolic_ops, symbol_map)
 
         paulis = ["I", "X", "Y", "Z"]
         pauli_matrix = {
@@ -641,7 +636,7 @@ def _remove_meas_and_implicit_swaps(circ: Circuit) -> Tuple[Circuit, Dict[Qubit,
 def _update_tensors(
     tn: NetworkState,
     symbolic_ops: dict[int, Op],
-    symbol_map: dict[Symbol, float],
+    symbol_map: Optional[dict[Symbol, float]],
 ) -> None:
     """Updates the tensors with the specified values for symbols.
 
@@ -654,6 +649,9 @@ def _update_tensors(
         ValueError: If not every free symbol in the circuits is assigned a
             value in ``symbol_map``.
     """
+    if symbol_map is None:
+        symbol_map = dict()
+
     for tensor_id, op in symbolic_ops.items():
         subs_params = op.params.copy()
         if any(symb not in symbol_map.keys() for symb in op.free_symbols()):
