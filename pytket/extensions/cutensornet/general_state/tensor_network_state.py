@@ -102,11 +102,11 @@ class GeneralState:
             if is_fixed:
                 try:
                     gate_unitary = com.op.get_unitary()
-                except:
+                except Exception as e:
                     raise ValueError(
                         "All commands in the circuit must be unitary gates. The circuit"
                         f" contains {com}; no unitary matrix could be retrived from it."
-                    )
+                    ) from e
             else:
                 # Dummy unitary to be updated later with user specified paramaters
                 gate_unitary = np.identity(2**com.op.n_qubits, dtype="complex128")
@@ -412,11 +412,11 @@ class GeneralBraOpKet:
             if is_fixed:
                 try:
                     gate_unitary = com.op.get_unitary()
-                except:
+                except Exception as e:
                     raise ValueError(
                         "All commands in the circuit must be unitary gates. The circuit"
                         f" contains {com}; no unitary matrix could be retrived from it."
-                    )
+                    ) from e
             else:
                 # Dummy unitary to be updated later with user specified paramaters
                 gate_unitary = np.identity(2**com.op.n_qubits, dtype="complex128")
@@ -464,11 +464,11 @@ class GeneralBraOpKet:
             if is_fixed:
                 try:
                     gate_unitary = com.op.get_unitary()
-                except:
+                except Exception as e:
                     raise ValueError(
                         "All commands in the circuit must be unitary gates. The circuit"
                         f" contains {com}; no unitary matrix could be retrived from it."
-                    )
+                    ) from e
             else:
                 # Dummy unitary to be updated later with user specified paramaters
                 gate_unitary = np.identity(2**com.op.n_qubits, dtype="complex128")
@@ -598,7 +598,7 @@ def _formatted_tensor(matrix: NDArray, n_qubits: int) -> cp.ndarray:
     return cupy_matrix.reshape([2] * (2 * n_qubits))
 
 
-def _remove_meas_and_implicit_swaps(circ: Circuit) -> Tuple[Circuit, Dict[Qubit, Bit]]:
+def _remove_meas_and_implicit_swaps(circ: Circuit) -> tuple[Circuit, dict[Qubit, Bit]]:
     """Convert a pytket Circuit to an equivalent circuit with no measurements or
     implicit swaps. The measurements are returned as a map between qubits and bits.
 
