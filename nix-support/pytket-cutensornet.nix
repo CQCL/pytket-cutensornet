@@ -42,7 +42,7 @@ EOF
     propagatedBuildInputs = [ super.pytket super.pycuquantum ];
       
     doCheck = true;
-    checkInputs = with super.python3Packages; [ mypy ];
+    checkInputs = [ super.mypy' ];
     checkPhase = ''
       python -m mypy --config-file=mypy.ini --no-incremental -p pytket
       # running pytest requires GPU access which isn't currently possible (afaik) in the nix sandbox
