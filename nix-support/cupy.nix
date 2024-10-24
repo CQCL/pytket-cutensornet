@@ -10,7 +10,7 @@
   mock,
   setuptools,
   cudaPackages,
-  addOpenGLRunpath,
+  addDriverRunpath,
   pythonOlder,
   symlinkJoin,
   substituteAll,
@@ -18,12 +18,12 @@
 }:
 
 let
-  inherit (cudaPackages) cudnn nccl;
+  inherit (cudaPackages) nccl;
   cupy-cccl-src = fetchFromGitHub{
     owner = "cupy";
     repo = "cccl";
-    rev = "79ed0e96e35112d171e43f13fa7f324eff7f3de0";
-    hash = "sha256-8YlIp7xOQtB7dKhCL7SIX+cKOvP4V/XPx6EC+Ct4vSc=";
+    rev = "2246a8772a78346d91e580e121cedb820da2648f";
+    hash = "sha256-eLTocR7aKwaPX9NRp+ZpBu/hy2tss3gmJZNDdkSvxS8=";
   };
   dlpack-src = fetchFromGitHub{
     owner = "dmlc";
@@ -40,7 +40,7 @@ let
 in
 buildPythonPackage rec {
   pname = "cupy-cuda12x";
-  version = "13.1.0b";
+  version = "13.3.0";
   format = "setuptools";
 
   disabled = pythonOlder "3.7";
@@ -48,8 +48,8 @@ buildPythonPackage rec {
   src = fetchFromGitHub {
     owner = "cupy";
     repo = "cupy";
-    rev = "6730353d611f4fd5f6a7494e90c7639a35245337"; # cusparse_lt 0.6.1 support
-    hash = sha256:h6Q6abnq5zPY6mx8dA5l1kXfKjisEOwEqP0rGGu9q0M=;
+    rev = "c2ca5ec9541ff5d754b374ac426846049289bcff";
+    hash = "sha256-BwAnOJuE8IhAv2zEckwq77oIBFMih9j9uY5x16oQCJc=";
   };
   patches = [
     (substituteAll {
@@ -85,13 +85,11 @@ buildPythonPackage rec {
     cuda-bundle
     setuptools
     wheel
-    addOpenGLRunpath
+    addDriverRunpath
     cython_0
   ];
 
   buildInputs = [
-    cuda-bundle
-    cudnn
     nccl
   ];
 
@@ -101,6 +99,7 @@ buildPythonPackage rec {
   LD_LIBRARY_PATH="${cuda-bundle}/lib";
 
   propagatedBuildInputs = [
+    cuda-bundle
     fastrlock
     numpy
   ];
@@ -116,7 +115,7 @@ buildPythonPackage rec {
 
   postFixup = ''
     find $out -type f \( -name '*.so' -or -name '*.so.*' \) | while read lib; do
-      addOpenGLRunpath "$lib"
+      addDriverRunpath "$lib"
       patchelf --set-rpath ${cuda-bundle}/lib $lib;
     done
   '';
