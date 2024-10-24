@@ -12,30 +12,34 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from __future__ import annotations  # type: ignore
-from abc import ABC, abstractmethod
-import warnings
+
 import logging
-from typing import Any, Optional, Type
+import warnings
+from abc import ABC, abstractmethod
+from typing import TYPE_CHECKING, Any
 
 import numpy as np  # type: ignore
 
 from pytket.circuit import (
+    Bit,
     Command,
+    Conditional,
     Op,
     OpType,
     Qubit,
-    Bit,
-    Conditional,
 )
-from pytket.pauli import QubitPauliString
 
 try:
     import cupy as cp  # type: ignore
 except ImportError:
     warnings.warn("local settings failed to import cupy", ImportWarning)
 
-from pytket.extensions.cutensornet import CuTensorNetHandle
+
 from .classical import apply_classical_command, from_little_endian
+
+if TYPE_CHECKING:
+    from pytket.extensions.cutensornet import CuTensorNetHandle
+    from pytket.pauli import QubitPauliString
 
 # An alias for the CuPy type used for tensors
 try:
@@ -49,10 +53,10 @@ class Config:
 
     def __init__(
         self,
-        chi: Optional[int] = None,
-        truncation_fidelity: Optional[float] = None,
-        seed: Optional[int] = None,
-        float_precision: Type[Any] = np.float64,
+        chi: int | None = None,
+        truncation_fidelity: float | None = None,
+        seed: int | None = None,
+        float_precision: type[Any] = np.float64,
         value_of_zero: float = 1e-16,
         leaf_size: int = 8,
         k: int = 4,
@@ -225,7 +229,7 @@ class StructuredState(ABC):
         elif op.is_gate():  # Either a unitary gate or a not supported "gate"
             try:
                 unitary = op.get_unitary()
-            except:
+            except:  # noqa E722
                 raise ValueError(f"The command {op.type} introduced is not supported.")
 
             # Load the gate's unitary to the GPU memory

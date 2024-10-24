@@ -14,44 +14,45 @@
 
 """Methods to allow tket circuits to be run on the cuTensorNet simulator."""
 
-from abc import abstractmethod
 import warnings
-
-from typing import List, Union, Optional, Sequence
+from abc import abstractmethod
+from collections.abc import Sequence
+from typing import Optional, Union
 from uuid import uuid4
-from pytket.circuit import Circuit, OpType
-from pytket.backends import ResultHandle, CircuitStatus, StatusEnum, CircuitNotRunError
-from pytket.backends.backend import KwargTypes, Backend, BackendResult
+
+from pytket.backends import CircuitNotRunError, CircuitStatus, ResultHandle, StatusEnum
+from pytket.backends.backend import Backend, BackendResult, KwargTypes
 from pytket.backends.backendinfo import BackendInfo
 from pytket.backends.resulthandle import _ResultIdTuple
+from pytket.circuit import Circuit, OpType
 from pytket.extensions.cutensornet.general import CuTensorNetHandle
 from pytket.extensions.cutensornet.general_state import (
     GeneralState,
 )
-from pytket.predicates import (  # type: ignore
-    Predicate,
-    NoSymbolsPredicate,
-    NoClassicalControlPredicate,
-    NoMidMeasurePredicate,
-    NoBarriersPredicate,
-    UserDefinedPredicate,
-)
 from pytket.passes import (  # type: ignore
     BasePass,
-    SequencePass,
-    DecomposeBoxes,
-    RemoveRedundancies,
-    SynthesiseTket,
-    FullPeepholeOptimise,
     CustomPass,
+    DecomposeBoxes,
+    FullPeepholeOptimise,
+    RemoveRedundancies,
+    SequencePass,
+    SynthesiseTket,
+)
+from pytket.predicates import (  # type: ignore
+    NoBarriersPredicate,
+    NoClassicalControlPredicate,
+    NoMidMeasurePredicate,
+    NoSymbolsPredicate,
+    Predicate,
+    UserDefinedPredicate,
 )
 
 try:
-    from cuquantum.cutensornet import StateAttribute, SamplerAttribute  # type: ignore
+    from cuquantum.cutensornet import SamplerAttribute, StateAttribute  # type: ignore
 except ImportError:
     warnings.warn("local settings failed to import cuquantum", ImportWarning)
 
-from .._metadata import __extension_version__, __extension_name__
+from .._metadata import __extension_name__, __extension_version__
 
 
 class _CuTensorNetBaseBackend(Backend):
@@ -68,7 +69,7 @@ class _CuTensorNetBaseBackend(Backend):
         return (str,)
 
     @property
-    def required_predicates(self) -> List[Predicate]:
+    def required_predicates(self) -> list[Predicate]:
         """Returns the minimum set of predicates that a circuit must satisfy.
 
         Predicates need to be satisfied before the circuit can be successfully run on
@@ -144,7 +145,7 @@ class _CuTensorNetBaseBackend(Backend):
         n_shots: Optional[Union[int, Sequence[int]]] = None,
         valid_check: bool = True,
         **kwargs: KwargTypes,
-    ) -> List[ResultHandle]:
+    ) -> list[ResultHandle]:
         """Submits circuits to the backend for running.
 
         The results will be stored in the backend's result cache to be retrieved by the
@@ -196,7 +197,7 @@ class CuTensorNetStateBackend(_CuTensorNetBaseBackend):
         n_shots: Optional[Union[int, Sequence[int]]] = None,
         valid_check: bool = True,
         **kwargs: KwargTypes,
-    ) -> List[ResultHandle]:
+    ) -> list[ResultHandle]:
         """Submits circuits to the backend for running.
 
         The results will be stored in the backend's result cache to be retrieved by the
@@ -273,7 +274,7 @@ class CuTensorNetShotsBackend(_CuTensorNetBaseBackend):
         n_shots: Optional[Union[int, Sequence[int]]] = None,
         valid_check: bool = True,
         **kwargs: KwargTypes,
-    ) -> List[ResultHandle]:
+    ) -> list[ResultHandle]:
         """Submits circuits to the backend for running.
 
         The results will be stored in the backend's result cache to be retrieved by the
@@ -312,10 +313,8 @@ class CuTensorNetShotsBackend(_CuTensorNetBaseBackend):
             raise ValueError(
                 "You must specify n_shots when using CuTensorNetShotsBackend."
             )
-        if type(n_shots) == int:
-            all_shots = [n_shots] * len(circuits)
-        else:
-            all_shots = n_shots  # type: ignore
+
+        all_shots = [n_shots] * len(circuits) if type(n_shots) is int else n_shots
 
         circuit_list = list(circuits)
         if valid_check:
@@ -339,5 +338,5 @@ def _check_all_unitary_or_measurements(circuit: Circuit) -> bool:
             if cmd.op.type != OpType.Measure:
                 cmd.op.get_unitary()
         return True
-    except:
+    except:  # noqa: E722
         return False

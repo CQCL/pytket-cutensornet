@@ -1,29 +1,29 @@
-from typing import Any, Union
 import random  # type: ignore
+from typing import Any, Union
+
+import cupy as cp  # type: ignore
+import cuquantum as cq  # type: ignore
+import numpy as np  # type: ignore
 import pytest
 
-import cuquantum as cq  # type: ignore
-import cupy as cp  # type: ignore
-import numpy as np  # type: ignore
-
-from pytket.circuit import Circuit, Qubit, OpType  # type: ignore
-from pytket.pauli import Pauli, QubitPauliString  # type: ignore
-from pytket.extensions.cutensornet.structured_state import (
-    CuTensorNetHandle,
-    Config,
-    MPS,
-    MPSxGate,
-    MPSxMPO,
-    TTNxGate,
-    DirTTN,
-    simulate,
-    prepare_circuit_mps,
-    SimulationAlgorithm,
-)
-from pytket.extensions.cutensornet.structured_state.ttn import RootPath
+from pytket.circuit import Circuit, OpType, Qubit  # type: ignore
 from pytket.extensions.cutensornet.general_state.utils import (
     circuit_statevector_postselect,
 )
+from pytket.extensions.cutensornet.structured_state import (
+    MPS,
+    Config,
+    CuTensorNetHandle,
+    DirTTN,
+    MPSxGate,
+    MPSxMPO,
+    SimulationAlgorithm,
+    TTNxGate,
+    prepare_circuit_mps,
+    simulate,
+)
+from pytket.extensions.cutensornet.structured_state.ttn import RootPath
+from pytket.pauli import Pauli, QubitPauliString  # type: ignore
 
 
 def test_libhandle_manager() -> None:

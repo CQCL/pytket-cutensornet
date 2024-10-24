@@ -1,10 +1,11 @@
-import pytest
 import numpy
+import pytest
+
+from pytket import Circuit, Qubit  # type: ignore
 from pytket.extensions.cutensornet.general import CuTensorNetHandle, set_logger
 from pytket.extensions.cutensornet.general_state.utils import (
     circuit_statevector_postselect,
 )
-from pytket import Circuit, Qubit  # type: ignore
 
 
 def test_circuit_statevector_postselect() -> None:
@@ -39,5 +40,5 @@ def test_device_properties_logger() -> None:
     try:
         with CuTensorNetHandle() as libhandle:
             libhandle.print_device_properties(set_logger("GeneralState", 10))
-    except:
+    except:  # noqa: E722
         pytest.fail("Could not print device properties")

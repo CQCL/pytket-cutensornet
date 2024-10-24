@@ -1,25 +1,22 @@
+import numpy as np
 import pytest
 
-import numpy as np
-
 from pytket.circuit import (
-    Circuit,
+    Bit,
     CircBox,
+    Circuit,
     OpType,
     Qubit,
-    Bit,
     if_not_bit,
     reg_eq,
 )
 from pytket.circuit.logic_exp import BitWiseOp, create_bit_logic_exp
-
 from pytket.extensions.cutensornet.structured_state import (
-    CuTensorNetHandle,
     Config,
-    simulate,
+    CuTensorNetHandle,
     SimulationAlgorithm,
+    simulate,
 )
-
 
 # This first suite of tests comes from the pytket-qir extension
 # (see https://github.com/CQCL/pytket-qir/blob/main/tests/conditional_test.py)
@@ -336,7 +333,7 @@ def test_correctness_copy_bits() -> None:
         cfg = Config()
         state = simulate(libhandle, circ, SimulationAlgorithm.MPSxGate, cfg)
     # Check that the copied register has the correct values
-    assert state.get_bits()[copied[0]] == False and state.get_bits()[copied[1]] == True
+    assert state.get_bits()[copied[0]] is False and state.get_bits()[copied[1]] is True
 
 
 def test_correctness_teleportation_bit() -> None:

@@ -12,11 +12,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from __future__ import annotations  # type: ignore
-import warnings
-from typing import Union, Optional
-from enum import Enum
 
+import warnings
+from enum import Enum
 from random import Random  # type: ignore
+
 import numpy as np  # type: ignore
 
 try:
@@ -29,10 +29,9 @@ try:
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
-from pytket.circuit import Op, OpType, Qubit, Bit
-from pytket.pauli import Pauli, QubitPauliString
-
+from pytket.circuit import Bit, Op, OpType, Qubit
 from pytket.extensions.cutensornet.general import CuTensorNetHandle, set_logger
+from pytket.pauli import Pauli, QubitPauliString
 
 from .general import Config, StructuredState, Tensor
 
@@ -69,7 +68,7 @@ class MPS(StructuredState):
         libhandle: CuTensorNetHandle,
         qubits: list[Qubit],
         config: Config,
-        bits: Optional[list[Bit]] = None,
+        bits: list[Bit] | None = None,
     ):
         """Initialise an MPS on the computational state ``|0>``
 
@@ -269,7 +268,7 @@ class MPS(StructuredState):
 
         options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
 
-        if new_qubit in self.qubit_position.keys():
+        if new_qubit in self.qubit_position:
             raise ValueError(
                 f"Qubit {new_qubit} cannot be added, it already is in the MPS."
             )
@@ -338,7 +337,7 @@ class MPS(StructuredState):
         for pos in reversed(range(r_pos + 1, len(self))):
             self.canonicalise_tensor(pos, form=DirMPS.RIGHT)
 
-        self._logger.debug(f"Finished canonicalisation.")
+        self._logger.debug("Finished canonicalisation.")
 
     def canonicalise_tensor(self, pos: int, form: DirMPS) -> None:
         """Canonicalises a tensor from an MPS object.
@@ -406,7 +405,7 @@ class MPS(StructuredState):
         Q, R = tensor.decompose(
             subscripts, T, method=tensor.QRMethod(), options=options
         )
-        self._logger.debug(f"QR decomposition finished.")
+        self._logger.debug("QR decomposition finished.")
 
         # Contract R into Tnext
         subscripts = R_bonds + "," + Tnext_bonds + "->" + result_bonds
@@ -501,7 +500,7 @@ class MPS(StructuredState):
 
     def _get_interleaved_representation(
         self, conj: bool = False
-    ) -> list[Union[cp.ndarray, str]]:
+    ) -> list[cp.ndarray | str]:
         """Returns the interleaved representation of the MPS used by cuQuantum.
 
         Args:
@@ -760,7 +759,7 @@ class MPS(StructuredState):
         """
         self._flush()
 
-        for q in pauli_string.map.keys():
+        for q in pauli_string.map:
             if q not in self.qubit_position:
                 raise ValueError(f"Qubit {q} is not a qubit in the MPS.")
 

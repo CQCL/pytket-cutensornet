@@ -13,8 +13,9 @@
 # limitations under the License.
 
 from numpy.typing import NDArray
+
 from pytket.backends.backendresult import BackendResult
-from pytket.circuit import Qubit, Circuit
+from pytket.circuit import Circuit, Qubit
 
 
 def _reorder_qlist(

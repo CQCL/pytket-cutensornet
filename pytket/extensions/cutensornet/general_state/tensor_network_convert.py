@@ -21,22 +21,25 @@ try:
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
-from collections import defaultdict
 import logging
+from collections import defaultdict
 from logging import Logger
-from typing import List, Tuple, Union, Any, DefaultDict, Optional
+from typing import Any, Optional, Union
+
 import networkx as nx  # type: ignore
-from networkx.classes.reportviews import OutMultiEdgeView, OutMultiEdgeDataView  # type: ignore
 import numpy as np
+from networkx.classes.reportviews import (  # type: ignore
+    OutMultiEdgeDataView,
+    OutMultiEdgeView,
+)
 from numpy.typing import NDArray
 from sympy import Expr  # type: ignore
 
-from pytket.utils import Graph
-from pytket.pauli import QubitPauliString
 from pytket.circuit import Circuit, Qubit
-from pytket.utils import permute_rows_cols_in_unitary
-from pytket.utils.operators import QubitPauliOperator
 from pytket.extensions.cutensornet.general import set_logger
+from pytket.pauli import QubitPauliString
+from pytket.utils import Graph, permute_rows_cols_in_unitary
+from pytket.utils.operators import QubitPauliOperator
 
 
 class TensorNetwork:
@@ -85,7 +88,7 @@ class TensorNetwork:
         """Returns an interleaved format of the circuit tensor network."""
         return self._cuquantum_interleaved
 
-    def _get_gate_tensors(self, adj: bool = False) -> DefaultDict[Any, List[Any]]:
+    def _get_gate_tensors(self, adj: bool = False) -> defaultdict[Any, list[Any]]:
         """Computes and stores tensors for each gate type from the circuit.
 
         The unitaries are reshaped into tensors of bond dimension two prior to being
@@ -156,7 +159,8 @@ class TensorNetwork:
                                 .reshape([2] * (2 * com.op.n_qubits))
                             )
                             self._logger.debug(
-                                f"Adding unitary: \n {permute_rows_cols_in_unitary(com.op.get_unitary(), com_qix_permut).T.conjugate()}"  # type: ignore
+                                f"Adding unitary:\
+\n {permute_rows_cols_in_unitary(com.op.get_unitary(), com_qix_permut).T.conjugate()}"  # type: ignore
                             )
                         else:
                             gate_tensors[i].append(
@@ -165,13 +169,14 @@ class TensorNetwork:
                                 ).reshape([2] * (2 * com.op.n_qubits))
                             )
                             self._logger.debug(  # type: ignore
-                                f"Adding unitary: \n {permute_rows_cols_in_unitary(com.op.get_unitary(),com_qix_permut)}"  # type: ignore
+                                f"Adding unitary:\
+\n {permute_rows_cols_in_unitary(com.op.get_unitary(),com_qix_permut)}"  # type: ignore
                             )
                     break
         self._logger.debug(f"Gate tensors: \n{gate_tensors}\n")
         return gate_tensors
 
-    def _assign_node_tensors(self, adj: bool = False) -> List[Any]:
+    def _assign_node_tensors(self, adj: bool = False) -> list[Any]:
         """Creates a list of tensors representing circuit gates (tensor network nodes).
 
         Args:
@@ -208,17 +213,18 @@ class TensorNetwork:
                     )
                     self._logger.debug(
                         f"criteria: "
-                        f"{(src_ports[0] < src_ports[1]) != (unit_idx[0] < unit_idx[1])}"  # pylint: disable=line-too-long
+                        f"{(src_ports[0] < src_ports[1]) !=
+                            (unit_idx[0] < unit_idx[1])}"  # pylint: disable=line-too-long
                     )
                     if (src_ports[0] < src_ports[1]) != (unit_idx[0] < unit_idx[1]):
                         node_tensors.append(self._gate_tensors[node[1]["desc"]][1])
-                        self._logger.debug(f"Adding an upward gate tensor")
+                        self._logger.debug("Adding an upward gate tensor")
                     else:
                         node_tensors.append(self._gate_tensors[node[1]["desc"]][0])
-                        self._logger.debug(f"Adding a downward gate tensor")
+                        self._logger.debug("Adding a downward gate tensor")
                 else:
                     node_tensors.append(self._gate_tensors[node[1]["desc"]][0])
-                    self._logger.debug(f"Adding a 1-qubit gate tensor")
+                    self._logger.debug("Adding a 1-qubit gate tensor")
             else:
                 if node[1]["desc"] == "Output":
                     self._output_nodes.append(i)
@@ -233,7 +239,7 @@ class TensorNetwork:
 
     def _get_tn_indices(
         self, net: nx.MultiDiGraph, adj: bool = False
-    ) -> Tuple[List[Any], dict[Qubit, int]]:
+    ) -> tuple[list[Any], dict[Qubit, int]]:
         """Computes indices of the edges of the tensor network nodes (tensors).
 
         Indices are computed such that they range from high (for circuit leftmost gates)
@@ -280,7 +286,7 @@ class TensorNetwork:
         ]
         eids_sorted = sorted(eids, key=abs)
         qnames_graph_ordered = [qname for qname in self._graph.output_names.values()]
-        oids_graph_ordered = [oid for oid in self._graph.output_names.keys()]
+        oids_graph_ordered = [oid for oid in self._graph.output_names]
         eids_qubit_ordered = [
             eids_sorted[qnames_graph_ordered.index(q)] for q in self._qubit_names_ilo
         ]  # Order eid's in the same way as qnames_graph_ordered as compared to ILO
@@ -360,7 +366,7 @@ class TensorNetwork:
 
     @staticmethod
     def _order_edges_for_multiqubit_gate(
-        edge_indices: DefaultDict[Any, List[Tuple[Any, int]]],
+        edge_indices: defaultdict[Any, list[tuple[Any, int]]],
         edges: OutMultiEdgeView,
         edges_data: OutMultiEdgeDataView,
         offset: int,
@@ -574,7 +580,7 @@ class PauliOperatorTensorNetwork:
         self._logger = set_logger("PauliOperatorTensorNetwork", loglevel)
         self._pauli_tensors = [self.PAULI[pauli.name] for pauli in paulis.map.values()]
         self._logger.debug(f"Pauli tensors: {self._pauli_tensors}")
-        qubits = [q for q in paulis.map.keys()]
+        qubits = [q for q in paulis.map]
         # qubit_names = [
         #    "".join([q.reg_name, "".join([f"[{str(i)}]" for i in q.index])])
         #    for q in paulis.map.keys()
@@ -652,7 +658,7 @@ class ExpectationValueTensorNetwork:
         return tn_concatenated
 
 
-def tk_to_tensor_network(tkc: Circuit) -> List[Union[NDArray, List]]:
+def tk_to_tensor_network(tkc: Circuit) -> list[Union[NDArray, list]]:
     """Converts pytket circuit into a tensor network.
 
     Args:
