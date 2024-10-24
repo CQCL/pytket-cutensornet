@@ -45,23 +45,27 @@ tn_state = GeneralState(my_circ)
 # First, let's generate `|x>` computational basis states where `q[0]` and `q[3]` agree on their values. We can do this with some bitwise operators and list comprehension.
 # **Note**: Remember that pytket uses "increasing lexicographic order" (ILO) for qubits, so `q[0]` is the most significant bit.
 selected_states = [
-    x for x in range(2**my_circ.n_qubits) if ( # Iterate over all possible states
-        x & int("10000", 2) == 0 and x & int("00010", 2) == 0  # both qubits are 0 or...
-        or x & int("10000", 2) != 0 and x & int("00010", 2) != 0  # both qubits are 1
+    x
+    for x in range(2**my_circ.n_qubits)
+    if (  # Iterate over all possible states
+        x & int("10000", 2) == 0
+        and x & int("00010", 2) == 0  # both qubits are 0 or...
+        or x & int("10000", 2) != 0
+        and x & int("00010", 2) != 0  # both qubits are 1
     )
 ]
 
 # We can now query the amplitude of all of these states and calculate the probability by summing their squared absolute values.
 amplitudes = []
 for x in selected_states:
-    amplitudes.append(
-        tn_state.get_amplitude(x)
-    )
-probability = sum(abs(a)**2 for a in amplitudes)
+    amplitudes.append(tn_state.get_amplitude(x))
+probability = sum(abs(a) ** 2 for a in amplitudes)
 print(f"Probability: {probability}")
 
 # Of course, calculating probabilities by considering the amplitudes of all relevant states is not efficient in general, since we may need to calculate a number of amplitudes that scales exponentially with the number of qubits. An alternative is to use expectation values. In particular, all of the states in `selected_states` are +1 eigenvectors of the `ZIIZI` observable and, hence, we can calculate the probability `p` by solving the equation `<ZIIZI> = (+1)p + (-1)(1-p)` using the fact that `ZIIZI` only has +1 and -1 eigenvalues.
-string_ZIIZI = QubitPauliString(my_circ.qubits, [Pauli.Z, Pauli.I, Pauli.I, Pauli.Z, Pauli.I])
+string_ZIIZI = QubitPauliString(
+    my_circ.qubits, [Pauli.Z, Pauli.I, Pauli.I, Pauli.Z, Pauli.I]
+)
 observable = QubitPauliOperator({string_ZIIZI: 1.0})
 expectation_val = tn_state.expectation_value(observable).real
 exp_probability = (expectation_val + 1) / 2
@@ -133,16 +137,25 @@ print(f"<circ_b|circ_a> = {inner_prod}")
 print(f"<circ_a|circ_b> = {inner_prod_conj}")
 
 # And we are not constrained to Hermitian operators:
-string_XZIXX = QubitPauliString(param_circ2.qubits, [Pauli.X, Pauli.Z, Pauli.I, Pauli.X, Pauli.X])
-string_IZZYX = QubitPauliString(param_circ2.qubits, [Pauli.I, Pauli.Z, Pauli.Z, Pauli.Y, Pauli.X])
-string_ZIZXY = QubitPauliString(param_circ2.qubits, [Pauli.Z, Pauli.I, Pauli.Z, Pauli.X, Pauli.Y])
-operator = QubitPauliOperator({string_XZIXX: -1.38j, string_IZZYX: 2.36, string_ZIZXY: 0.42j+0.3})
+string_XZIXX = QubitPauliString(
+    param_circ2.qubits, [Pauli.X, Pauli.Z, Pauli.I, Pauli.X, Pauli.X]
+)
+string_IZZYX = QubitPauliString(
+    param_circ2.qubits, [Pauli.I, Pauli.Z, Pauli.Z, Pauli.Y, Pauli.X]
+)
+string_ZIZXY = QubitPauliString(
+    param_circ2.qubits, [Pauli.Z, Pauli.I, Pauli.Z, Pauli.X, Pauli.Y]
+)
+operator = QubitPauliOperator(
+    {string_XZIXX: -1.38j, string_IZZYX: 2.36, string_ZIZXY: 0.42j + 0.3}
+)
 with GeneralBraOpKet(bra=param_circ2, ket=param_circ1) as braket:
     value = braket.contract(operator, symbol_map=symbol_map)
 print(value)
 
 # # Backends
 # We provide a pytket `Backend` to obtain shots using `GeneralState`.
+
 
 # Let's consider a more challenging circuit
 def random_circuit(n_qubits: int, n_layers: int) -> Circuit:
@@ -162,6 +175,7 @@ def random_circuit(n_qubits: int, n_layers: int) -> Circuit:
 
     DecomposeBoxes().apply(c)
     return c
+
 
 # Let's measure only three of the qubits.
 # **Note**: The complexity of this simulation increases exponentially with the number of qubits measured. Other factors leading to intractability are circuit depth and qubit connectivity.
