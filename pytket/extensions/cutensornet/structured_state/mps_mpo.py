@@ -550,7 +550,9 @@ class MPSxMPO(MPS):
             optim_fidelity = float(optim_fidelity.real)
 
             # Normalise F and update the variational MPS
-            self._aux_mps.tensors[pos] = F / np.sqrt(optim_fidelity)
+            self._aux_mps.tensors[pos] = F / cp.sqrt(
+                optim_fidelity, dtype=self._cfg._complex_t
+            )
 
             return optim_fidelity
 
