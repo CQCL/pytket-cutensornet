@@ -1,3 +1,5 @@
+# # Matrix Product State (MPS) Tutorial
+
 import numpy as np
 from time import time
 import matplotlib.pyplot as plt
@@ -12,7 +14,7 @@ from pytket.extensions.cutensornet.structured_state import (
     prepare_circuit_mps,
 )
 
-# # Introduction
+# ## Introduction
 # This notebook provides examples of the usage of the MPS functionalities of `pytket_cutensornet`. For more information, see the docs at https://tket.quantinuum.com/extensions/pytket-cutensornet/api/index.html.
 # A Matrix Product State (MPS) represents a state on `n` qubits as a list of `n` tensors connected in a line as show below:
 # ![MPS](images/mps.png)
@@ -28,7 +30,7 @@ from pytket.extensions.cutensornet.structured_state import (
 # * For a description of the `MPSxMPO` algorithm we provide: https://arxiv.org/abs/2207.05612.
 # * For insights on the reationship between truncation error and the error model in a quantum computer: https://arxiv.org/abs/2004.02388
 
-# # Basic functionality and exact simulation
+# ## Basic functionality and exact simulation
 # Here we show an example of the basic use of our MPS methods. We first generate a simple `pytket` circuit to be simulated.
 
 my_circ = Circuit(5)
@@ -219,7 +221,7 @@ with CuTensorNetHandle() as libhandle:
 print(qubit_map)
 mps.apply_qubit_relabelling(qubit_map)
 
-# # Approximate simulation
+# ## Approximate simulation
 # We provide two policies for approximate simulation; these are supported by both of our current MPS contraction algorithms:
 # * Bound the maximum value of the virtual bond dimension `chi`. If a bond dimension would increase past that point, we *truncate* (i.e. discard) the degrees of freedom that contribute the least to the state description. We can keep track of a lower bound of the error that this truncation causes.
 # * Provide a value for acceptable two-qubit gate fidelity `truncation_fidelity`. After each two-qubit gate we truncate the dimension of virtual bonds as much as we can while guaranteeing the target gate fidelity. The more fidelity you require, the longer it will take to simulate. **Note**: this is *not* the final fidelity of the output state, but the fidelity per gate.
@@ -278,7 +280,7 @@ print(f"{round(end-start,2)} seconds")
 print("\nLower bound of the fidelity:")
 print(round(fixed_fidelity_mps.fidelity, 4))
 
-# # Contraction algorithms
+# ## Contraction algorithms
 
 # We currently offer two MPS-based simulation algorithms:
 # * **MPSxGate**: Apply gates one by one to the MPS, canonicalising the MPS and truncating when necessary. In particular, we implemented the algorithm from the following paper: https://arxiv.org/abs/2002.07730.
@@ -323,7 +325,7 @@ print(f"\tLower bound of the fidelity: {round(fixed_fidelity_mps.fidelity, 4)}")
 
 # **Note**: `MPSxMPO` also admits truncation policy in terms of `truncation_fidelity` instead of `chi`.
 
-# # Using the logger
+# ## Using the logger
 
 # You can request a verbose log to be produced during simulation, by assigning the `loglevel` argument when creating a `Config` instance. Currently, two log levels are supported (other than default, which is silent):
 # - `logging.INFO` will print information about progress percent, memory currently occupied by the MPS and current fidelity. Additionally, some high level information of the current stage of the simulation is provided, such as when `MPSxMPO` is applying optimisation sweeps.
