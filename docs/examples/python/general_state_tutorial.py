@@ -1,3 +1,5 @@
+# # `GeneralState` Tutorial
+
 import numpy as np
 from sympy import Symbol
 from scipy.stats import unitary_group  # type: ignore
@@ -13,7 +15,7 @@ from pytket.extensions.cutensornet.general_state import (
 )
 from pytket.extensions.cutensornet.backends import CuTensorNetShotsBackend
 
-# # Introduction
+# ## Introduction
 # This notebook is a guide on how to use the features provided in the `general_state` submodule of pytket-cutensornet. This submodule is a thin wrapper of CuTensorNet's `NetworkState`, allowing users to convert pytket circuits into tensor networks and use CuTensorNet's contraction path optimisation algorithm.
 # All simulations realised with this submodule are *exact*. Once the pytket circuit has been converted to a tensor network, the computation has two steps:
 #   1. *Contraction path optimisation*. Attempts to find an order of contracting pairs of tensors in which the the total number of FLOPs is minimised. No operation on the tensor network occurs at this point. Runs on CPU.
@@ -93,7 +95,7 @@ print(expectation_val)
 
 # Using this syntax, `my_state` is automatically destroyed when the code exists the `with ...` block.
 
-# # Parameterised circuits
+# ## Parameterised circuits
 # Circuits that only differ on the parameters of their gates have the same tensor network topology and, hence, we may use the same contraction path for all of them.
 a, b, c = Symbol("a"), Symbol("b"), Symbol("c")
 param_circ1 = Circuit(5)
@@ -115,7 +117,7 @@ with GeneralState(param_circ1) as param_state:
         print(f"Expectation value for circuit {i}: {exp_val.real}")
 
 
-# # `GeneralBraOpKet`
+# ## `GeneralBraOpKet`
 # The `GeneralBraOpKet` can be used to calculate any number that can be represented as the result of some `<bra|op|ket>` where `|bra>` and `|ket>` are the final states of pytket circuits, and `op` is a `QubitPauliOperator`. The circuits for `|bra>` and `|ket>` need not be the same.
 x, y, z = Symbol("x"), Symbol("y"), Symbol("z")
 param_circ2 = Circuit(5)
@@ -153,7 +155,7 @@ with GeneralBraOpKet(bra=param_circ2, ket=param_circ1) as braket:
     value = braket.contract(operator, symbol_map=symbol_map)
 print(value)
 
-# # Backends
+# ## Backends
 # We provide a pytket `Backend` to obtain shots using `GeneralState`.
 
 
