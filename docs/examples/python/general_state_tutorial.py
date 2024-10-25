@@ -23,7 +23,7 @@ from pytket.extensions.cutensornet.backends import CuTensorNetShotsBackend
 #
 # **Reference**: The original contraction path optimisation algorithm that NVIDIA implemented on CuTensorNet: https://arxiv.org/abs/2002.01935
 
-# # `GeneralState`
+# ## `GeneralState`
 # The class `GeneralState` is used to convert a circuit into a tensor network and query information from the final state. Let's walk through a simple example.
 
 my_circ = Circuit(5)
