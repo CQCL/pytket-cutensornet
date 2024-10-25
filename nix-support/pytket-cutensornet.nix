@@ -22,7 +22,7 @@ in {
         cp ${../README.md} $out/README.md; # required for setup's long description
         cp ${../pytest.ini} $out/pytest.ini;
         cp ${../_metadata.py} $out/_metadata.py;
-        
+
         # on nix versions of scipy and ipython, stubs are missing.
         # adjust mypy.ini to ignore these errors.
         (
@@ -40,7 +40,7 @@ EOF
       '';
     };
     propagatedBuildInputs = [ super.pytket super.pycuquantum ];
-      
+
     doCheck = true;
     checkInputs = [ super.mypy' ];
     checkPhase = ''
@@ -83,8 +83,8 @@ EOF
       WSL_PATH="/usr/lib/wsl/lib";
       LD_LIBRARY_PATH="$NIXGL_PATH:$WSL_PATH:$LD_LIBRARY_PATH";
       export LD_LIBRARY_PATH;
-      
-      example_dir=${../examples};
+
+      example_dir=${../docs/examples};
       set -e;
       for name in `cat ''${example_dir}/ci-tested-notebooks.txt`;
       do
