@@ -3,13 +3,14 @@
 Changelog
 ~~~~~~~~~
 
-Unreleased
-----------
+0.10.0 (October 2024)
+---------------------
 
 * New API: ``GeneralBraOpKet`` for exact calculation of arbitrary ``<bra|op|ket>`` values. Can be used to calculate inner products, expectation values and arbitrary matrix elements.
 * New feature: both ``GeneralState`` and ``GeneralBraOpKet`` admit circuits with parameterised gates.
 * New feature: ``GeneralState`` has a new method ``get_amplitude`` to obtain the amplitude of computational basis states.
 * New feature: ``GeneralState`` and ``CuTensorNetShotsBackend`` now support RNG seeds for sampling.
+* Docs: three tutorials added to the documentation.
 * Deprecated ``TensorNetwork`` object. It is still available for the sake of backwards compatibility, but it has been removed from doc pages.
 
 0.9.0 (October 2024)
