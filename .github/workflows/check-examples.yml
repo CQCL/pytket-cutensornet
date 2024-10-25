@@ -22,7 +22,7 @@ jobs:
         base: ${{ github.ref }}
         filters: |
           examples:
-            - 'examples/**'
+            - 'docs/examples/**'
             - '.github/**'
 
   check:
@@ -47,5 +47,5 @@ jobs:
         python -m pip install p2j
     - name: test example notebooks
       run: |
-        cd examples
+        cd docs/examples
         ./check-examples
