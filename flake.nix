@@ -29,6 +29,9 @@
               inherit (tket.packages."${system}") tket pytket;
             })
             (self: super: {
+              mypy' = pkgs.python3Packages.callPackage ./nix-support/mypy.nix {};
+            })
+            (self: super: {
               cuda-bundle = pkgs.callPackage ./nix-support/cuda-bundle.nix {};
             })
             (self: super: {
@@ -49,6 +52,7 @@
         };
         devShells = {
           default = pkgs.mkShell { buildInputs = [ pkgs.pytket-cutensornet ]; };
+          cupy = pkgs.mkShell { buildInputs = [ pkgs.cupy' ]; };
         };
         checks = {
           # no GPU support in checks at the time of writing
