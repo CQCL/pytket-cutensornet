@@ -1,3 +1,5 @@
+# # Tree Tensor Network (TTN) Tutorial
+
 import numpy as np
 from time import time
 import matplotlib.pyplot as plt
@@ -12,7 +14,7 @@ from pytket.extensions.cutensornet.structured_state import (
     simulate,
 )
 
-# # Introduction
+# ## Introduction
 # This notebook provides examples of the usage of the TTN functionalities of `pytket_cutensornet`. For more information, see the docs at https://tket.quantinuum.com/extensions/pytket-cutensornet/api/index.html.
 # Some good references to learn about Tree Tensor Network state simulation:
 # - For an introduction into TTN based simulation of quantum circuits: https://arxiv.org/abs/2206.01000
@@ -20,7 +22,7 @@ from pytket.extensions.cutensornet.structured_state import (
 # The implementation in pytket-cutensornet differs from previously published literature. I am still experimenting with the algorithm. I intend to write up a document detailing the approach, once I reach a stable version.
 # The main advantage of TTN over MPS is that it can be used to efficiently simulate circuits with richer qubit connectivity. This does **not** mean that TTN has an easy time simulating all-to-all connectivity, but it is far more flexible than MPS. TTN's strength is in simulating circuit where certain subsets of qubits interact densely with each other, and there is not that many gates acting on qubits in different subsets.
 
-# # How to use
+# ## How to use
 # The interface for TTN matches that of MPS. As such, you should be able to run any code that uses `SimulationAlgorithm.MPSxGate` by replacing it with `SimulationAlgorithm.TTNxGate`. Calling `prepare_circuit_mps` is no longer necessary, since `TTNxGate` can apply gates between non-neighbouring qubits.
 # **NOTE**: If you are new to pytket-cutensornet, it is highly recommended to start reading the `mps_tutorial.ipynb` notebook instead. More details about the use of the library are discussed there (for instance, why and when to call `CuTensorNetHandle()`).
 
@@ -76,7 +78,7 @@ print(all(correct_amplitude))
 # ## Sampling from a TTN
 # Sampling and measurement from a TTN state is not currently supported. This will be added in an upcoming release.
 
-# # Approximate simulation
+# ## Approximate simulation
 # We provide two policies for approximate simulation:
 # * Bound the maximum value of the virtual bond dimension `chi`. If a bond dimension would increase past that point, we *truncate* (i.e. discard) the degrees of freedom that contribute the least to the state description. We can keep track of a lower bound of the error that this truncation causes.
 # * Provide a value for acceptable two-qubit gate fidelity `truncation_fidelity`. After each two-qubit gate we truncate the dimension of virtual bonds as much as we can while guaranteeing the target gate fidelity. The more fidelity you require, the longer it will take to simulate. **Note**: this is *not* the final fidelity of the output state, but the fidelity per gate.
@@ -110,12 +112,12 @@ print(f"{round(end-start,2)} seconds")
 print("\nLower bound of the fidelity:")
 print(round(fixed_fidelity_ttn.fidelity, 4))
 
-# # Contraction algorithms
+# ## Contraction algorithms
 
 # We currently offer only one TTN-based simulation algorithm.
 # * **TTNxGate**: Apply gates one by one to the TTN, canonicalising the TTN and truncating when necessary.
 
-# # Using the logger
+# ## Using the logger
 
 # You can request a verbose log to be produced during simulation, by assigning the `loglevel` argument when creating a `Config` instance. Currently, two log levels are supported (other than default, which is silent):
 # - `logging.INFO` will print information about progress percent, memory currently occupied by the TTN and current fidelity. Additionally, some high level information of the current stage of the simulation is provided.
