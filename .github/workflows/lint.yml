@@ -13,7 +13,7 @@ on:
 jobs:
   lint:
 
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v4
@@ -30,4 +30,4 @@ jobs:
         black --check .
     - name: Run pylint
       run: |
-        pylint --recursive=y --ignore=ttn_tutorial.py,mps_tutorial.py */
+        pylint --recursive=y pytket/extensions/cutensornet/

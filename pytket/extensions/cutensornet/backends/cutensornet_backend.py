@@ -15,7 +15,6 @@
 """Methods to allow tket circuits to be run on the cuTensorNet simulator."""
 
 from abc import abstractmethod
-import warnings
 
 from typing import List, Union, Optional, Sequence
 from uuid import uuid4
@@ -24,7 +23,6 @@ from pytket.backends import ResultHandle, CircuitStatus, StatusEnum, CircuitNotR
 from pytket.backends.backend import KwargTypes, Backend, BackendResult
 from pytket.backends.backendinfo import BackendInfo
 from pytket.backends.resulthandle import _ResultIdTuple
-from pytket.extensions.cutensornet.general import CuTensorNetHandle
 from pytket.extensions.cutensornet.general_state import (
     GeneralState,
 )
@@ -45,11 +43,6 @@ from pytket.passes import (  # type: ignore
     FullPeepholeOptimise,
     CustomPass,
 )
-
-try:
-    from cuquantum.cutensornet import StateAttribute, SamplerAttribute  # type: ignore
-except ImportError:
-    warnings.warn("local settings failed to import cuquantum", ImportWarning)
 
 from .._metadata import __extension_version__, __extension_name__
 
@@ -203,40 +196,39 @@ class CuTensorNetStateBackend(_CuTensorNetBaseBackend):
         corresponding get_<data> method.
 
         Note:
-            Any element from the ``StateAttribute`` enum (see NVIDIA's CuTensorNet
+            Any element from the ``TNConfig`` enum (see NVIDIA's CuTensorNet
             API) can be provided as arguments to this method. For instance:
-            ``process_circuits(..., CONFIG_NUM_HYPER_SAMPLES=100)``.
+            ``process_circuits(..., tn_config={"num_hyper_samples": 100})``.
 
         Args:
             circuits: List of circuits to be submitted.
             n_shots: Number of shots in case of shot-based calculation.
                 This should be ``None``, since this backend does not support shots.
             valid_check: Whether to check for circuit correctness.
+            tnconfig: Optional. A dict of cuTensorNet ``TNConfig`` keys and
+                their values.
             scratch_fraction: Optional. Fraction of free memory on GPU to allocate as
-                scratch space. Defaults to `0.75`.
+                scratch space; value between 0 and 1. Defaults to ``0.8``.
 
         Returns:
             Results handle objects.
         """
-        scratch_fraction = float(kwargs.get("scratch_fraction", 0.75))  # type: ignore
-        attributes = {
-            k: v for k, v in kwargs.items() if k in StateAttribute._member_names_
-        }
+        scratch_fraction = float(kwargs.get("scratch_fraction", 0.8))  # type: ignore
+        tnconfig = kwargs.get("tnconfig", dict())  # type: ignore
 
         circuit_list = list(circuits)
         if valid_check:
             self._check_all_circuits(circuit_list)
         handle_list = []
-        with CuTensorNetHandle() as libhandle:
-            for circuit in circuit_list:
-                tn = GeneralState(circuit, libhandle)
-                sv = tn.get_statevector(attributes, scratch_fraction)
-                res_qubits = [qb for qb in sorted(circuit.qubits)]
-                handle = ResultHandle(str(uuid4()))
-                self._cache[handle] = {
-                    "result": BackendResult(q_bits=res_qubits, state=sv)
-                }
-                handle_list.append(handle)
+        for circuit in circuit_list:
+            with GeneralState(
+                circuit, attributes=tnconfig, scratch_fraction=scratch_fraction
+            ) as tn:
+                sv = tn.get_statevector()
+            res_qubits = [qb for qb in sorted(circuit.qubits)]
+            handle = ResultHandle(str(uuid4()))
+            self._cache[handle] = {"result": BackendResult(q_bits=res_qubits, state=sv)}
+            handle_list.append(handle)
         return handle_list
 
 
@@ -280,9 +272,9 @@ class CuTensorNetShotsBackend(_CuTensorNetBaseBackend):
         corresponding get_<data> method.
 
         Note:
-            Any element from the ``SamplerAttribute`` enum (see NVIDIA's CuTensorNet
+            Any element from the ``TNConfig`` enum (see NVIDIA's CuTensorNet
             API) can be provided as arguments to this method. For instance:
-            ``process_circuits(..., CONFIG_NUM_HYPER_SAMPLES=100)``.
+            ``process_circuits(..., tn_config={"num_hyper_samples": 100})``.
 
         Args:
             circuits: List of circuits to be submitted.
@@ -290,23 +282,19 @@ class CuTensorNetShotsBackend(_CuTensorNetBaseBackend):
                 Optionally, this can be a list of shots specifying the number of shots
                 for each circuit separately.
             valid_check: Whether to check for circuit correctness.
+            seed: An optional RNG seed. Different calls to ``process_circuits`` with the
+                same seed will generate the same list of shot outcomes.
+            tnconfig: Optional. A dict of cuTensorNet ``TNConfig`` keys and
+                their values.
             scratch_fraction: Optional. Fraction of free memory on GPU to allocate as
-                scratch space. Defaults to `0.75`.
+                scratch space; value between 0 and 1. Defaults to ``0.8``.
 
         Returns:
             Results handle objects.
         """
-        scratch_fraction = float(kwargs.get("scratch_fraction", 0.75))  # type: ignore
-        attributes = {
-            k: v for k, v in kwargs.items() if k in SamplerAttribute._member_names_
-        }
-
-        if "seed" in kwargs and kwargs["seed"] is not None:
-            # Current CuTensorNet does not support seeds for Sampler. I created
-            # a feature request in their repository.
-            raise NotImplementedError(
-                "The backend does not currently support user-defined seeds."
-            )
+        scratch_fraction = float(kwargs.get("scratch_fraction", 0.8))  # type: ignore
+        tnconfig = kwargs.get("tnconfig", dict())  # type: ignore
+        seed = kwargs.get("seed", None)
 
         if n_shots is None:
             raise ValueError(
@@ -321,14 +309,13 @@ class CuTensorNetShotsBackend(_CuTensorNetBaseBackend):
         if valid_check:
             self._check_all_circuits(circuit_list)
         handle_list = []
-        with CuTensorNetHandle() as libhandle:
-            for circuit, circ_shots in zip(circuit_list, all_shots):
-                tn = GeneralState(circuit, libhandle)
-                handle = ResultHandle(str(uuid4()))
-                self._cache[handle] = {
-                    "result": tn.sample(circ_shots, attributes, scratch_fraction)
-                }
-                handle_list.append(handle)
+        for circuit, circ_shots in zip(circuit_list, all_shots):
+            handle = ResultHandle(str(uuid4()))
+            with GeneralState(
+                circuit, attributes=tnconfig, scratch_fraction=scratch_fraction
+            ) as tn:
+                self._cache[handle] = {"result": tn.sample(circ_shots, seed=seed)}
+            handle_list.append(handle)
         return handle_list
 
 

@@ -1,8 +1,20 @@
+diff --git a/cupy/_environment.py b/cupy/_environment.py
+index 105f16b5d..eb36fbc82 100644
+--- a/cupy/_environment.py
++++ b/cupy/_environment.py
+@@ -461,6 +461,7 @@ You can install the library by:
+ 
+ 
+ def _get_include_dir_from_conda_or_wheel(major: int, minor: int) -> List[str]:
++    return ["@cuda_bundle@/include"]
+     # FP16 headers from CUDA 12.2+ depends on headers from CUDA Runtime.
+     # See https://github.com/cupy/cupy/issues/8466.
+     if major < 12 or (major == 12 and minor < 2):
 diff --git a/cupy_backends/cuda/libs/_cnvrtc.pxi b/cupy_backends/cuda/libs/_cnvrtc.pxi
-index 9f02b5522..3e0ef9da9 100644
+index 285475036..3e0ef9da9 100644
 --- a/cupy_backends/cuda/libs/_cnvrtc.pxi
 +++ b/cupy_backends/cuda/libs/_cnvrtc.pxi
-@@ -114,30 +114,5 @@ cdef void _initialize() except *:
+@@ -114,33 +114,5 @@ cdef void _initialize() except *:
  cdef SoftLink _get_softlink():
      cdef int runtime_version
      cdef str prefix = 'nvrtc'
@@ -31,6 +43,9 @@ index 9f02b5522..3e0ef9da9 100644
 -        elif runtime_version < 6_00_00000:
 -            # ROCm 5.x
 -            libname = 'libamdhip64.so.5'
+-        elif runtime_version < 7_00_00000:
+-            # ROCm 6.x
+-            libname = 'libamdhip64.so.6'
 -
 +    cdef object libname = '@cuda_bundle@/lib/libnvrtc.so'
      return SoftLink(libname, prefix, mandatory=True)

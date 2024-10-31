@@ -7,10 +7,13 @@
     cuda-maintainers.cachix.org-1:0dq3bujKpuEPMCX6U4WylrUDZ9JyUG0VpVZa7CNfq5E=
     nix-community.cachix.org-1:mB9FSh9qf2dCimDSUo8Zy7bkq5CX+/rkCWyvRCYg3Fs=
   '';
-  inputs.flake-utils.url = "github:numtide/flake-utils";
-  inputs.tket.url = "github:CQCL/tket";
-  inputs.nixpkgs.follows = "tket/nixpkgs";
-  outputs = { self, nixpkgs, flake-utils, tket }:
+  inputs = {
+    flake-utils.url = "github:numtide/flake-utils";
+    tket.url = "github:CQCL/tket";
+    nixpkgs.follows = "tket/nixpkgs";
+    nixgl.url = "github:nix-community/nixGL";
+  };
+  outputs = { self, nixpkgs, flake-utils, tket, nixgl }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs {
@@ -20,8 +23,13 @@
             cudaSupport = true;
           };
           overlays = [
+            (nixgl.overlay)
+
             (self: super: {
               inherit (tket.packages."${system}") tket pytket;
+            })
+            (self: super: {
+              mypy' = pkgs.python3Packages.callPackage ./nix-support/mypy.nix {};
             })
             (self: super: {
               cuda-bundle = pkgs.callPackage ./nix-support/cuda-bundle.nix {};
@@ -38,12 +46,13 @@
       in {
         packages = {
           default = pkgs.pytket-cutensornet;
-          cupy = pkgs.cupy';
           pytket-cutensornet = pkgs.pytket-cutensornet;
           tests = pkgs.run-pytket-cutensornet-tests;
+          example-tests = pkgs.run-pytket-cutensornet-examples;
         };
         devShells = {
           default = pkgs.mkShell { buildInputs = [ pkgs.pytket-cutensornet ]; };
+          cupy = pkgs.mkShell { buildInputs = [ pkgs.cupy' ]; };
         };
         checks = {
           # no GPU support in checks at the time of writing

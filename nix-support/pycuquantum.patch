@@ -1,5 +1,5 @@
 diff --git a/builder/pep517.py b/builder/pep517.py
-index ce701e4..8b99806 100644
+index 0916ab7..0430abf 100644
 --- a/builder/pep517.py
 +++ b/builder/pep517.py
 @@ -30,11 +30,12 @@ def get_requires_for_build_wheel(config_settings=None):
@@ -7,10 +7,10 @@ index ce701e4..8b99806 100644
      # 22.3 by setuptools, so we must follow the same practice in the constraints;
      # also, we don't need the patch number here
 -    cuqnt_require = [f'custatevec-cu{utils.cuda_major_ver}~=1.6',   # ">=1.6.0,<2"
--                     f'cutensornet-cu{utils.cuda_major_ver}~=2.4',  # ">=2.4.0,<3"
+-                     f'cutensornet-cu{utils.cuda_major_ver}~=2.5',   # ">=2.5.0,<3"
 -                    ]
 +    #cuqnt_require = [f'custatevec-cu{utils.cuda_major_ver}~=1.6',   # ">=1.6.0,<2"
-+    #                 f'cutensornet-cu{utils.cuda_major_ver}~=2.4',  # ">=2.4.0,<3"
++    #                 f'cutensornet-cu{utils.cuda_major_ver}~=2.5',   # ">=2.5.0,<3"
 +    #                ]
  
 -    return _build_meta.get_requires_for_build_wheel(config_settings) + cuqnt_require
@@ -20,20 +20,20 @@ index ce701e4..8b99806 100644
  
  # Note: We have never promised to support sdist (CUQNT-514). We really cannot
 diff --git a/cuquantum/custatevec/_internal/custatevec_linux.pyx b/cuquantum/custatevec/_internal/custatevec_linux.pyx
-index 8b918ca..afc6d87 100644
+index e3334c4..3309ac9 100644
 --- a/cuquantum/custatevec/_internal/custatevec_linux.pyx
 +++ b/cuquantum/custatevec/_internal/custatevec_linux.pyx
-@@ -111,7 +111,7 @@ cdef void* __custatevecSubSVMigratorMigrate = NULL
+@@ -111,7 +111,7 @@ cdef void* __custatevecComputeExpectationBatched = NULL
  
  cdef void* load_library() except* nogil:
      cdef void* handle
 -    handle = dlopen("libcustatevec.so.1", RTLD_NOW | RTLD_GLOBAL)
-+    handle = dlopen("@cuda_bundle@/lib/libcustatevec.so", RTLD_NOW | RTLD_GLOBAL)
++    handle = dlopen("@cuda_bundle@/lib/libcustatevec.so.1", RTLD_NOW | RTLD_GLOBAL)
      if handle == NULL:
          with gil:
              err_msg = dlerror()
 diff --git a/cuquantum/cutensornet/_internal/cutensornet_linux.pyx b/cuquantum/cutensornet/_internal/cutensornet_linux.pyx
-index b63a366..1143833 100644
+index cd54946..e46633e 100644
 --- a/cuquantum/cutensornet/_internal/cutensornet_linux.pyx
 +++ b/cuquantum/cutensornet/_internal/cutensornet_linux.pyx
 @@ -152,7 +152,7 @@ cdef void* __cutensornetSamplerGetInfo = NULL
@@ -41,22 +41,22 @@ index b63a366..1143833 100644
  cdef void* load_library() except* nogil:
      cdef void* handle
 -    handle = dlopen("libcutensornet.so.2", RTLD_NOW | RTLD_GLOBAL)
-+    handle = dlopen("@cuda_bundle@/lib/libcutensornet.so", RTLD_NOW | RTLD_GLOBAL)
++    handle = dlopen("@cuda_bundle@/lib/libcutensornet.so.2", RTLD_NOW | RTLD_GLOBAL)
      if handle == NULL:
          with gil:
              err_msg = dlerror()
 diff --git a/setup.py b/setup.py
-index 47a892f..11f59db 100644
+index 43d1080..2eb981c 100644
 --- a/setup.py
 +++ b/setup.py
 @@ -35,8 +35,8 @@ with open(os.path.join(source_root, "tests/requirements.txt")) as f:
  install_requires = [
-     'numpy~=1.21',  # ">=1.21,<2"
+     'numpy>=1.21, <3.0',  # ">=1.21,<3"
      # 'torch', # <-- PyTorch is optional; also, the PyPI version does not support GPU...
 -    f'custatevec-cu{utils.cuda_major_ver}~=1.6',   # ">=1.6.0,<2"
--    f'cutensornet-cu{utils.cuda_major_ver}~=2.4',  # ">=2.4.0,<3"
+-    f'cutensornet-cu{utils.cuda_major_ver}>=2.5.0,<3',
 +    #f'custatevec-cu{utils.cuda_major_ver}~=1.6',   # ">=1.6.0,<2"
-+    #f'cutensornet-cu{utils.cuda_major_ver}~=2.4',  # ">=2.4.0,<3"
++    #f'cutensornet-cu{utils.cuda_major_ver}>=2.5.0,<3',
  ]
  if utils.cuda_major_ver == '11':
      install_requires.append('cupy-cuda11x>=13.0')  # no ambiguity
