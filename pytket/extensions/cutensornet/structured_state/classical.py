@@ -22,11 +22,13 @@ from pytket.circuit import (
     SetBitsOp,
     CopyBitsOp,
     RangePredicateOp,
+    ClExprOp,
     ClassicalExpBox,
     LogicExp,
     BitWiseOp,
     RegWiseOp,
 )
+from pytket._tket.circuit import ClExpr, ClOp, ClBitVar, ClRegVar
 
 
 ExtendedLogicExp = Union[LogicExp, Bit, BitRegister, int]
@@ -56,6 +58,20 @@ def apply_classical_command(
         # Check that the value is in the range
         bits_dict[res_bit] = val >= op.lower and val <= op.upper
 
+    elif isinstance(op, ClExprOp):
+        # Convert bit_posn to dictionary of `ClBitVar` index to its value
+        bitvar_val = {var_id: int(bits_dict[args[bit_pos]]) for var_id, bit_pos in op.expr.bit_posn.items()}
+        # Convert reg_posn to dictionary of `ClRegVar` index to its value
+        regvar_val = {var_id: from_little_endian([bits_dict[args[bit_pos]] for bit_pos in reg_pos_list]) for var_id, reg_pos_list in op.expr.reg_posn.items()}
+        result = evaluate_clexpr(op.expr.expr, bitvar_val, regvar_val)
+
+        # The result is an int in little-endian encoding. We update the
+        # output register accordingly.
+        for bit_pos in op.expr.output_posn:
+            bits_dict[args[bit_pos]] = (result % 2) == 1
+            result = result >> 1
+        assert result == 0  # All bits consumed
+
     elif isinstance(op, ClassicalExpBox):
         the_exp = op.get_exp()
         result = evaluate_logic_exp(the_exp, bits_dict)
@@ -72,6 +88,79 @@ def apply_classical_command(
 
     else:
         raise NotImplementedError(f"Commands of type {op.type} are not supported.")
+
+
+def evaluate_clexpr(expr: ClExpr, bitvar_val: dict[int, int], regvar_val: dict[int, int]) -> int:
+    """Recursive evaluation of a ClExpr."""
+
+    # Evaluate arguments to operation
+    args_val = []
+    for arg in expr.args:
+        if isinstance(arg, int):
+            value = arg
+        elif isinstance(arg, ClBitVar):
+            value = bitvar_val[arg.index]
+        elif isinstance(arg, ClRegVar):
+            value = regvar_val[arg.index]
+        elif isinstance(arg, ClExpr):
+            value = evaluate_clexpr(arg, bitvar_val, regvar_val)
+        else:
+            raise Exception(f"Unrecognised argument type of ClExpr: {type(arg)}.")
+
+        args_val.append(value)
+
+    # Apply the operation at the root of this ClExpr
+    if expr.op in [ClOp.BitAnd, ClOp.RegAnd]:
+        result = args_val[0] & args_val[1]
+    elif expr.op in [ClOp.BitOr, ClOp.RegOr]:
+        result = args_val[0] | args_val[1]
+    elif expr.op in [ClOp.BitXor, ClOp.RegXor]:
+        result = args_val[0] ^ args_val[1]
+    elif expr.op in [ClOp.BitEq, ClOp.RegEq]:
+        result = int(args_val[0] == args_val[1])
+    elif expr.op in [ClOp.BitNeq, ClOp.RegNeq]:
+        result = int(args_val[0] != args_val[1])
+    elif expr.op == ClOp.RegGeq:
+        result = int(args_val[0] >= args_val[1])
+    elif expr.op == ClOp.RegGt:
+        result = int(args_val[0] > args_val[1])
+    elif expr.op == ClOp.RegLeq:
+        result = int(args_val[0] <= args_val[1])
+    elif expr.op == ClOp.RegLt:
+        result = int(args_val[0] < args_val[1])
+    elif expr.op == ClOp.BitNot:
+        result = 1 - args_val[0]
+    # elif expr.op == ClOp.RegNot:
+    #     result = int(args_val[0] == 0)
+    elif expr.op in [ClOp.BitZero, ClOp.RegZero]:
+        result = 0
+    elif expr.op in [ClOp.BitOne, ClOp.RegOne]:
+        result = 1
+    # elif expr.op == ClOp.RegAdd:
+    #     result = args_val[0] + args_val[1]
+    # elif expr.op == ClOp.RegSub:
+    #     result = args_val[0] - args_val[1]
+    # elif expr.op == ClOp.RegMul:
+    #     result = args_val[0] * args_val[1]
+    # elif expr.op == ClOp.RegPow:
+    #     result = int(args_val[0] ** args_val[1])
+    elif expr.op == ClOp.RegRsh:
+        result = args_val[0] >> args_val[1]
+    # elif expr.op == ClOp.RegNeg:
+    #     result = -args_val[0]
+    else:
+        # TODO: Currently not supporting ClOp's RegDiv since it does not return int,
+        # so I am unsure what the semantic is meant to be.
+        # TODO: I don't now what to do with RegNot, since input
+        # is not guaranteed to be 0 or 1.
+        # TODO: It is not clear what to do with overflow of ADD, etc.
+        # so I have decided to not support them for now.
+        raise NotImplementedError(
+            f"Evaluation of {expr.op} not supported in ClExpr ",
+            "by pytket-cutensornet.",
+        )
+
+    return result
 
 
 def evaluate_logic_exp(exp: ExtendedLogicExp, bits_dict: dict[Bit, bool]) -> int:

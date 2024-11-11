@@ -12,6 +12,7 @@ from pytket.circuit import (
     reg_eq,
 )
 from pytket.circuit.logic_exp import BitWiseOp, create_bit_logic_exp
+from pytket.circuit.clexpr import wired_clexpr_from_logic_exp
 
 from pytket.extensions.cutensornet.structured_state import (
     CuTensorNetHandle,
@@ -24,6 +25,35 @@ from pytket.extensions.cutensornet.structured_state import (
 # This first suite of tests comes from the pytket-qir extension
 # (see https://github.com/CQCL/pytket-qir/blob/main/tests/conditional_test.py)
 # Further down, there are tests to check that the simulation works correctly.
+
+def test_circuit_with_clexpr_i() -> None:
+    # test conditional handling
+
+    circ = Circuit(3)
+    a = circ.add_c_register("a", 5)
+    b = circ.add_c_register("b", 5)
+    c = circ.add_c_register("c", 5)
+    d = circ.add_c_register("d", 5)
+    circ.H(0)
+    wexpr, args = wired_clexpr_from_logic_exp(a | b, c)
+    circ.add_clexpr(wexpr, args)
+    wexpr, args = wired_clexpr_from_logic_exp(c | b, d)
+    circ.add_clexpr(wexpr, args)
+    wexpr, args = wired_clexpr_from_logic_exp(c | b, d)
+    circ.add_clexpr(wexpr, args, condition=a[4])
+    circ.H(0)
+    circ.Measure(Qubit(0), d[4])
+    circ.H(1)
+    circ.Measure(Qubit(1), d[3])
+    circ.H(2)
+    circ.Measure(Qubit(2), d[2])
+
+    with CuTensorNetHandle() as libhandle:
+        cfg = Config()
+        state = simulate(libhandle, circ, SimulationAlgorithm.MPSxGate, cfg)
+        assert state.is_valid()
+        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
+        assert state.get_fidelity() == 1.0
 
 
 def test_circuit_with_classicalexpbox_i() -> None:
@@ -38,6 +68,35 @@ def test_circuit_with_classicalexpbox_i() -> None:
     circ.add_classicalexpbox_register(a | b, c)  # type: ignore
     circ.add_classicalexpbox_register(c | b, d)  # type: ignore
     circ.add_classicalexpbox_register(c | b, d, condition=a[4])  # type: ignore
+    circ.H(0)
+    circ.Measure(Qubit(0), d[4])
+    circ.H(1)
+    circ.Measure(Qubit(1), d[3])
+    circ.H(2)
+    circ.Measure(Qubit(2), d[2])
+
+    with CuTensorNetHandle() as libhandle:
+        cfg = Config()
+        state = simulate(libhandle, circ, SimulationAlgorithm.MPSxGate, cfg)
+        assert state.is_valid()
+        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
+        assert state.get_fidelity() == 1.0
+
+def test_circuit_with_clexpr_ii() -> None:
+    # test conditional handling with else case
+
+    circ = Circuit(3)
+    a = circ.add_c_register("a", 5)
+    b = circ.add_c_register("b", 5)
+    c = circ.add_c_register("c", 5)
+    d = circ.add_c_register("d", 5)
+    circ.H(0)
+    wexpr, args = wired_clexpr_from_logic_exp(a | b, c)
+    circ.add_clexpr(wexpr, args)
+    wexpr, args = wired_clexpr_from_logic_exp(c | b, d)
+    circ.add_clexpr(wexpr, args)
+    wexpr, args = wired_clexpr_from_logic_exp(c | b, d)
+    circ.add_clexpr(wexpr, args, condition=if_not_bit(a[4]))
     circ.H(0)
     circ.Measure(Qubit(0), d[4])
     circ.H(1)
@@ -73,6 +132,35 @@ def test_circuit_with_classicalexpbox_ii() -> None:
     circ.Measure(Qubit(1), d[3])
     circ.H(2)
     circ.Measure(Qubit(2), d[2])
+
+    with CuTensorNetHandle() as libhandle:
+        cfg = Config()
+        state = simulate(libhandle, circ, SimulationAlgorithm.MPSxGate, cfg)
+        assert state.is_valid()
+        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
+        assert state.get_fidelity() == 1.0
+
+@pytest.mark.skip(reason="Currently not supporting arithmetic operations in ClExpr")
+def test_circuit_with_clexpr_iii() -> None:
+    # test complicated conditions and recursive classical op
+
+    circ = Circuit(2)
+
+    a = circ.add_c_register("a", 15)
+    b = circ.add_c_register("b", 15)
+    c = circ.add_c_register("c", 15)
+    d = circ.add_c_register("d", 15)
+    e = circ.add_c_register("e", 15)
+
+    circ.H(0)
+    bits = [Bit(i) for i in range(10)]
+    big_exp = bits[4] | bits[5] ^ bits[6] | bits[7] & bits[8]
+    circ.H(0, condition=big_exp)
+
+    wexpr, args = wired_clexpr_from_logic_exp(a + b - d, c)
+    circ.add_clexpr(wexpr, args)
+    wexpr, args = wired_clexpr_from_logic_exp(a * b * d * c, e)
+    circ.add_clexpr(wexpr, args)
 
     with CuTensorNetHandle() as libhandle:
         cfg = Config()
@@ -225,6 +313,32 @@ def test_pytket_qir_conditional_10() -> None:
 
     box_circ.H(0)
     box_circ.add_classicalexpbox_register(box_c | box_c, box_c)  # type: ignore
+
+    cbox = CircBox(box_circ)
+    d = Circuit(4, 5)
+    a = d.add_c_register("a", 4)
+    d.add_circbox(cbox, [0, 2, 1, 3, 0, 1, 2, 3, 4], condition=a[0])
+
+    with CuTensorNetHandle() as libhandle:
+        cfg = Config()
+        state = simulate(libhandle, d, SimulationAlgorithm.MPSxGate, cfg)
+        assert state.is_valid()
+        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
+        assert state.get_fidelity() == 1.0
+
+
+def test_pytket_qir_conditional_11() -> None:
+    box_circ = Circuit(4)
+    box_circ.X(0)
+    box_circ.Y(1)
+    box_circ.Z(2)
+    box_circ.H(3)
+    box_c = box_circ.add_c_register("c", 5)
+
+    box_circ.H(0)
+
+    wexpr, args = wired_clexpr_from_logic_exp(box_c | box_c, box_c)
+    box_circ.add_clexpr(wexpr, args)
 
     cbox = CircBox(box_circ)
     d = Circuit(4, 5)
@@ -430,7 +544,84 @@ def test_repeat_until_success_i() -> None:
         assert np.allclose(target_state, output_state)
 
 
-def test_repeat_until_success_ii() -> None:
+def test_repeat_until_success_ii_clexpr() -> None:
+    # From Figure 1(c) of https://arxiv.org/pdf/1311.1074
+
+    attempts = 100
+
+    circ = Circuit()
+    qin = circ.add_q_register("qin", 1)
+    qaux = circ.add_q_register("aux", 2)
+    flag = circ.add_c_register("flag", 3)
+    circ.add_c_setbits([True, True], [flag[0], flag[1]])  # Set flag bits to 11
+    circ.H(qin[0])  # Use to convert gate to sqrt(1/5)*I + i*sqrt(4/5)*X (i.e. Z -> X)
+
+    for _ in range(attempts):
+        wexpr, args = wired_clexpr_from_logic_exp(
+            flag[0] | flag[1], [flag[2]]  # Success if both are zero
+        )
+        circ.add_clexpr(wexpr, args)
+
+        circ.add_gate(
+            OpType.Reset, [qaux[0]], condition_bits=[flag[2]], condition_value=1
+        )
+        circ.add_gate(
+            OpType.Reset, [qaux[1]], condition_bits=[flag[2]], condition_value=1
+        )
+        circ.add_gate(OpType.H, [qaux[0]], condition_bits=[flag[2]], condition_value=1)
+        circ.add_gate(OpType.H, [qaux[1]], condition_bits=[flag[2]], condition_value=1)
+
+        circ.add_gate(OpType.T, [qin[0]], condition_bits=[flag[2]], condition_value=1)
+        circ.add_gate(OpType.Z, [qin[0]], condition_bits=[flag[2]], condition_value=1)
+        circ.add_gate(
+            OpType.Tdg, [qaux[0]], condition_bits=[flag[2]], condition_value=1
+        )
+        circ.add_gate(
+            OpType.CX, [qaux[1], qaux[0]], condition_bits=[flag[2]], condition_value=1
+        )
+        circ.add_gate(OpType.T, [qaux[0]], condition_bits=[flag[2]], condition_value=1)
+        circ.add_gate(
+            OpType.CX, [qin[0], qaux[1]], condition_bits=[flag[2]], condition_value=1
+        )
+        circ.add_gate(OpType.T, [qaux[1]], condition_bits=[flag[2]], condition_value=1)
+
+        circ.add_gate(OpType.H, [qaux[0]], condition_bits=[flag[2]], condition_value=1)
+        circ.add_gate(OpType.H, [qaux[1]], condition_bits=[flag[2]], condition_value=1)
+        circ.Measure(qaux[0], flag[0], condition_bits=[flag[2]], condition_value=1)
+        circ.Measure(qaux[1], flag[1], condition_bits=[flag[2]], condition_value=1)
+
+        # From chat with Silas and exploring the RUS as a block matrix, we have noticed
+        # that the circuit is missing an X correction when this condition is satisfied
+        wexpr, args = wired_clexpr_from_logic_exp(flag[0] ^ flag[1], [flag[2]])
+        circ.add_clexpr(wexpr, args)
+        circ.add_gate(OpType.Z, [qin[0]], condition_bits=[flag[2]], condition_value=1)
+
+    circ.H(qin[0])  # Use to convert gate to sqrt(1/5)*I + i*sqrt(4/5)*X (i.e. Z -> X)
+
+    with CuTensorNetHandle() as libhandle:
+        cfg = Config()
+
+        state = simulate(libhandle, circ, SimulationAlgorithm.MPSxGate, cfg)
+        assert state.is_valid()
+        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
+        assert state.get_fidelity() == 1.0
+
+        # All of the flag bits should have turned False
+        assert all(not state.get_bits()[bit] for bit in flag)
+        # The auxiliary qubits should be in state |0>
+        prob = state.postselect({qaux[0]: 0, qaux[1]: 0})
+        assert np.isclose(prob, 1.0)
+
+        target_state = [np.sqrt(1 / 5), np.sqrt(4 / 5) * 1j]
+        output_state = state.get_statevector()
+        # As indicated in the paper, the gate is implemented up to global phase
+        global_phase = target_state[0] / output_state[0]
+        assert np.isclose(abs(global_phase), 1.0)
+        output_state *= global_phase
+        assert np.allclose(target_state, output_state)
+
+
+def test_repeat_until_success_ii_classicalexpblox() -> None:
     # From Figure 1(c) of https://arxiv.org/pdf/1311.1074
 
     attempts = 100
