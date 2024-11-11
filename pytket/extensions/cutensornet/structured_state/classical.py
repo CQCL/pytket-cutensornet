@@ -60,9 +60,17 @@ def apply_classical_command(
 
     elif isinstance(op, ClExprOp):
         # Convert bit_posn to dictionary of `ClBitVar` index to its value
-        bitvar_val = {var_id: int(bits_dict[args[bit_pos]]) for var_id, bit_pos in op.expr.bit_posn.items()}
+        bitvar_val = {
+            var_id: int(bits_dict[args[bit_pos]])
+            for var_id, bit_pos in op.expr.bit_posn.items()
+        }
         # Convert reg_posn to dictionary of `ClRegVar` index to its value
-        regvar_val = {var_id: from_little_endian([bits_dict[args[bit_pos]] for bit_pos in reg_pos_list]) for var_id, reg_pos_list in op.expr.reg_posn.items()}
+        regvar_val = {
+            var_id: from_little_endian(
+                [bits_dict[args[bit_pos]] for bit_pos in reg_pos_list]
+            )
+            for var_id, reg_pos_list in op.expr.reg_posn.items()
+        }
         result = evaluate_clexpr(op.expr.expr, bitvar_val, regvar_val)
 
         # The result is an int in little-endian encoding. We update the
@@ -90,7 +98,9 @@ def apply_classical_command(
         raise NotImplementedError(f"Commands of type {op.type} are not supported.")
 
 
-def evaluate_clexpr(expr: ClExpr, bitvar_val: dict[int, int], regvar_val: dict[int, int]) -> int:
+def evaluate_clexpr(
+    expr: ClExpr, bitvar_val: dict[int, int], regvar_val: dict[int, int]
+) -> int:
     """Recursive evaluation of a ClExpr."""
 
     # Evaluate arguments to operation

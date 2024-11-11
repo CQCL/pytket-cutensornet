@@ -26,6 +26,7 @@ from pytket.extensions.cutensornet.structured_state import (
 # (see https://github.com/CQCL/pytket-qir/blob/main/tests/conditional_test.py)
 # Further down, there are tests to check that the simulation works correctly.
 
+
 def test_circuit_with_clexpr_i() -> None:
     # test conditional handling
 
@@ -35,11 +36,11 @@ def test_circuit_with_clexpr_i() -> None:
     c = circ.add_c_register("c", 5)
     d = circ.add_c_register("d", 5)
     circ.H(0)
-    wexpr, args = wired_clexpr_from_logic_exp(a | b, c)
+    wexpr, args = wired_clexpr_from_logic_exp(a | b, c)  # type: ignore
     circ.add_clexpr(wexpr, args)
-    wexpr, args = wired_clexpr_from_logic_exp(c | b, d)
+    wexpr, args = wired_clexpr_from_logic_exp(c | b, d)  # type: ignore
     circ.add_clexpr(wexpr, args)
-    wexpr, args = wired_clexpr_from_logic_exp(c | b, d)
+    wexpr, args = wired_clexpr_from_logic_exp(c | b, d)  # type: ignore
     circ.add_clexpr(wexpr, args, condition=a[4])
     circ.H(0)
     circ.Measure(Qubit(0), d[4])
@@ -82,6 +83,7 @@ def test_circuit_with_classicalexpbox_i() -> None:
         assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
         assert state.get_fidelity() == 1.0
 
+
 def test_circuit_with_clexpr_ii() -> None:
     # test conditional handling with else case
 
@@ -91,11 +93,11 @@ def test_circuit_with_clexpr_ii() -> None:
     c = circ.add_c_register("c", 5)
     d = circ.add_c_register("d", 5)
     circ.H(0)
-    wexpr, args = wired_clexpr_from_logic_exp(a | b, c)
+    wexpr, args = wired_clexpr_from_logic_exp(a | b, c)  # type: ignore
     circ.add_clexpr(wexpr, args)
-    wexpr, args = wired_clexpr_from_logic_exp(c | b, d)
+    wexpr, args = wired_clexpr_from_logic_exp(c | b, d)  # type: ignore
     circ.add_clexpr(wexpr, args)
-    wexpr, args = wired_clexpr_from_logic_exp(c | b, d)
+    wexpr, args = wired_clexpr_from_logic_exp(c | b, d)  # type: ignore
     circ.add_clexpr(wexpr, args, condition=if_not_bit(a[4]))
     circ.H(0)
     circ.Measure(Qubit(0), d[4])
@@ -140,6 +142,7 @@ def test_circuit_with_classicalexpbox_ii() -> None:
         assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
         assert state.get_fidelity() == 1.0
 
+
 @pytest.mark.skip(reason="Currently not supporting arithmetic operations in ClExpr")
 def test_circuit_with_clexpr_iii() -> None:
     # test complicated conditions and recursive classical op
@@ -157,9 +160,9 @@ def test_circuit_with_clexpr_iii() -> None:
     big_exp = bits[4] | bits[5] ^ bits[6] | bits[7] & bits[8]
     circ.H(0, condition=big_exp)
 
-    wexpr, args = wired_clexpr_from_logic_exp(a + b - d, c)
+    wexpr, args = wired_clexpr_from_logic_exp(a + b - d, c)  # type: ignore
     circ.add_clexpr(wexpr, args)
-    wexpr, args = wired_clexpr_from_logic_exp(a * b * d * c, e)
+    wexpr, args = wired_clexpr_from_logic_exp(a * b * d * c, e)  # type: ignore
     circ.add_clexpr(wexpr, args)
 
     with CuTensorNetHandle() as libhandle:
@@ -337,7 +340,7 @@ def test_pytket_qir_conditional_11() -> None:
 
     box_circ.H(0)
 
-    wexpr, args = wired_clexpr_from_logic_exp(box_c | box_c, box_c)
+    wexpr, args = wired_clexpr_from_logic_exp(box_c | box_c, box_c)  # type: ignore
     box_circ.add_clexpr(wexpr, args)
 
     cbox = CircBox(box_circ)
