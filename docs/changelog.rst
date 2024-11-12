@@ -3,6 +3,12 @@
 Changelog
 ~~~~~~~~~
 
+Unreleased
+----------
+
+* Updated pytket version requirement to 1.34.
+* Now supporting ``ClExpr`` operations (the new version of tket's ``ClassicalExpBox``).
+
 0.10.0 (October 2024)
 ---------------------
 
