@@ -71,14 +71,26 @@ def apply_classical_command(
             )
             for var_id, reg_pos_list in op.expr.reg_posn.items()
         }
-        result = evaluate_clexpr(op.expr.expr, bitvar_val, regvar_val)
+        # Identify number of bits on each register
+        regvar_size = {
+            var_id: len(reg_pos_list)
+            for var_id, reg_pos_list in op.expr.reg_posn.items()
+        }
+        # Identify number of bits in output register
+        output_size = len(op.expr.output_posn)
+        result = evaluate_clexpr(
+            op.expr.expr, bitvar_val, regvar_val, regvar_size, output_size
+        )
 
         # The result is an int in little-endian encoding. We update the
         # output register accordingly.
         for bit_pos in op.expr.output_posn:
             bits_dict[args[bit_pos]] = (result % 2) == 1
             result = result >> 1
-        assert result == 0  # All bits consumed
+        # If there has been overflow in the operations, error out.
+        # This can be detected if `result != 0`
+        if result != 0:
+            raise ValueError("Evaluation of the ClExpr resulted in overflow.")
 
     elif isinstance(op, ClassicalExpBox):
         the_exp = op.get_exp()
@@ -99,7 +111,11 @@ def apply_classical_command(
 
 
 def evaluate_clexpr(
-    expr: ClExpr, bitvar_val: dict[int, int], regvar_val: dict[int, int]
+    expr: ClExpr,
+    bitvar_val: dict[int, int],
+    regvar_val: dict[int, int],
+    regvar_size: dict[int, int],
+    output_size: int,
 ) -> int:
     """Recursive evaluation of a ClExpr."""
 
@@ -113,7 +129,9 @@ def evaluate_clexpr(
         elif isinstance(arg, ClRegVar):
             value = regvar_val[arg.index]
         elif isinstance(arg, ClExpr):
-            value = evaluate_clexpr(arg, bitvar_val, regvar_val)
+            value = evaluate_clexpr(
+                arg, bitvar_val, regvar_val, regvar_size, output_size
+            )
         else:
             raise Exception(f"Unrecognised argument type of ClExpr: {type(arg)}.")
 
@@ -140,31 +158,39 @@ def evaluate_clexpr(
         result = int(args_val[0] < args_val[1])
     elif expr.op == ClOp.BitNot:
         result = 1 - args_val[0]
-    # elif expr.op == ClOp.RegNot:
-    #     result = int(args_val[0] == 0)
+    elif expr.op == ClOp.RegNot:  # Bit-wise NOT (flip all bits)
+        n_bits = regvar_size[expr.args[0].index]  # type: ignore
+        result = (2**n_bits - 1) ^ args_val[0]  # XOR with all 1s bitstring
     elif expr.op in [ClOp.BitZero, ClOp.RegZero]:
         result = 0
-    elif expr.op in [ClOp.BitOne, ClOp.RegOne]:
+    elif expr.op == ClOp.BitOne:
         result = 1
-    # elif expr.op == ClOp.RegAdd:
-    #     result = args_val[0] + args_val[1]
-    # elif expr.op == ClOp.RegSub:
-    #     result = args_val[0] - args_val[1]
-    # elif expr.op == ClOp.RegMul:
-    #     result = args_val[0] * args_val[1]
-    # elif expr.op == ClOp.RegPow:
-    #     result = int(args_val[0] ** args_val[1])
+    elif expr.op == ClOp.RegOne:  # All 1s bitstring
+        n_bits = output_size
+        result = 2**n_bits - 1
+    elif expr.op == ClOp.RegAdd:
+        result = args_val[0] + args_val[1]
+    elif expr.op == ClOp.RegSub:
+        if args_val[0] < args_val[1]:
+            raise NotImplementedError(
+                "Currently not supporting ClOp.RegSub where the outcome is negative."
+            )
+        result = args_val[0] - args_val[1]
+    elif expr.op == ClOp.RegMul:
+        result = args_val[0] * args_val[1]
+    elif expr.op == ClOp.RegDiv:  # floor(a / b)
+        result = args_val[0] // args_val[1]
+    elif expr.op == ClOp.RegPow:
+        result = int(args_val[0] ** args_val[1])
+    elif expr.op == ClOp.RegLsh:
+        result = args_val[0] << args_val[1]
     elif expr.op == ClOp.RegRsh:
         result = args_val[0] >> args_val[1]
     # elif expr.op == ClOp.RegNeg:
     #     result = -args_val[0]
     else:
-        # TODO: Currently not supporting ClOp's RegDiv since it does not return int,
-        # so I am unsure what the semantic is meant to be.
-        # TODO: I don't now what to do with RegNot, since input
-        # is not guaranteed to be 0 or 1.
-        # TODO: It is not clear what to do with overflow of ADD, etc.
-        # so I have decided to not support them for now.
+        # TODO: Not supporting RegNeg because I do not know if we have agreed how to
+        # specify signed ints.
         raise NotImplementedError(
             f"Evaluation of {expr.op} not supported in ClExpr ",
             "by pytket-cutensornet.",
@@ -231,4 +257,5 @@ def evaluate_logic_exp(exp: ExtendedLogicExp, bits_dict: dict[Bit, bool]) -> int
 def from_little_endian(bitstring: list[bool]) -> int:
     """Obtain the integer from the little-endian encoded bitstring (i.e. bitstring
     [False, True] is interpreted as the integer 2)."""
+    # TODO: Assumes unisigned integer. What are the specs for signed integers?
     return sum(1 << i for i, b in enumerate(bitstring) if b)
