@@ -38,7 +38,12 @@ from .general import Config, StructuredState, Tensor
 
 
 class DirMPS(Enum):
-    """An enum to refer to relative directions within the MPS."""
+    """An enum to refer to relative directions within the MPS.
+
+    When used to refer to the canonical form of a tensor, LEFT means that its conjugate
+    transpose is its inverse when connected to its left bond and physical bond.
+    Similarly for RIGHT.
+    """
 
     LEFT = 0
     RIGHT = 1

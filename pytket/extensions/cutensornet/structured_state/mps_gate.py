@@ -284,8 +284,8 @@ class MPSxGate(MPS):
             optimize={"path": [(0, 1)]},
         )
 
-        # The site tensor is now in canonical form (since S is contracted to the right)
-        self.canonical_form[l_pos] = DirMPS.RIGHT  # type: ignore
+        # The site tensor is now in canonical form
+        self.canonical_form[l_pos] = DirMPS.LEFT  # type: ignore
 
         # Next, "push" the `msg_tensor` through all site tensors between `l_pos`
         # and `r_pos`. Once again, this is just contract_decompose on each.
@@ -306,7 +306,7 @@ class MPSxGate(MPS):
             )
 
             # The site tensor is now in canonical form
-            self.canonical_form[pos] = DirMPS.RIGHT  # type: ignore
+            self.canonical_form[pos] = DirMPS.LEFT  # type: ignore
 
         # Finally, contract the `msg_tensor` with the site tensor in `r_pos` and the
         # `r_gate_tensor` from the decomposition of `gate_tensor`
@@ -402,7 +402,7 @@ class MPSxGate(MPS):
             # Since we are contracting S to the "left" in `svd_method`, the site tensor
             # at `pos+1` is canonicalised, whereas the site tensor at `pos` is the one
             # where S has been contracted to and, hence, is not in canonical form
-            self.canonical_form[pos + 1] = DirMPS.LEFT  # type: ignore
+            self.canonical_form[pos + 1] = DirMPS.RIGHT  # type: ignore
             self.canonical_form[pos] = None
             # Update fidelity lower bound
             this_fidelity = 1.0 - info.svd_info.discarded_weight
