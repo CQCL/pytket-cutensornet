@@ -228,10 +228,6 @@ class StructuredState(ABC):
             except:
                 raise ValueError(f"The command {op.type} introduced is not supported.")
 
-            # Load the gate's unitary to the GPU memory
-            unitary = unitary.astype(dtype=self._cfg._complex_t, copy=False)
-            unitary = cp.asarray(unitary, dtype=self._cfg._complex_t)
-
             if len(qubits) not in [1, 2]:
                 raise ValueError(
                     "Gates must act on only 1 or 2 qubits! "
