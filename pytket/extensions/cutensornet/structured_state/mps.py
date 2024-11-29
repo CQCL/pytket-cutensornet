@@ -18,6 +18,7 @@ from enum import Enum
 
 from random import Random  # type: ignore
 import numpy as np  # type: ignore
+from numpy.typing import NDArray  # type: ignore
 
 try:
     import cupy as cp  # type: ignore
@@ -153,9 +154,7 @@ class MPS(StructuredState):
 
         return chi_ok and phys_ok and shape_ok and ds_ok
 
-    def apply_unitary(
-        self, unitary: cp.ndarray, qubits: list[Qubit]
-    ) -> StructuredState:
+    def apply_unitary(self, unitary: NDArray, qubits: list[Qubit]) -> StructuredState:
         """Applies the unitary to the specified qubits of the StructuredState.
 
         Note:
@@ -163,8 +162,9 @@ class MPS(StructuredState):
             not the case, the program will still run, but its behaviour is undefined.
 
         Args:
-            unitary: The matrix to be applied as a CuPy ndarray. It should either be
-                a 2x2 matrix if acting on one qubit or a 4x4 matrix if acting on two.
+            unitary: The matrix to be applied as a NumPy or CuPy ndarray. It should
+                either be a 2x2 matrix if acting on one qubit or a 4x4 matrix if acting
+                on two.
             qubits: The qubits the unitary acts on. Only one qubit and two qubit
                 unitaries are supported.
 
@@ -182,6 +182,11 @@ class MPS(StructuredState):
                 "The cuTensorNet library handle is out of scope.",
                 "See the documentation of update_libhandle and CuTensorNetHandle.",
             )
+
+        if not isinstance(unitary, cp.ndarray):
+            # Load the gate's unitary to the GPU memory
+            unitary = unitary.astype(dtype=self._cfg._complex_t, copy=False)
+            unitary = cp.asarray(unitary, dtype=self._cfg._complex_t)
 
         self._logger.debug(f"Applying unitary {unitary} on {qubits}.")
 
