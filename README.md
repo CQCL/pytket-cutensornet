@@ -29,16 +29,21 @@ Some useful links:
 ## Getting started
 
 `pytket-cutensornet` is available for Python 3.10, 3.11 and 3.12 on Linux.
-In order to use it, you need access to a Linux machine with an NVIDIA GPU of
-Compute Capability +7.0 (check it [here](https://developer.nvidia.com/cuda-gpus)) and first
-install `cuQuantum Python` following their installation
-[instructions](https://docs.nvidia.com/cuda/cuquantum/latest/getting-started/index.html).
-This will include the necessary dependencies such as CUDA toolkit. Then, to install
-`pytket-cutensornet`, run:
+In order to use it, you need access to a Linux machine (or WSL) with an NVIDIA GPU of
+Compute Capability +7.0 (check it [here](https://developer.nvidia.com/cuda-gpus)).
+You will need to install the `cuda-toolkit` before `pytket-cutensornet`; for instance,
+in Ubuntu 24.04:
 
 ```shell
+sudo apt install cuda-toolkit
 pip install pytket-cutensornet
 ```
+
+Alternatively, you may install `cuQuantum Python` following their installation
+[instructions](https://docs.nvidia.com/cuda/cuquantum/latest/getting-started/index.html) using `conda-forge`.
+This will include the necessary dependencies from CUDA toolkit. Then, you may install
+`pytket-cutensornet` using `pip`.
+
 
 ## Bugs, support and feature requests
 
@@ -104,10 +109,10 @@ with a set of style requirements (listed in `.pylintrc`). You should run
 
 To run the tests for a module:
 
-1. `cd` into that module's `tests` directory;
-2. ensure you have installed `pytest` and any other modules listed in
-the `test-requirements.txt` file (all via `pip`);
-3. run `pytest`.
+```shell
+pip install -r tests/test-requirements.txt
+pytest tests/
+```
 
 When adding a new feature, please add a test for it. When fixing a bug, please
 add a test that demonstrates the fix.

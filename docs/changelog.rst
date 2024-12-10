@@ -3,11 +3,12 @@
 Changelog
 ~~~~~~~~~
 
-Unreleased
-----------
+0.10.1 (December 2024)
+----------------------
 
 * Updated pytket version requirement to 1.34.
 * Now supporting ``ClExpr`` operations (the new version of tket's ``ClassicalExpBox``).
+* Included cuquantum-python in the dependencies for PyPI.
 
 0.10.0 (October 2024)
 ---------------------
