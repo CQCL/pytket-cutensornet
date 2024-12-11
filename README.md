@@ -31,7 +31,7 @@ Some useful links:
 `pytket-cutensornet` is available for Python 3.10, 3.11 and 3.12 on Linux.
 In order to use it, you need access to a Linux machine (or WSL) with an NVIDIA GPU of
 Compute Capability +7.0 (check it [here](https://developer.nvidia.com/cuda-gpus)).
-You will need to install the `cuda-toolkit` and `cuquantum-python` before `pytket-cutensornet`;
+You will need to install `cuda-toolkit` and `cuquantum-python` before `pytket-cutensornet`;
 for instance, in Ubuntu 24.04:
 
 ```shell
@@ -40,7 +40,7 @@ pip install cuquantum-python
 pip install pytket-cutensornet
 ```
 
-Alternatively, you may install `cuQuantum Python` following their installation
+Alternatively, you may install cuQuantum Python following their
 [instructions](https://docs.nvidia.com/cuda/cuquantum/latest/getting-started/index.html) using `conda-forge`.
 This will include the necessary dependencies from CUDA toolkit. Then, you may install
 `pytket-cutensornet` using `pip`.

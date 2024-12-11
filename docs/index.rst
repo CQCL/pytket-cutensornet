@@ -19,14 +19,19 @@ Currently, only single-GPU calculations are supported, but a multi-GPU execution
 implemented in the due course using ``mpi4py`` library.
 
 ``pytket-cutensornet`` is available for Python 3.10, 3.11 and 3.12 on Linux.
-In order to use it, you need access to a Linux machine with an NVIDIA GPU of Compute Capability +7.0 (check it `here <https://developer.nvidia.com/cuda-gpus>`_) and first install ``cuQuantum Python`` following their installation
-`instructions  <https://docs.nvidia.com/cuda/cuquantum/latest/python/README.html#installation>`_.
-This will include the necessary dependencies such as CUDA toolkit. Then, to install
-``pytket-cutensornet``, run:
+In order to use it, you need access to a Linux machine (or WSL) with an NVIDIA GPU of
+Compute Capability +7.0 (check it `here <https://developer.nvidia.com/cuda-gpus>`_).
+You will need to install ``cuda-toolkit`` and ``cuquantum-python`` before ``pytket-cutensornet``;
+for instance, in Ubuntu 24.04:
 
 ::
-
+   sudo apt install cuda-toolkit
+   pip install cuquantum-python
    pip install pytket-cutensornet
+
+Alternatively, you may install cuQuantum Python following their `instructions <https://docs.nvidia.com/cuda/cuquantum/latest/getting-started/index.html>`_
+using ``conda-forge``. This will include the necessary dependencies from CUDA toolkit. Then, you may install
+``pytket-cutensornet`` using ``pip``.
 
 .. toctree::
     api.rst
