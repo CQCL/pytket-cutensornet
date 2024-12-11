@@ -45,7 +45,6 @@ setup(
     install_requires=[
         "pytket >= 1.34.0",
         "networkx >= 2.8.8",
-        "cuquantum-python>=24.11.0",
     ],
     classifiers=[
         "Environment :: Console",
