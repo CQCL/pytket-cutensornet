@@ -9,19 +9,11 @@ with tket, a quantum computing toolkit and optimising compiler developed by Quan
 [cuTensorNet](https://docs.nvidia.com/cuda/cuquantum/latest/cutensornet/index.html) is a
 high-performance library for tensor network computations, developed by NVIDIA.
 It is part of the [cuQuantum](https://docs.nvidia.com/cuda/cuquantum/latest/index.html) SDK -
-a high-performance library aimed at quantum circuit simulations on the NVIDIA GPU chips,
-consisting of two major components:
- - `cuStateVec`: a high-performance library for state vector computations.
- - `cuTensorNet`: a high-performance library for tensor network computations.
-
-Both components have both C and Python API.
+a high-performance library aimed at quantum circuit simulations on the NVIDIA GPUs.
 
 `pytket-cutensornet` is an extension to `pytket` that allows `pytket` circuits and
 expectation values to be simulated using `cuTensorNet` via an interface to
 [cuQuantum Python](https://docs.nvidia.com/cuda/cuquantum/latest/cutensornet/index.html).
-
-Currently, only single-GPU calculations are supported, but a multi-GPU execution will be
-implemented in the due course using `mpi4py` library.
 
 Some useful links:
 - [API Documentation](https://tket.quantinuum.com/extensions/pytket-cutensornet/)
