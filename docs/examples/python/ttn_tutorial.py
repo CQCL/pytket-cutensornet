@@ -15,7 +15,7 @@ from pytket.extensions.cutensornet.structured_state import (
 )
 
 # ## Introduction
-# This notebook provides examples of the usage of the TTN functionalities of `pytket_cutensornet`. For more information, see the docs at https://tket.quantinuum.com/extensions/pytket-cutensornet/api/index.html.
+# This notebook provides examples of the usage of the TTN functionalities of `pytket_cutensornet`. For more information, see the docs at https://docs.quantinuum.com/tket/extensions/pytket-cutensornet/.
 # Some good references to learn about Tree Tensor Network state simulation:
 # - For an introduction into TTN based simulation of quantum circuits: https://arxiv.org/abs/2206.01000
 # - For an introduction on some of the optimisation concerns that are relevant to TTN: https://arxiv.org/abs/2209.03196

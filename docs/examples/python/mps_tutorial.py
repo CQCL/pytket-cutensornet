@@ -15,7 +15,7 @@ from pytket.extensions.cutensornet.structured_state import (
 )
 
 # ## Introduction
-# This notebook provides examples of the usage of the MPS functionalities of `pytket_cutensornet`. For more information, see the docs at https://tket.quantinuum.com/extensions/pytket-cutensornet/api/index.html.
+# This notebook provides examples of the usage of the MPS functionalities of `pytket_cutensornet`. For more information, see the docs at https://docs.quantinuum.com/tket/extensions/pytket-cutensornet/.
 # A Matrix Product State (MPS) represents a state on `n` qubits as a list of `n` tensors connected in a line as show below:
 # ![MPS](images/mps.png)
 # Each of these circles corresponds to a tensor. We refer to each leg of a tensor as a *bond* and the number of bonds a tensor has is its *rank*. In code, a tensor is just a multidimensional array:
