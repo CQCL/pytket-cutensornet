@@ -1,9 +1,6 @@
 name: Pytket cuTensorNet Docs
 
 on:
-  pull_request:
-    branches:
-      - main
   push:
     branches:
       - 'docs/**'

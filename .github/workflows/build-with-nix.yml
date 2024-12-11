@@ -4,9 +4,6 @@ on:
   pull_request:
     branches:
       - main
-  schedule:
-    # 04:00 every Tuesday morning
-    - cron: '0 4 * * 2'
   workflow_dispatch: {}
 
 concurrency:

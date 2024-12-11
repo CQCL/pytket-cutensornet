@@ -18,6 +18,71 @@ on:
     - cron: '0 4 * * 2'
 
 jobs:
+  cutensornet-checks:
+    name: cuTensorNet - Build and test module
+    strategy:
+      matrix:
+        os: ['ubuntu-latest', 'macos-latest']
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: '0'
+        submodules: true
+    - run: git fetch --depth=1 origin +refs/tags/*:refs/tags/* +refs/heads/*:refs/remotes/origin/*
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+    - name: Build and mypy (3.10)
+      shell: bash
+      if:  (matrix.os == 'macos-latest') && (github.event_name == 'push' || (github.event_name == 'pull_request' &&  github.event.pull_request.head.repo.full_name == github.repository) || github.event_name == 'release' || github.event_name == 'schedule' )
+      run: |
+        chmod +x ./.github/workflows/build-test
+        ./.github/workflows/build-test mypy
+    - name: Set up Python 3.11
+      if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'release' || github.event_name == 'schedule'
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    - name: Build (3.11)
+      if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'release' || github.event_name == 'schedule'
+      shell: bash
+      run: |
+        chmod +x ./.github/workflows/build-test
+        ./.github/workflows/build-test nomypy
+    - name: Set up Python 3.12
+      if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'release' || github.event_name == 'schedule'
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+    - name: Build (3.12)
+      if: github.event_name == 'push' || github.event_name == 'pull_request' || github.event_name == 'release' || github.event_name == 'schedule'
+      shell: bash
+      run: |
+        chmod +x ./.github/workflows/build-test
+        ./.github/workflows/build-test nomypy
+    - uses: actions/upload-artifact@v4
+      if: github.event_name == 'release' || contains(github.ref, 'refs/heads/wheel')
+      with:
+        name: artefact-${{ matrix.os }}
+        path: wheelhouse/
+    - name: install poetry
+      run: pip install poetry
+    - name: Install docs dependencies
+      if: (matrix.os == 'ubuntu-latest') && (github.event_name == 'pull_request' || github.event_name == 'schedule' )
+      run: |
+        cd docs
+        bash ./install.sh
+        for w in `find wheelhouse/ -type f -name "*.whl"` ; do poetry run pip install $w ; done
+    - name: Build docs
+      if: (matrix.os == 'ubuntu-latest') && (github.event_name == 'pull_request' || github.event_name == 'schedule' )
+      timeout-minutes: 20
+      run: |
+        cd docs
+        poetry run bash ./build-docs.sh
+
+
   publish_to_pypi:
     name: Publish to pypi
     if: github.event_name == 'release'
