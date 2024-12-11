@@ -11,12 +11,10 @@ a high-performance library aimed at quantum circuit simulations on the NVIDIA GP
 
 We provide two core functionalities:
 
-* *Full tensor network contraction*: use ``tk_to_tensor_network`` to translate a ``pytket`` circuit to a ``TensorNetwork`` and obtain expectation values and amplitudes via full tensor network contraction using ``cuQuantum``'s optimised contraction path.
+* *Exact value calculation*: use ``GeneralState`` and ``GenearlBraOpKet`` to translate a ``pytket`` into a tensor network and obtain amplitudes and expectation values via full tensor network contraction using ``cuQuantum``'s optimised contraction path.
 
-* *Matrix Product State (MPS)*: use ``simulate`` to simulate a ``pytket`` circuit, returning an ``MPS`` representation of the output state, of which you can then ``get_amplitude`` or calculate inner products with other MPS via ``vdot``.
+* *Approximate state evolution*: use ``simulate`` to simulate a ``pytket`` circuit, returning a tensor network representation of the approximate output state, from which you can query properties, such as amplitudes and expectation values.
 
-Currently, only single-GPU calculations are supported, but a multi-GPU execution will be
-implemented in the due course using ``mpi4py`` library.
 
 ``pytket-cutensornet`` is available for Python 3.10, 3.11 and 3.12 on Linux.
 In order to use it, you need access to a Linux machine (or WSL) with an NVIDIA GPU of
@@ -25,6 +23,7 @@ You will need to install ``cuda-toolkit`` and ``cuquantum-python`` before ``pytk
 for instance, in Ubuntu 24.04:
 
 ::
+
    sudo apt install cuda-toolkit
    pip install cuquantum-python
    pip install pytket-cutensornet
@@ -35,7 +34,6 @@ using ``conda-forge``. This will include the necessary dependencies from CUDA to
 
 .. toctree::
     api.rst
-    changelog.rst
 
 .. toctree::
    :caption: Example Notebooks
@@ -43,6 +41,11 @@ using ``conda-forge``. This will include the necessary dependencies from CUDA to
    examples/general_state_tutorial.ipynb
    examples/mps_tutorial.ipynb
    examples/ttn_tutorial.ipynb
+
+.. toctree::
+   :caption: Changelog
+   
+   changelog.rst
 
 .. toctree::
    :caption: Useful links
