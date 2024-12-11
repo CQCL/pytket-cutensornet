@@ -32,7 +32,7 @@ setup(
     author_email="tket-support@quantinuum.com",
     python_requires=">=3.10",
     project_urls={
-        "Documentation": "https://tket.quantinuum.com/extensions/pytket-cutensornet/index.html",
+        "Documentation": "https://docs.quantinuum.com/tket/extensions/pytket-cutensornet",
         "Source": "https://github.com/CQCL/pytket-cutensornet",
         "Tracker": "https://github.com/CQCL/pytket-cutensornet/issues",
     },

@@ -3,7 +3,7 @@
 [![Slack](https://img.shields.io/badge/Slack-4A154B?style=for-the-badge&logo=slack&logoColor=white)](https://tketusers.slack.com/join/shared_invite/zt-18qmsamj9-UqQFVdkRzxnXCcKtcarLRA#)
 [![Stack Exchange](https://img.shields.io/badge/StackExchange-%23ffffff.svg?style=for-the-badge&logo=StackExchange)](https://quantumcomputing.stackexchange.com/tags/pytket)
 
-[Pytket](https://tket.quantinuum.com/api-docs/index.html) is a python module for interfacing
+[Pytket](https://docs.quantinuum.com/tket/api-docs/) is a python module for interfacing
 with tket, a quantum computing toolkit and optimising compiler developed by Quantinuum.
 
 [cuTensorNet](https://docs.nvidia.com/cuda/cuquantum/latest/cutensornet/index.html) is a
@@ -16,7 +16,7 @@ expectation values to be simulated using `cuTensorNet` via an interface to
 [cuQuantum Python](https://docs.nvidia.com/cuda/cuquantum/latest/cutensornet/index.html).
 
 Some useful links:
-- [API Documentation](https://tket.quantinuum.com/extensions/pytket-cutensornet/)
+- [API Documentation](https://docs.quantinuum.com/tket/extensions/pytket-cutensornet/)
 
 ## Getting started
 
