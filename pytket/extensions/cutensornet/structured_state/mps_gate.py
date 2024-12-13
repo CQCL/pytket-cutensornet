@@ -15,6 +15,8 @@ from __future__ import annotations  # type: ignore
 import warnings
 import logging
 
+import numpy as np  # type: ignore
+
 try:
     import cupy as cp  # type: ignore
 except ImportError:
@@ -428,3 +430,101 @@ class MPSxGate(MPS):
             self._logger.info(f"MPS fidelity={self.fidelity}")
 
         return self
+
+    def add_and_normalise(self, other: MPS) -> MPS:
+        """Add the two MPS together and normalise.
+
+        Returns:
+            A new MPS is generated, containing the (normalised) result of the sum.
+        """
+        assert len(self) == len(other)
+        for q, pos in self.qubit_position.items():
+            assert q in other.qubit_position.keys() and other.qubit_position[q] == pos
+
+        # Copy so I have all the metadata ready
+        new_mps = self.copy()
+
+        # Compute the sum of the tensors on every site
+        #   Note: simply adding them is not valid, as they may be in different basis
+        for pos in range(len(self)):
+            # Apply a sum tensor on the physical bonds to perform the
+            # addition of the two states. Similarly, identity tensors to combine
+            # lL into a and rR into b.
+            sum_tensor = cp.zeros(shape=(2, 2, 2), dtype=self._cfg._complex_t)
+            sum_tensor[0][0][0] = 1
+            sum_tensor[1][1][1] = 1
+            left_self_dim = self.tensors[pos].shape[0]
+            right_self_dim = self.tensors[pos].shape[1]
+            left_other_dim = other.tensors[pos].shape[0]
+            right_other_dim = other.tensors[pos].shape[1]
+            left_identity = cp.eye(
+                left_self_dim * left_other_dim, dtype=self._cfg._complex_t
+            )
+            left_identity = cp.reshape(
+                left_identity,
+                (left_self_dim, left_other_dim, left_self_dim * left_other_dim),
+            )
+            right_identity = cp.eye(
+                right_self_dim * right_other_dim, dtype=self._cfg._complex_t
+            )
+            right_identity = cp.reshape(
+                right_identity,
+                (right_self_dim, right_other_dim, right_self_dim * right_other_dim),
+            )
+            auxiliar_tensor = cq.contract(
+                "lrp, LRP, pPs, lLa, rRb->abs",
+                self.tensors[pos],
+                other.tensors[pos],
+                sum_tensor,
+                left_identity,
+                right_identity,
+            )
+
+            # Site is not in canonical form
+            new_mps.canonical_form[pos] = None  # type: ignore
+
+        # Renormalise
+        sq_norm = new_mps.vdot(new_mps)
+        new_mps.apply_scalar(1 / cp.sqrt(sq_norm))
+        assert cp.isclose(new_mps.vdot(new_mps), 1.0)
+
+        # Fix other stuff
+        new_mps.fidelity = 0  # Set to lowest because I don't know
+        new_mps._bits_dict = dict()  # Discard bits
+
+        return new_mps
+
+    def from_statevector(self, statevector: np.ndarray) -> None:
+        """Update the MPS to represent the state from the given statevector."""
+        assert statevector.shape[0] == 2 ** len(self)
+
+        # Move to GPU (to be honest, SVD may be done faster in CPU, but whatever)
+        sv = statevector.astype(dtype=self._cfg._complex_t, copy=False)
+        sv = cp.asarray(sv, dtype=self._cfg._complex_t)
+
+        # Reshape sv so that it has a dummy bond on the left
+        rest = cp.reshape(sv, (1, 2 ** len(self)))
+
+        # For each qubit, reshape and SVD
+        for pos in range(len(self)):
+            # Reshape to extract another qubit bond
+            current_shape = rest.shape
+            rest = cp.reshape(rest, (current_shape[0], 2, current_shape[1] // 2))
+
+            # Apply SVD on the gate tensor to remove any zero singular values ASAP
+            svd_method = tensor.SVDMethod(
+                abs_cutoff=self._cfg.zero,
+                partition="U",  # Contract S directly into U
+            )
+            options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
+            # Apply the SVD decomposition
+            site, S, rest = tensor.decompose(
+                "xqR->xsq,sR", rest, method=svd_method, options=options
+            )
+            assert S is None  # Due to "partition" option in SVDMethod
+
+            # Update the tensor
+            self.tensors[pos] = site
+            self.canonical_form[pos] = DirMPS.LEFT  # type: ignore
+
+        assert self.is_valid()
