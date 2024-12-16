@@ -447,40 +447,58 @@ class MPSxGate(MPS):
         new_mps = self.copy()
 
         # Compute the sum of the tensors on every site
-        #   Note: simply adding them is not valid, as they may be in different basis
+        #   Note: simply adding them is not valid, as the virtual bonds may be in
+        #   different a basis
         for pos in range(len(self)):
-            # Apply a sum tensor on the physical bonds to perform the
-            # addition of the two states. Similarly, identity tensors to combine
-            # lL into a and rR into b.
-            sum_tensor = cp.zeros(shape=(2, 2, 2), dtype=self._cfg._complex_t)
-            sum_tensor[0][0][0] = 1
-            sum_tensor[1][1][1] = 1
-            left_self_dim = self.tensors[pos].shape[0]
-            right_self_dim = self.tensors[pos].shape[1]
-            left_other_dim = other.tensors[pos].shape[0]
-            right_other_dim = other.tensors[pos].shape[1]
-            left_identity = cp.eye(
-                left_self_dim * left_other_dim, dtype=self._cfg._complex_t
+            # Obtain the direct sum of the tensors at every site by first padding
+            # with zeros into the appropriate block diagonal forms, then adding together
+            self_l, self_r, _ = self.tensors[pos].shape
+            other_l, other_r, _ = other.tensors[pos].shape
+
+            padded_self = cp.pad(
+                self.tensors[pos], [(0, other_l), (0, other_r), (0, 2)]
             )
-            left_identity = cp.reshape(
-                left_identity,
-                (left_self_dim, left_other_dim, left_self_dim * left_other_dim),
+            padded_other = cp.pad(
+                other.tensors[pos], [(self_l, 0), (self_r, 0), (2, 0)]
             )
-            right_identity = cp.eye(
-                right_self_dim * right_other_dim, dtype=self._cfg._complex_t
+            dsum_tensor = padded_self + padded_other
+
+            # Apply a tensor on the physical bonds to perform the
+            # addition of the two states.
+            # This tensor is simply [1 1]' \otimes I, allowing us to collapse the
+            # block diagonal matrices in dsum_tensor into the same physical bond
+            # indices.
+            funnel = cp.zeros(shape=(4, 2), dtype=self._cfg._complex_t)
+            funnel[0][0] = 1
+            funnel[1][1] = 1
+            funnel[2][0] = 1
+            funnel[3][1] = 1
+            new_mps.tensors[pos] = cq.contract(
+                "lrp,pP->lrP",
+                dsum_tensor,
+                funnel,
             )
-            right_identity = cp.reshape(
-                right_identity,
-                (right_self_dim, right_other_dim, right_self_dim * right_other_dim),
-            )
-            auxiliar_tensor = cq.contract(
-                "lrp, LRP, pPs, lLa, rRb->abs",
-                self.tensors[pos],
-                other.tensors[pos],
-                sum_tensor,
-                left_identity,
-                right_identity,
-            )
+
+            # If this is the leftmost (or rightmost) tensor, we also need to collapse the
+            # leftmost (or rightmost) bond back to dimension 1.
+            if pos == 0:
+                funnel = cp.zeros(shape=(2, 1), dtype=self._cfg._complex_t)
+                funnel[0][0] = 1
+                funnel[1][0] = 1
+                new_mps.tensors[pos] = cq.contract(
+                    "lrp,lL->Lrp",
+                    new_mps.tensors[pos],
+                    funnel,
+                )
+            if pos == len(self) - 1:
+                funnel = cp.zeros(shape=(2, 1), dtype=self._cfg._complex_t)
+                funnel[0][0] = 1
+                funnel[1][0] = 1
+                new_mps.tensors[pos] = cq.contract(
+                    "lrp,rR->lRp",
+                    new_mps.tensors[pos],
+                    funnel,
+                )
 
             # Site is not in canonical form
             new_mps.canonical_form[pos] = None  # type: ignore
@@ -499,6 +517,7 @@ class MPSxGate(MPS):
     def from_statevector(self, statevector: np.ndarray) -> None:
         """Update the MPS to represent the state from the given statevector."""
         assert statevector.shape[0] == 2 ** len(self)
+        assert np.isclose(sum(statevector.conj() * statevector), 1.0)  # Normalised
 
         # Move to GPU (to be honest, SVD may be done faster in CPU, but whatever)
         sv = statevector.astype(dtype=self._cfg._complex_t, copy=False)
@@ -516,7 +535,7 @@ class MPSxGate(MPS):
             # Apply SVD on the gate tensor to remove any zero singular values ASAP
             svd_method = tensor.SVDMethod(
                 abs_cutoff=self._cfg.zero,
-                partition="U",  # Contract S directly into U
+                partition="V",  # Contract S directly into V
             )
             options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
             # Apply the SVD decomposition
@@ -529,4 +548,6 @@ class MPSxGate(MPS):
             self.tensors[pos] = site
             self.canonical_form[pos] = DirMPS.LEFT  # type: ignore
 
+        # Finally, `rest` will contain a scalar (a global phase)
+        self.apply_scalar(rest[0])
         assert self.is_valid()

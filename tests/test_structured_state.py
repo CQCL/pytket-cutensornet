@@ -245,17 +245,19 @@ def test_canonicalise_ttn(center: RootPath | Qubit) -> None:  # noqa: PLR0912
             assert cp.allclose(result, cp.eye(result.shape[0]))
 
 
-def test_entanglement_entropy():
+def test_entanglement_entropy() -> None:
     circ = Circuit(4)
-    circ.H(0).CX(0,1)
-    circ.H(2).T(2).H(2).CX(2,3)
+    circ.H(0).CX(0, 1)
+    circ.H(2).T(2).H(2).CX(2, 3)
 
     with CuTensorNetHandle() as libhandle:
         mps = simulate(libhandle, circ, SimulationAlgorithm.MPSxGate, Config())
+        assert isinstance(mps, MPSxGate)
 
         assert np.isclose(mps.get_entanglement_entropy(0), -np.log(0.5))
         assert np.isclose(mps.get_entanglement_entropy(1), 0)
         assert np.isclose(mps.get_entanglement_entropy(2), 0.4165, atol=0.0001)
+
 
 @pytest.mark.parametrize(
     "circuit",
@@ -1011,7 +1013,7 @@ def test_from_statevector(circuit: Circuit) -> None:
         assert isinstance(sim_mps, MPSxGate)
         # Check that, indeed, they are the same state, so `from_statevector` worked
         # properly
-        assert np.isclose(abs(mps.vdot(sim_mps)), 1.0)
+        assert np.isclose(mps.vdot(sim_mps), 1.0)
         phase = mps.vdot(sim_mps)
 
         # Check that the statevector extracted from the MPS is the same
@@ -1052,4 +1054,4 @@ def test_mps_sum(circuit1: Circuit, circuit2: Circuit) -> None:
         assert np.isclose(mps_result.vdot(mps_result), 1.0)
 
         # Check that they are the same
-        assert np.isclose(abs(mps_result.vdot(mps_sum)), 1.0)
+        assert np.isclose(mps_result.vdot(mps_sum), 1.0)

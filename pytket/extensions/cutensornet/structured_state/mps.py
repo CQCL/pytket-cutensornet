@@ -947,11 +947,11 @@ class MPS(StructuredState):
         Raises:
             RuntimeError: If ``position`` is out of bounds.
         """
-        if position < 0 or position >= len(self)-1:
+        if position < 0 or position >= len(self) - 1:
             raise RuntimeError(f"Position {position} is out of bounds.")
 
         # Canonicalise to tensor[position]
-        self.canonicalise(position, position+1)
+        self.canonicalise(position, position + 1)
 
         # Contract tensor[position] with tensor[position+1]
         # Apply SVD to obtain the singular values at the virtual bond
@@ -971,7 +971,6 @@ class MPS(StructuredState):
         # Compute the entanglement entropy
         entropy = -sum(s**2 * np.log(s**2) for s in S)
         return float(entropy)
-
 
     def get_virtual_dimensions(self, position: int) -> tuple[int, int]:
         """Returns the virtual bonds dimension of the tensor ``tensors[position]``.
