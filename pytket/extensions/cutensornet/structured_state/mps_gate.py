@@ -234,7 +234,7 @@ class MPSxGate(MPS):
 
         # Always canonicalise. Even in the case of exact simulation (no truncation)
         # canonicalisation may reduce the bond dimension (thanks to reduced QR).
-        self.canonicalise(l_pos, l_pos)
+        self.canonicalise(l_pos, r_pos)
 
         # Reshape into a rank-4 tensor
         gate_tensor = cp.reshape(unitary, (2, 2, 2, 2))
