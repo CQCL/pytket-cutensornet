@@ -113,9 +113,9 @@ def set_logger(
     logger.propagate = False
     if not logger.handlers:
         if file is None:
-            handler = logging.StreamHandler()
+            handler = logging.StreamHandler()  # type: ignore
         else:
-            handler = logging.FileHandler(file)
+            handler = logging.FileHandler(file)  # type: ignore
         handler.setLevel(level)
         formatter = logging.Formatter(fmt, datefmt="%H:%M:%S")
         handler.setFormatter(formatter)

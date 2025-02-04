@@ -43,7 +43,11 @@ class TensorNetwork:
     """Responsible for converting pytket circuit to a tensor network and handling it."""
 
     def __init__(
-        self, circuit: Circuit, adj: bool = False, loglevel: int = logging.INFO, logfile: Optional[str] = None
+        self,
+        circuit: Circuit,
+        adj: bool = False,
+        loglevel: int = logging.INFO,
+        logfile: Optional[str] = None,
     ) -> None:
         """Constructs a tensor network from a pytket circuit.
 
@@ -574,7 +578,9 @@ class PauliOperatorTensorNetwork:
             loglevel: Logger verbosity level.
             logfile: If provided, log is written to this file rather than stream.
         """
-        self._logger = set_logger("PauliOperatorTensorNetwork", level=loglevel, file=logfile)
+        self._logger = set_logger(
+            "PauliOperatorTensorNetwork", level=loglevel, file=logfile
+        )
         self._pauli_tensors = [self.PAULI[pauli.name] for pauli in paulis.map.values()]
         self._logger.debug(f"Pauli tensors: {self._pauli_tensors}")
         qubits = [q for q in paulis.map.keys()]
