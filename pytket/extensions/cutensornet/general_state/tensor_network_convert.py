@@ -43,7 +43,11 @@ class TensorNetwork:
     """Responsible for converting pytket circuit to a tensor network and handling it."""
 
     def __init__(
-        self, circuit: Circuit, adj: bool = False, loglevel: int = logging.INFO
+        self,
+        circuit: Circuit,
+        adj: bool = False,
+        loglevel: int = logging.INFO,
+        logfile: Optional[str] = None,
     ) -> None:
         """Constructs a tensor network from a pytket circuit.
 
@@ -53,11 +57,12 @@ class TensorNetwork:
             circuit: A pytket circuit to be converted to a tensor network.
             adj: Whether to create an adjoint representation of the original circuit.
             loglevel: Internal logger output level.
+            logfile: If provided, log is written to this file rather than stream.
 
         Raises:
             RuntimeError: If ``Box`` objects are present in the circuit.
         """
-        self._logger = set_logger("TensorNetwork", loglevel)
+        self._logger = set_logger("TensorNetwork", level=loglevel, file=logfile)
         self._circuit = circuit
         # self._circuit.replace_implicit_wire_swaps()
         self._qubit_names_ilo = [str(q) for q in self._circuit.qubits]
@@ -555,6 +560,7 @@ class PauliOperatorTensorNetwork:
         bra: TensorNetwork,
         ket: TensorNetwork,
         loglevel: int = logging.INFO,
+        logfile: Optional[str] = None,
     ) -> None:
         """Constructs a tensor network representing a Pauli operator string.
 
@@ -570,8 +576,11 @@ class PauliOperatorTensorNetwork:
             bra: Tensor network object representing a bra circuit.
             ket: Tensor network object representing a ket circuit.
             loglevel: Logger verbosity level.
+            logfile: If provided, log is written to this file rather than stream.
         """
-        self._logger = set_logger("PauliOperatorTensorNetwork", loglevel)
+        self._logger = set_logger(
+            "PauliOperatorTensorNetwork", level=loglevel, file=logfile
+        )
         self._pauli_tensors = [self.PAULI[pauli.name] for pauli in paulis.map.values()]
         self._logger.debug(f"Pauli tensors: {self._pauli_tensors}")
         qubits = [q for q in paulis.map.keys()]

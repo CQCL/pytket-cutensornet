@@ -57,6 +57,7 @@ class GeneralState:
             scratch space; value between 0 and 1. Defaults to ``0.8``.
         loglevel: Internal logger output level. Use 30 for warnings only, 20 for
             verbose and 10 for debug mode.
+        logfile: If provided, log is written to this file rather than stream.
     """
 
     def __init__(
@@ -65,8 +66,9 @@ class GeneralState:
         attributes: Optional[dict] = None,
         scratch_fraction: float = 0.8,
         loglevel: int = logging.WARNING,
+        logfile: Optional[str] = None,
     ) -> None:
-        self._logger = set_logger("GeneralState", loglevel)
+        self._logger = set_logger("GeneralState", level=loglevel, file=logfile)
 
         # Remove end-of-circuit measurements and keep track of them separately
         # It also resolves implicit swaps
@@ -348,6 +350,7 @@ class GeneralBraOpKet:
             scratch space; value between 0 and 1. Defaults to ``0.8``.
         loglevel: Internal logger output level. Use 30 for warnings only, 20 for
             verbose and 10 for debug mode.
+        logfile: If provided, log is written to this file rather than stream.
 
     Raises:
         ValueError: If the circuits for ``ket`` or ``bra`` contain measurements.
@@ -361,8 +364,9 @@ class GeneralBraOpKet:
         attributes: Optional[dict] = None,
         scratch_fraction: float = 0.8,
         loglevel: int = logging.WARNING,
+        logfile: Optional[str] = None,
     ) -> None:
-        self._logger = set_logger("GeneralBraOpKet", loglevel)
+        self._logger = set_logger("GeneralBraOpKet", level=loglevel, file=logfile)
 
         # Check that the circuits have the same qubits
         if set(ket.qubits) != set(bra.qubits):

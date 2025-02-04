@@ -92,7 +92,7 @@ class MPS(StructuredState):
         """
         self._lib = libhandle
         self._cfg = config
-        self._logger = set_logger("MPS", level=config.loglevel)
+        self._logger = set_logger("MPS", level=config.loglevel, file=config.logfile)
         self._rng = Random()
         self._rng.seed(self._cfg.seed)
         self.fidelity = 1.0
