@@ -81,7 +81,7 @@ def simulate(
         An instance of ``StructuredState`` for (an approximation of) the final state
         of the circuit. The instance be of the class matching ``algorithm``.
     """
-    logger = set_logger("Simulation", level=config.loglevel)
+    logger = set_logger("Simulation", level=config.loglevel, file=config.logfile)
 
     if compilation_params is None:
         compilation_params = dict()
@@ -132,6 +132,8 @@ def simulate(
 
     # Run the simulation
     logger.info("Running simulation...")
+    logger.info(f"Using {algorithm}")
+    logger.info(vars(config))
     # Apply the gates
     for i, g in enumerate(commands):
         state.apply_gate(g)
