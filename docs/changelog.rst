@@ -3,6 +3,11 @@
 Changelog
 ~~~~~~~~~
 
+0.11.0 (unreleased)
+-------------------
+
+* A logfile can now be specified, as an alternative to printing the log to stream.
+
 0.10.2 (February 2025)
 ----------------------
 
