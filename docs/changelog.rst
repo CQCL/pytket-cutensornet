@@ -3,9 +3,11 @@
 Changelog
 ~~~~~~~~~
 
-0.10.2 (unreleased)
+0.10.2 (February 2025)
 -------------------
 
+* Small performance improvements on non-adjacent two-qubit gate application.
+* Contrained pytket version to 1.x.
 * Updated pytket version requirement to 1.39.
 
 0.10.1 (December 2024)
