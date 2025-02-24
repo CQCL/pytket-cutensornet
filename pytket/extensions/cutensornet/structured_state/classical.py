@@ -23,7 +23,6 @@ from pytket.circuit import (
     CopyBitsOp,
     RangePredicateOp,
     ClExprOp,
-    ClassicalExpBox,
     LogicExp,
     BitWiseOp,
     RegWiseOp,
@@ -91,17 +90,6 @@ def apply_classical_command(
         # This can be detected if `result != 0`
         if result != 0:
             raise ValueError("Evaluation of the ClExpr resulted in overflow.")
-
-    elif isinstance(op, ClassicalExpBox):
-        the_exp = op.get_exp()
-        result = evaluate_logic_exp(the_exp, bits_dict)
-
-        # The result is an int in little-endian encoding. We update the
-        # output register accordingly.
-        for b in bits:
-            bits_dict[b] = (result % 2) == 1
-            result = result >> 1
-        assert result == 0  # All bits consumed
 
     elif op.type == OpType.Barrier:
         pass
