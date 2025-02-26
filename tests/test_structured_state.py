@@ -829,6 +829,22 @@ def test_measure_circ(circuit: Circuit) -> None:
         assert np.isclose(count / n_samples, p[outcome], atol=0.1)
 
 
+def test_measure_non_destructive_singleton() -> None:
+    # Example of failing test from issue #191
+    with CuTensorNetHandle() as libhandle:
+        config = Config()
+        mps = MPSxGate(
+            libhandle,
+            qubits=[Qubit(0)],
+            config=config,
+        )
+
+        result = mps.measure({Qubit(0)}, destructive=False)
+        assert result[Qubit(0)] == 0
+        sv = mps.get_statevector()
+        assert sv[0] == 1 and len(sv) == 2
+
+
 def test_mps_qubit_addition_and_measure() -> None:
     with CuTensorNetHandle() as libhandle:
         config = Config()
