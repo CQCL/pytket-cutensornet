@@ -111,13 +111,14 @@ def set_logger(
     logger = logging.getLogger(logger_name)
     logger.setLevel(level)
     logger.propagate = False
-    if not logger.handlers:
-        if file is None:
-            handler = logging.StreamHandler()  # type: ignore
-        else:
-            handler = logging.FileHandler(file)  # type: ignore
-        handler.setLevel(level)
-        formatter = logging.Formatter(fmt, datefmt="%H:%M:%S")
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
+
+    handler: logging.StreamHandler
+    if file is None:
+        handler = logging.StreamHandler()
+    else:
+        handler = logging.FileHandler(file)
+    handler.setLevel(level)
+    formatter = logging.Formatter(fmt, datefmt="%H:%M:%S")
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
     return logger
