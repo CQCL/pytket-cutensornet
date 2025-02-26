@@ -842,7 +842,7 @@ def test_measure_non_destructive_singleton() -> None:
         result = mps.measure({Qubit(0)}, destructive=False)
         assert result[Qubit(0)] == 0
         sv = mps.get_statevector()
-        assert sv[0] == 1 and len(sv)== 2
+        assert sv[0] == 1 and len(sv) == 2
 
 
 def test_mps_qubit_addition_and_measure() -> None:
