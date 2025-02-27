@@ -28,7 +28,7 @@ try:
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)
 
-from pytket.circuit import Qubit
+from pytket.circuit import Qubit, Op, OpType
 from pytket.pauli import Pauli, QubitPauliString
 from .mps import MPS, DirMPS
 
@@ -654,6 +654,49 @@ class MPSxGate(MPS):
             self._logger.info(f"MPS fidelity={self.fidelity}")
 
         return self
+
+    def measure_pauli_string(self, pauli_string: QubitPauliString) -> int:
+        """Measure the Pauli string and return `0` or `1` accordingly.
+        The MPS is collapsed and renormalised.
+        """
+        # Add an ancilla qubit
+        idx = 0
+        while Qubit("_aux_mps", idx) in self.get_qubits():
+            idx += 1
+        aux_q = Qubit("_aux_mps", idx)
+        self.add_qubit(aux_q, position=0, state=0)
+
+        # Fix truncation parameters to prevent approximation
+        orig_chi = self._cfg.chi
+        orig_tfid = self._cfg.truncation_fidelity
+        self._cfg.chi = 2**60
+        self._cfg.truncation_fidelity = 1.0
+
+        # Push the qubit through the MPS and apply the necessary entangling gates
+        sorted_qubits = sorted(self.get_qubits(), key=lambda q: self.qubit_position[q])
+        for q in sorted_qubits[1:]:  # Skip aux_q, which is in the leftmost position
+            self._apply_command(Op.create(OpType.SWAP), [aux_q, q], [], [])
+            if q in pauli_string.map and pauli_string.map[q] != Pauli.I:
+                match pauli_string.map[q]:
+                    case Pauli.X:
+                        self._apply_command(Op.create(OpType.CX), [q, aux_q], [], [])
+                    case Pauli.Z:
+                        self._apply_command(Op.create(OpType.H), [q], [], [])
+                        self._apply_command(Op.create(OpType.CX), [q, aux_q], [], [])
+                        self._apply_command(Op.create(OpType.H), [q], [], [])
+                    case Pauli.Y:
+                        self._apply_command(Op.create(OpType.Sdg), [q], [], [])
+                        self._apply_command(Op.create(OpType.CX), [q, aux_q], [], [])
+                        self._apply_command(Op.create(OpType.S), [q], [], [])
+
+        # Measure the ancilla qubit destructively
+        result = self.measure({aux_q}, destructive=True)
+
+        # Restore truncation parameters
+        self._cfg.chi = orig_chi
+        self._cfg.truncation_fidelity = orig_tfid
+
+        return result[aux_q]
 
     def add_and_normalise(self, other: MPS) -> MPS:
         """Add the two MPS together and normalise.
