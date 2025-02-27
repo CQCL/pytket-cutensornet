@@ -24,8 +24,6 @@ from pytket.circuit import (
     RangePredicateOp,
     ClExprOp,
     LogicExp,
-    BitWiseOp,
-    RegWiseOp,
 )
 from pytket._tket.circuit import ClExpr, ClOp, ClBitVar, ClRegVar
 
