@@ -187,61 +187,6 @@ def evaluate_clexpr(
     return result
 
 
-def evaluate_logic_exp(exp: ExtendedLogicExp, bits_dict: dict[Bit, bool]) -> int:
-    """Recursive evaluation of a LogicExp."""
-
-    if isinstance(exp, int):
-        return exp
-    elif isinstance(exp, Bit):
-        return 1 if bits_dict[exp] else 0
-    elif isinstance(exp, BitRegister):
-        return from_little_endian([bits_dict[b] for b in exp])
-    else:
-
-        arg_values = [evaluate_logic_exp(arg, bits_dict) for arg in exp.args]
-
-        if exp.op in [BitWiseOp.AND, RegWiseOp.AND]:
-            return arg_values[0] & arg_values[1]
-        elif exp.op in [BitWiseOp.OR, RegWiseOp.OR]:
-            return arg_values[0] | arg_values[1]
-        elif exp.op in [BitWiseOp.XOR, RegWiseOp.XOR]:
-            return arg_values[0] ^ arg_values[1]
-        elif exp.op in [BitWiseOp.EQ, RegWiseOp.EQ]:
-            return int(arg_values[0] == arg_values[1])
-        elif exp.op in [BitWiseOp.NEQ, RegWiseOp.NEQ]:
-            return int(arg_values[0] != arg_values[1])
-        elif exp.op == BitWiseOp.NOT:
-            return 1 - arg_values[0]
-        elif exp.op == BitWiseOp.ZERO:
-            return 0
-        elif exp.op == BitWiseOp.ONE:
-            return 1
-        # elif exp.op == RegWiseOp.ADD:
-        #     return arg_values[0] + arg_values[1]
-        # elif exp.op == RegWiseOp.SUB:
-        #     return arg_values[0] - arg_values[1]
-        # elif exp.op == RegWiseOp.MUL:
-        #     return arg_values[0] * arg_values[1]
-        # elif exp.op == RegWiseOp.POW:
-        #     return int(arg_values[0] ** arg_values[1])
-        # elif exp.op == RegWiseOp.LSH:
-        #     return arg_values[0] << arg_values[1]
-        elif exp.op == RegWiseOp.RSH:
-            return arg_values[0] >> arg_values[1]
-        # elif exp.op == RegWiseOp.NEG:
-        #     return -arg_values[0]
-        else:
-            # TODO: Currently not supporting RegWiseOp's DIV, EQ, NEQ, LT, GT, LEQ,
-            # GEQ and NOT, since these do not return int, so I am unsure what the
-            # semantic is meant to be.
-            # TODO: Similarly, it is not clear what to do with overflow of ADD, etc.
-            # so I have decided to not support them for now.
-            raise NotImplementedError(
-                f"Evaluation of {exp.op} not supported in ClassicalExpBox ",
-                "by pytket-cutensornet.",
-            )
-
-
 def from_little_endian(bitstring: list[bool]) -> int:
     """Obtain the integer from the little-endian encoded bitstring (i.e. bitstring
     [False, True] is interpreted as the integer 2)."""
