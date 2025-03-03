@@ -67,3 +67,4 @@ Miscellaneous
 ~~~~~~~~~~~~~
 
 .. autofunction:: pytket.extensions.cutensornet.structured_state.prepare_circuit_mps
+.. autoclass:: pytket.extensions.cutensornet.structured_state.LowFidelityException

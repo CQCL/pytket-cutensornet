@@ -19,6 +19,7 @@ from pytket.extensions.cutensornet.structured_state import (
     simulate,
     prepare_circuit_mps,
     SimulationAlgorithm,
+    LowFidelityException,
 )
 from pytket.extensions.cutensornet.structured_state.ttn import RootPath
 from pytket.extensions.cutensornet.general_state.utils import (
@@ -410,6 +411,27 @@ def test_approx_circ_sim_gate_fid(
         assert state.is_valid()
         # Check that overlap is 1
         assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
+
+
+@pytest.mark.parametrize(
+    "circuit",
+    [
+        pytest.lazy_fixture("q8_qvol"),  # type: ignore
+    ],
+)
+@pytest.mark.parametrize(
+    "algorithm",
+    [
+        SimulationAlgorithm.MPSxGate,
+        SimulationAlgorithm.MPSxMPO,
+        SimulationAlgorithm.TTNxGate,
+    ],
+)
+def test_kill_threshold(circuit: Circuit, algorithm: SimulationAlgorithm) -> None:
+    with CuTensorNetHandle() as libhandle:
+        cfg = Config(truncation_fidelity=0.99, kill_threshold=0.9999, leaf_size=2)
+        with pytest.raises(LowFidelityException):
+            simulate(libhandle, circuit, algorithm, cfg)
 
 
 @pytest.mark.parametrize(
