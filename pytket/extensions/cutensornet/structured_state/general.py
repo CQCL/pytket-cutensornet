@@ -49,8 +49,6 @@ class LowFidelityException(Exception):
     a threshold set by the user. See ``kill_threshold`` in the ``Config`` class.
     """
 
-    pass
-
 
 class Config:
     """Configuration class for simulation using ``StructuredState``."""
