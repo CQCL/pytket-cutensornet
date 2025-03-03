@@ -6,7 +6,7 @@ Changelog
 Unreleased
 ----------
 
-* New feature: ``Config`` from the ``structured_state`` module now accepts a ``kill_threshold`` parameter that the user can set to automatically abort simulations whose fidelity estimate drop below the specified threshold.
+* New feature: ``Config`` from the ``structured_state`` module now accepts a ``kill_threshold`` parameter that the user can set to automatically abort simulations when their fidelity estimate drops below the specified threshold.
 * Updated pytket minimum version requirement to 2.0.0.
 
 0.10.2 (February 2025)
