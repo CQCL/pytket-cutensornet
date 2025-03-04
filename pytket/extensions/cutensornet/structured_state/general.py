@@ -65,6 +65,7 @@ class Config:
         k: int = 4,
         optim_delta: float = 1e-5,
         loglevel: int = logging.WARNING,
+        logfile: Optional[str] = None,
     ):
         """Instantiate a configuration object for ``StructuredState`` simulation.
 
@@ -112,6 +113,7 @@ class Config:
                 Default value is ``1e-5``.
             loglevel: Internal logger output level. Use 30 for warnings only, 20 for
                 verbose and 10 for debug mode.
+            logfile: If provided, log will be written to the given file.
 
         Raises:
             ValueError: If both ``chi`` and ``truncation_fidelity`` are fixed.
@@ -174,6 +176,7 @@ class Config:
         self.k = k
         self.optim_delta = optim_delta
         self.loglevel = loglevel
+        self.logfile = logfile
 
     def copy(self) -> Config:
         """Standard copy of the contents."""
