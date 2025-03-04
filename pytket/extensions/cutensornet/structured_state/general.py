@@ -44,6 +44,12 @@ except NameError:
     Tensor = Any
 
 
+class LowFidelityException(Exception):
+    """Custom Exception raised when the fidelity estimate of a simulation drops below
+    a threshold set by the user. See ``kill_threshold`` in the ``Config`` class.
+    """
+
+
 class Config:
     """Configuration class for simulation using ``StructuredState``."""
 
@@ -51,6 +57,7 @@ class Config:
         self,
         chi: Optional[int] = None,
         truncation_fidelity: Optional[float] = None,
+        kill_threshold: float = 0.0,
         seed: Optional[int] = None,
         float_precision: Type[Any] = np.float64,
         value_of_zero: float = 1e-16,
@@ -75,6 +82,10 @@ class Config:
                 ``|<psi|phi>|^2 >= trucantion_fidelity``, where ``|psi>`` and ``|phi>``
                 are the states before and after truncation (both normalised).
                 If not provided, it will default to its maximum value 1.
+            kill_threshold: If the fidelity estimate ``self.get_fidelity()`` drops
+                below the specified threshold, the simulation will be stopped, raising a
+                ``LowFidelityException`` exception. Defaults to 0, meaning it is never
+                killed.
             seed: Seed for the random number generator. Setting a seed provides
                 reproducibility across simulations using ``StructuredState``, in the
                 sense that they will produce the same sequence of measurement outcomes.
@@ -108,6 +119,8 @@ class Config:
             ValueError: If both ``chi`` and ``truncation_fidelity`` are fixed.
             ValueError: If the value of ``chi`` is set below 2.
             ValueError: If the value of ``truncation_fidelity`` is not in [0,1].
+            LowFidelityException: If a ``kill_threshold`` specified by the user was
+                violated.
         """
         _CHI_LIMIT = 2**60
         if (
@@ -129,6 +142,7 @@ class Config:
 
         self.chi = chi
         self.truncation_fidelity = truncation_fidelity
+        self.kill_threshold = kill_threshold
 
         if float_precision is None or float_precision == np.float64:  # Double precision
             self._real_t = np.float64  # type: ignore
@@ -160,7 +174,7 @@ class Config:
 
         self.leaf_size = leaf_size
         self.k = k
-        self.optim_delta = 1e-5
+        self.optim_delta = optim_delta
         self.loglevel = loglevel
         self.logfile = logfile
 
@@ -186,6 +200,7 @@ class StructuredState(ABC):
     _cfg: Config
     _logger: logging.Logger
     _bits_dict: dict[Bit, bool]  # Tracks the state of the classical variables
+    fidelity: float
 
     def apply_gate(self, gate: Command) -> StructuredState:
         """Apply the command to the `StructuredState`.
@@ -206,6 +221,13 @@ class StructuredState(ABC):
         """
         self._logger.debug(f"Applying {gate}.")
         self._apply_command(gate.op, gate.qubits, gate.bits, gate.args)
+
+        if self.fidelity < self._cfg.kill_threshold:
+            raise LowFidelityException(
+                f"Fidelity estimate ({self.fidelity}) dropped below the "
+                f"kill_threshold set by the user ({self._cfg.kill_threshold})."
+            )
+
         return self
 
     def _apply_command(

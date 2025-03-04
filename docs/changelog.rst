@@ -6,7 +6,9 @@ Changelog
 0.11.0 (unreleased)
 -------------------
 
-* A logfile can now be specified, as an alternative to printing the log to stream.
+* New feature: ``Config`` from the ``structured_state`` module now accepts a ``kill_threshold`` parameter that the user can set to automatically abort simulations when their fidelity estimate drops below the specified threshold.
+* New feature: a log file can now be specified as an alternative to printing the debug messages to standard stream.
+* Updated pytket minimum version requirement to 2.0.0.
 
 0.10.2 (February 2025)
 ----------------------

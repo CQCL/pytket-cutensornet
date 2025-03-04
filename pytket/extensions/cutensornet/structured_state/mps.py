@@ -263,7 +263,7 @@ class MPS(StructuredState):
         Args:
             new_qubit: The identifier of the qubit to be added to the state.
             position: The location the new qubit should be inserted at in the MPS.
-                Qubits on this and later indexed have their position shifted by 1.
+                Qubits on this and larger indices have their position shifted by 1.
             state: Choose either ``0`` or ``1`` for the new qubit's state.
                 Defaults to ``0``.
 
@@ -291,7 +291,9 @@ class MPS(StructuredState):
             )
 
         # Identify the dimension of the virtual bond where the new qubit will appear
-        if position == len(self):
+        if len(self) == 0:
+            dim = 1  # Dummy virtual bond, since there are no qubits in the MPS
+        elif position == len(self):
             dim = self.get_virtual_dimensions(len(self) - 1)[1]  # Rightmost bond
         else:  # Otherwise, pick the left bond of the tensor currently in ``position``
             dim = self.get_virtual_dimensions(position)[0]
