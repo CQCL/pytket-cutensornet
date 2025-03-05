@@ -3,7 +3,7 @@
 Changelog
 ~~~~~~~~~
 
-0.11.0 (unreleased)
+0.11.0 (March 2025)
 -------------------
 
 * New feature: ``Config`` from the ``structured_state`` module now accepts a ``kill_threshold`` parameter that the user can set to automatically abort simulations when their fidelity estimate drops below the specified threshold.
