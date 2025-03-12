@@ -222,12 +222,6 @@ class StructuredState(ABC):
         self._logger.debug(f"Applying {gate}.")
         self._apply_command(gate.op, gate.qubits, gate.bits, gate.args)
 
-        if self.fidelity < self._cfg.kill_threshold:
-            raise LowFidelityException(
-                f"Fidelity estimate ({self.fidelity}) dropped below the "
-                f"kill_threshold set by the user ({self._cfg.kill_threshold})."
-            )
-
         return self
 
     def _apply_command(
