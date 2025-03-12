@@ -3,9 +3,10 @@
 Changelog
 ~~~~~~~~~
 
-0.12.0 (unreleased)
+0.11.1 (March 2025)
 -------------------
 
+* Bug fix: ``kill_threshold`` no longer ignored when using ``apply_unitary``.
 * Update pytket minimium version requirement to 2.0.1.
 
 0.11.0 (March 2025)
