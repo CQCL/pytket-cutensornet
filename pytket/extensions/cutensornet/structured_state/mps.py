@@ -35,7 +35,7 @@ from pytket.pauli import Pauli, QubitPauliString
 
 from pytket.extensions.cutensornet.general import CuTensorNetHandle, set_logger
 
-from .general import Config, StructuredState, Tensor
+from .general import Config, StructuredState, Tensor, LowFidelityException
 
 
 class DirMPS(Enum):
@@ -213,6 +213,12 @@ class MPS(StructuredState):
 
         else:
             raise ValueError("Gates must act on only 1 or 2 qubits!")
+
+        if self.fidelity < self._cfg.kill_threshold:
+            raise LowFidelityException(
+                f"Fidelity estimate ({self.fidelity}) dropped below the "
+                f"kill_threshold set by the user ({self._cfg.kill_threshold})."
+            )
 
         return self
 
