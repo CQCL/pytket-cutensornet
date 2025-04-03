@@ -1,4 +1,4 @@
-# Copyright 2020-2024 Quantinuum
+# Copyright Quantinuum
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ setup(
     author_email="tket-support@quantinuum.com",
     python_requires=">=3.10",
     project_urls={
-        "Documentation": "https://tket.quantinuum.com/extensions/pytket-cutensornet/index.html",
+        "Documentation": "https://docs.quantinuum.com/tket/extensions/pytket-cutensornet",
         "Source": "https://github.com/CQCL/pytket-cutensornet",
         "Tracker": "https://github.com/CQCL/pytket-cutensornet/issues",
     },
@@ -42,7 +42,10 @@ setup(
     license="Apache 2",
     packages=find_namespace_packages(include=["pytket.*"]),
     include_package_data=True,
-    install_requires=["pytket >= 1.33.0", "networkx >= 2.8.8"],
+    install_requires=[
+        "pytket >= 2.0.1",
+        "networkx >= 2.8.8",
+    ],
     classifiers=[
         "Environment :: Console",
         "Programming Language :: Python :: 3.10",

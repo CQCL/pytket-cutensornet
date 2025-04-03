@@ -147,11 +147,11 @@
         "nixpkgs": "nixpkgs_2"
       },
       "locked": {
-        "lastModified": 1729759304,
-        "narHash": "sha256-nBdv1glaLmuHLdb66CitZ+3NM+UTeZBxipQFQopoOMc=",
+        "lastModified": 1740659692,
+        "narHash": "sha256-fK2dMe1XOTpyEEgXVCzmE0dKrIkjPxeH0sGr6ZkqQU0=",
         "owner": "CQCL",
         "repo": "tket",
-        "rev": "7bae471e832aca0fba5910e5080640a4b9a2dfe2",
+        "rev": "205ca54e359a077218fb8986f4962df033b8a805",
         "type": "github"
       },
       "original": {

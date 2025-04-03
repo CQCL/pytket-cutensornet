@@ -3,13 +3,40 @@
 Changelog
 ~~~~~~~~~
 
-Unreleased
-----------
+0.11.1 (March 2025)
+-------------------
+
+* Bug fix: ``kill_threshold`` no longer ignored when using ``apply_unitary``.
+* Update pytket minimium version requirement to 2.0.1.
+
+0.11.0 (March 2025)
+-------------------
+
+* New feature: ``Config`` from the ``structured_state`` module now accepts a ``kill_threshold`` parameter that the user can set to automatically abort simulations when their fidelity estimate drops below the specified threshold.
+* New feature: a log file can now be specified as an alternative to printing the debug messages to standard stream.
+* Updated pytket minimum version requirement to 2.0.0.
+
+0.10.2 (February 2025)
+----------------------
+
+* Small performance improvements on non-adjacent two-qubit gate application.
+* Contrained pytket version to 1.x.
+* Updated pytket version requirement to 1.39.
+
+0.10.1 (December 2024)
+----------------------
+
+* Now supporting ``ClExpr`` operations (the new version of tket's ``ClassicalExpBox``).
+* Updated pytket version requirement to 1.38.0.
+
+0.10.0 (October 2024)
+---------------------
 
 * New API: ``GeneralBraOpKet`` for exact calculation of arbitrary ``<bra|op|ket>`` values. Can be used to calculate inner products, expectation values and arbitrary matrix elements.
 * New feature: both ``GeneralState`` and ``GeneralBraOpKet`` admit circuits with parameterised gates.
 * New feature: ``GeneralState`` has a new method ``get_amplitude`` to obtain the amplitude of computational basis states.
 * New feature: ``GeneralState`` and ``CuTensorNetShotsBackend`` now support RNG seeds for sampling.
+* Docs: three tutorials added to the documentation.
 * Deprecated ``TensorNetwork`` object. It is still available for the sake of backwards compatibility, but it has been removed from doc pages.
 
 0.9.0 (October 2024)
@@ -34,7 +61,7 @@ Unreleased
 0.7.1 (July 2024)
 -----------------
 
-* New official `documentation site <https://tket.quantinuum.com/extensions/pytket-cutensornet/>`_.
+* New official `documentation site <https://docs.quantinuum.com/tket/extensions/pytket-cutensornet/>`_.
 * Backend methods can now be given a ``scratch_fraction`` argument to configure the amount of GPU memory allocated to cuTensorNet contraction. Users can also configure the values of the ``StateAttribute`` and ``SamplerAttribute`` from cuTensornet via the backend interface.
 * Fixed a bug causing the logger to fail displaying device properties.
 

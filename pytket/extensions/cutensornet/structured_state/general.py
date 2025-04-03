@@ -1,4 +1,4 @@
-# Copyright 2019-2024 Quantinuum
+# Copyright Quantinuum
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -44,6 +44,12 @@ except NameError:
     Tensor = Any
 
 
+class LowFidelityException(Exception):
+    """Custom Exception raised when the fidelity estimate of a simulation drops below
+    a threshold set by the user. See ``kill_threshold`` in the ``Config`` class.
+    """
+
+
 class Config:
     """Configuration class for simulation using ``StructuredState``."""
 
@@ -51,6 +57,7 @@ class Config:
         self,
         chi: Optional[int] = None,
         truncation_fidelity: Optional[float] = None,
+        kill_threshold: float = 0.0,
         seed: Optional[int] = None,
         float_precision: Type[Any] = np.float64,
         value_of_zero: float = 1e-16,
@@ -58,6 +65,7 @@ class Config:
         k: int = 4,
         optim_delta: float = 1e-5,
         loglevel: int = logging.WARNING,
+        logfile: Optional[str] = None,
     ):
         """Instantiate a configuration object for ``StructuredState`` simulation.
 
@@ -74,6 +82,10 @@ class Config:
                 ``|<psi|phi>|^2 >= trucantion_fidelity``, where ``|psi>`` and ``|phi>``
                 are the states before and after truncation (both normalised).
                 If not provided, it will default to its maximum value 1.
+            kill_threshold: If the fidelity estimate ``self.get_fidelity()`` drops
+                below the specified threshold, the simulation will be stopped, raising a
+                ``LowFidelityException`` exception. Defaults to 0, meaning it is never
+                killed.
             seed: Seed for the random number generator. Setting a seed provides
                 reproducibility across simulations using ``StructuredState``, in the
                 sense that they will produce the same sequence of measurement outcomes.
@@ -101,11 +113,14 @@ class Config:
                 Default value is ``1e-5``.
             loglevel: Internal logger output level. Use 30 for warnings only, 20 for
                 verbose and 10 for debug mode.
+            logfile: If provided, log will be written to the given file.
 
         Raises:
             ValueError: If both ``chi`` and ``truncation_fidelity`` are fixed.
             ValueError: If the value of ``chi`` is set below 2.
             ValueError: If the value of ``truncation_fidelity`` is not in [0,1].
+            LowFidelityException: If a ``kill_threshold`` specified by the user was
+                violated.
         """
         _CHI_LIMIT = 2**60
         if (
@@ -127,6 +142,7 @@ class Config:
 
         self.chi = chi
         self.truncation_fidelity = truncation_fidelity
+        self.kill_threshold = kill_threshold
 
         if float_precision is None or float_precision == np.float64:  # Double precision
             self._real_t = np.float64  # type: ignore
@@ -158,8 +174,9 @@ class Config:
 
         self.leaf_size = leaf_size
         self.k = k
-        self.optim_delta = 1e-5
+        self.optim_delta = optim_delta
         self.loglevel = loglevel
+        self.logfile = logfile
 
     def copy(self) -> Config:
         """Standard copy of the contents."""
@@ -183,6 +200,7 @@ class StructuredState(ABC):
     _cfg: Config
     _logger: logging.Logger
     _bits_dict: dict[Bit, bool]  # Tracks the state of the classical variables
+    fidelity: float
 
     def apply_gate(self, gate: Command) -> StructuredState:
         """Apply the command to the `StructuredState`.
@@ -203,6 +221,7 @@ class StructuredState(ABC):
         """
         self._logger.debug(f"Applying {gate}.")
         self._apply_command(gate.op, gate.qubits, gate.bits, gate.args)
+
         return self
 
     def _apply_command(
@@ -227,10 +246,6 @@ class StructuredState(ABC):
                 unitary = op.get_unitary()
             except:
                 raise ValueError(f"The command {op.type} introduced is not supported.")
-
-            # Load the gate's unitary to the GPU memory
-            unitary = unitary.astype(dtype=self._cfg._complex_t, copy=False)
-            unitary = cp.asarray(unitary, dtype=self._cfg._complex_t)
 
             if len(qubits) not in [1, 2]:
                 raise ValueError(

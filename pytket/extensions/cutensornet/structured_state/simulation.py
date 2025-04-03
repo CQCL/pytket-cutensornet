@@ -1,4 +1,4 @@
-# Copyright 2019-2024 Quantinuum
+# Copyright Quantinuum
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -81,7 +81,7 @@ def simulate(
         An instance of ``StructuredState`` for (an approximation of) the final state
         of the circuit. The instance be of the class matching ``algorithm``.
     """
-    logger = set_logger("Simulation", level=config.loglevel)
+    logger = set_logger("Simulation", level=config.loglevel, file=config.logfile)
 
     if compilation_params is None:
         compilation_params = dict()
@@ -132,6 +132,8 @@ def simulate(
 
     # Run the simulation
     logger.info("Running simulation...")
+    logger.info(f"Using {algorithm}")
+    logger.info(vars(config))
     # Apply the gates
     for i, g in enumerate(commands):
         state.apply_gate(g)

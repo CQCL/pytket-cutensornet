@@ -1,4 +1,4 @@
-# Copyright 2019-2024 Quantinuum
+# Copyright Quantinuum
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ from enum import Enum
 
 from random import Random  # type: ignore
 import numpy as np  # type: ignore
+from numpy.typing import NDArray  # type: ignore
 
 try:
     import cupy as cp  # type: ignore
@@ -35,7 +36,7 @@ from pytket.pauli import Pauli, QubitPauliString
 
 from pytket.extensions.cutensornet.general import CuTensorNetHandle, set_logger
 
-from .general import Config, StructuredState, Tensor
+from .general import Config, StructuredState, Tensor, LowFidelityException
 
 
 class DirMPS(Enum):
@@ -92,7 +93,7 @@ class MPS(StructuredState):
         """
         self._lib = libhandle
         self._cfg = config
-        self._logger = set_logger("MPS", level=config.loglevel)
+        self._logger = set_logger("MPS", level=config.loglevel, file=config.logfile)
         self._rng = Random()
         self._rng.seed(self._cfg.seed)
         self.fidelity = 1.0
@@ -154,9 +155,7 @@ class MPS(StructuredState):
 
         return chi_ok and phys_ok and shape_ok and ds_ok
 
-    def apply_unitary(
-        self, unitary: cp.ndarray, qubits: list[Qubit]
-    ) -> StructuredState:
+    def apply_unitary(self, unitary: NDArray, qubits: list[Qubit]) -> StructuredState:
         """Applies the unitary to the specified qubits of the StructuredState.
 
         Note:
@@ -164,8 +163,9 @@ class MPS(StructuredState):
             not the case, the program will still run, but its behaviour is undefined.
 
         Args:
-            unitary: The matrix to be applied as a CuPy ndarray. It should either be
-                a 2x2 matrix if acting on one qubit or a 4x4 matrix if acting on two.
+            unitary: The matrix to be applied as a NumPy or CuPy ndarray. It should
+                either be a 2x2 matrix if acting on one qubit or a 4x4 matrix if acting
+                on two.
             qubits: The qubits the unitary acts on. Only one qubit and two qubit
                 unitaries are supported.
 
@@ -183,6 +183,11 @@ class MPS(StructuredState):
                 "The cuTensorNet library handle is out of scope.",
                 "See the documentation of update_libhandle and CuTensorNetHandle.",
             )
+
+        if not isinstance(unitary, cp.ndarray):
+            # Load the gate's unitary to the GPU memory
+            unitary = unitary.astype(dtype=self._cfg._complex_t, copy=False)
+            unitary = cp.asarray(unitary, dtype=self._cfg._complex_t)
 
         self._logger.debug(f"Applying unitary {unitary} on {qubits}.")
 
@@ -209,6 +214,12 @@ class MPS(StructuredState):
 
         else:
             raise ValueError("Gates must act on only 1 or 2 qubits!")
+
+        if self.fidelity < self._cfg.kill_threshold:
+            raise LowFidelityException(
+                f"Fidelity estimate ({self.fidelity}) dropped below the "
+                f"kill_threshold set by the user ({self._cfg.kill_threshold})."
+            )
 
         return self
 
@@ -259,7 +270,7 @@ class MPS(StructuredState):
         Args:
             new_qubit: The identifier of the qubit to be added to the state.
             position: The location the new qubit should be inserted at in the MPS.
-                Qubits on this and later indexed have their position shifted by 1.
+                Qubits on this and larger indices have their position shifted by 1.
             state: Choose either ``0`` or ``1`` for the new qubit's state.
                 Defaults to ``0``.
 
@@ -287,7 +298,9 @@ class MPS(StructuredState):
             )
 
         # Identify the dimension of the virtual bond where the new qubit will appear
-        if position == len(self):
+        if len(self) == 0:
+            dim = 1  # Dummy virtual bond, since there are no qubits in the MPS
+        elif position == len(self):
             dim = self.get_virtual_dimensions(len(self) - 1)[1]  # Rightmost bond
         else:  # Otherwise, pick the left bond of the tensor currently in ``position``
             dim = self.get_virtual_dimensions(position)[0]

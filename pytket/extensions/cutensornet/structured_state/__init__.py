@@ -1,4 +1,4 @@
-# Copyright 2019-2024 Quantinuum
+# Copyright Quantinuum
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -21,7 +21,7 @@ https://github.com/CQCL/pytket-cutensornet.
 
 from pytket.extensions.cutensornet import CuTensorNetHandle
 
-from .general import Config, StructuredState
+from .general import Config, StructuredState, LowFidelityException
 from .simulation import SimulationAlgorithm, simulate, prepare_circuit_mps
 
 from .mps import DirMPS, MPS
