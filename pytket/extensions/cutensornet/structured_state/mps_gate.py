@@ -324,6 +324,155 @@ class MPSxGate(MPS):
 
         return self
 
+    def apply_cnx(self, controls: list[Qubit], target: Qubit) -> MPSxGate:
+        """Applies a CnX gate to the MPS.
+
+        The MPS is converted to canonical and truncation is applied if necessary.
+
+        Args:
+            controls: The control qubits
+            target: The target qubit
+
+        Returns:
+            ``self``, to allow for method chaining.
+        """
+        options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
+
+        pos_qubit_map = {self.qubit_position[q]: q for q in controls + [target]}
+        l_pos = min(pos_qubit_map.keys())
+        r_pos = max(pos_qubit_map.keys())
+        t_pos = self.qubit_position[target]
+
+        # Canonicalise
+        self.canonicalise(l_pos, r_pos)
+
+        # Glossary of bond IDs
+        # p -> some physical bond of the MPS
+        # P -> the new physical bond after application of the gate
+        # a,b,c -> virtual bonds of the MPS
+        # s -> a shared bond after decomposition
+        # m,M -> virtual bonds connected to the "message tensor"
+
+        # Define the "connection" tensors depending
+        connection = {  # bonds PMpm
+            False: cp.eye(4, dtype=self._cfg._complex_t),  # No connection, just IxI
+            True: cp.asarray(  # Map |p,m> to |P,M> = |p,m&p>
+                [
+                    [1, 1, 0, 0],
+                    [0, 0, 0, 0],
+                    [0, 0, 1, 0],
+                    [0, 0, 0, 1],
+                ],
+                dtype=self._cfg._complex_t,
+            ),
+        }
+        for p, t in connection.items():
+            connection[p] = cp.reshape(t, (2, 2, 2, 2))
+
+        # Create an initial value for "message tensor" from the left; state |1>
+        lmsg_tensor = cp.zeros(2, dtype=self._cfg._complex_t)
+        lmsg_tensor[1] = 1
+        # Apply a Kronecker product with the identity of left bond of l_pos
+        l_dim = self.get_virtual_dimensions(l_pos)[0]
+        lmsg_tensor = cq.contract(
+            "m,ab->mab",
+            lmsg_tensor,
+            cp.eye(l_dim, dtype=self._cfg._complex_t),
+            options=options,
+            optimize={"path": [(0, 1)]},
+        )
+
+        # Update all of the tensor sites from `l_pos` to `t_pos` - 1
+        for pos in range(l_pos, t_pos):
+            # Identify if this is a control qubit
+            is_control = pos in pos_qubit_map
+
+            # Push the message tensor through the site tensor, updating it
+            self.tensors[pos], lmsg_tensor = contract_decompose(
+                "mab,bcp,PMpm->asP,Msc",
+                lmsg_tensor,
+                self.tensors[pos],
+                connection[is_control],
+                algorithm={"qr_method": tensor.QRMethod()},
+                options=options,
+                optimize={"path": [(0, 1), (0, 1)]},
+            )
+
+            # The site tensor is now in canonical form
+            self.canonical_form[pos] = DirMPS.LEFT  # type: ignore
+
+        # Repeat, but the other way from `r_pos` to `t_pos`
+        # Create an initial value for "message tensor" from the right; state |1>
+        rmsg_tensor = cp.zeros(2, dtype=self._cfg._complex_t)
+        rmsg_tensor[1] = 1
+        # Apply a Kronecker product with the identity of right bond of r_pos
+        r_dim = self.get_virtual_dimensions(r_pos)[1]
+        rmsg_tensor = cq.contract(
+            "m,bc->mbc",
+            rmsg_tensor,
+            cp.eye(r_dim, dtype=self._cfg._complex_t),
+            options=options,
+            optimize={"path": [(0, 1)]},
+        )
+
+        # Update all of the tensor sites from `r_pos` to `t_pos` + 1
+        for pos in range(r_pos, t_pos, -1):
+            # Identify if this is a control qubit
+            is_control = pos in pos_qubit_map
+
+            # Push the message tensor through the site tensor, updating it
+            rmsg_tensor, self.tensors[pos] = contract_decompose(
+                "abp,mbc,PMpm->Mas,scP",
+                self.tensors[pos],
+                rmsg_tensor,
+                connection[is_control],
+                algorithm={"qr_method": tensor.QRMethod()},
+                options=options,
+                optimize={"path": [(0, 1), (0, 1)]},
+            )
+
+            # The site tensor is now in canonical form
+            self.canonical_form[pos] = DirMPS.RIGHT  # type: ignore
+
+        # Contract both `lmsg_tensor` and `rmsg_tensor` with an AND to obtain the final
+        # control signal and contract it with a tensor that applies X conditionally on
+        # said signal (i.e. XOR).
+        and_tensor = cp.asarray(  # Map |x,y> to |x&y>
+            [
+                [1, 1, 1, 0],
+                [0, 0, 0, 1],
+            ],
+            dtype=self._cfg._complex_t,
+        )
+        and_tensor = cp.reshape(and_tensor, (2, 2, 2))  # Bonds Zxy (where Z is result)
+
+        xor_tensor = cp.asarray(  # Map |q,c> to |q XOR c>
+            [
+                [1, 0, 0, 1],
+                [0, 1, 1, 0],
+            ],
+            dtype=self._cfg._complex_t,
+        )
+        xor_tensor = cp.reshape(xor_tensor, (2, 2, 2))  # Bonds Zxy (where Z is result)
+
+        self.tensors[t_pos] = cq.contract(
+            "lab,rcd,bcp,PpM,Mlr->adP",
+            lmsg_tensor,
+            rmsg_tensor,
+            self.tensors[t_pos],
+            xor_tensor,
+            and_tensor,
+            options=options,
+            optimize={"path": [(3, 4), (0, 2), (0, 2), (0, 1)]},
+        )
+        # The site tensor is not in canonical form anymore
+        self.canonical_form[t_pos] = None
+
+        # Apply truncations between the leftmost and rightmost qubits
+        self._truncate_path(l_pos, r_pos)
+
+        return self
+
     def apply_pauli_gadget(self, pauli_str: QubitPauliString, angle: float) -> MPSxGate:
         """Applies the Pauli gadget to the MPS.
 
