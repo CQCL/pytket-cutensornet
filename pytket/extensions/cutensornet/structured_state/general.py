@@ -256,6 +256,11 @@ class StructuredState(ABC):
             self.apply_pauli_gadget(QubitPauliString(qubits, paulis), angle)
 
         elif op.is_gate():  # Either a unitary gate or a not supported "gate"
+            if len(op.free_symbols()) > 0:
+                raise ValueError(
+                    "Parameterised gates not supported."
+                    f"Please substitute symbols: {op.free_symbols()}."
+                )
             try:
                 unitary = op.get_unitary()
             except:  # noqa: E722
