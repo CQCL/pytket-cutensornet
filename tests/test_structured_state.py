@@ -8,7 +8,7 @@ import numpy as np  # type: ignore
 
 from pytket.circuit import Circuit, Qubit, PauliExpBox, OpType
 from pytket.pauli import Pauli, QubitPauliString
-from pytket.passes import DecomposeBoxes
+from pytket.passes import DecomposeBoxes, CnXPairwiseDecomposition
 from pytket.extensions.cutensornet.structured_state import (
     CuTensorNetHandle,
     Config,
@@ -973,6 +973,71 @@ def test_mps_qubit_addition_and_measure() -> None:
         assert np.allclose(mps.get_statevector(), sv)
 
 
+def test_apply_cnx() -> None:
+    n_qubits = 10
+    qubit_list = [q for q in range(n_qubits)]
+
+    # Apply with first qubit as target
+    c = Circuit(n_qubits)
+    for q in qubit_list[1:]:
+        c.X(q)
+    c.add_gate(OpType.CnX, qubit_list[1:] + [0])
+    with CuTensorNetHandle() as libhandle:
+        mps = simulate(libhandle, c, SimulationAlgorithm.MPSxGate, Config())
+        assert mps.is_valid()
+        assert np.isclose(abs(mps.get_amplitude(2**n_qubits - 1)), 1.0)
+
+    # Apply with last qubit as target
+    c = Circuit(n_qubits)
+    for q in qubit_list[:-1]:
+        c.X(q)
+    c.add_gate(OpType.CnX, qubit_list[:-1] + [n_qubits - 1])
+    with CuTensorNetHandle() as libhandle:
+        mps = simulate(libhandle, c, SimulationAlgorithm.MPSxGate, Config())
+        assert mps.is_valid()
+        assert np.isclose(abs(mps.get_amplitude(2**n_qubits - 1)), 1.0)
+
+    # Apply with a qubit in the middle as target
+    c = Circuit(n_qubits)
+    gapped_list = qubit_list[:3] + qubit_list[4:]
+    target = qubit_list[3]
+    for q in gapped_list:
+        c.X(q)
+    c.add_gate(OpType.CnX, gapped_list + [target])
+    with CuTensorNetHandle() as libhandle:
+        mps = simulate(libhandle, c, SimulationAlgorithm.MPSxGate, Config())
+        assert mps.is_valid()
+        assert np.isclose(abs(mps.get_amplitude(2**n_qubits - 1)), 1.0)
+
+
+@pytest.mark.parametrize(
+    "seed",
+    [1234, 2347, 5895],
+)
+def test_apply_cnx_random(seed: int) -> None:
+    n_qubits = 10
+    np.random.seed(seed)
+    c = Circuit(n_qubits)
+
+    qubit_list = list(np.random.permutation([i for i in range(n_qubits)]))
+
+    for q in qubit_list:
+        c.Rx(np.random.uniform(-2, 2), q)
+    c.add_gate(OpType.CnX, qubit_list)
+
+    with CuTensorNetHandle() as libhandle:
+        # Run it without decomposition
+        mps = simulate(libhandle, c, SimulationAlgorithm.MPSxGate, Config())
+        assert mps.is_valid()
+
+        CnXPairwiseDecomposition().apply(c)
+        assert all(cmd.op.type != OpType.CnX for cmd in c.get_commands())
+
+        # Run after decomposition
+        mps2 = simulate(libhandle, c, SimulationAlgorithm.MPSxGate, Config())
+        assert np.isclose(mps.vdot(mps2), 1)
+
+
 @pytest.mark.parametrize(
     "seed",
     [1234, 2347, 5895],
@@ -991,7 +1056,7 @@ def test_apply_pauli_exp_box(seed: int) -> None:
         # random angle, and choose random Pauli string.
         subset = list(np.random.permutation(qubit_list))
         angle = np.random.uniform(-2, 2)
-        random_pauli = list(np.random.choice(pauli_list, n_qubits)) # type: ignore
+        random_pauli = list(np.random.choice(pauli_list, n_qubits))  # type: ignore
 
         # Generate gate corresponding to pauli string and angle
         pauli_box = PauliExpBox(random_pauli, angle)
@@ -1000,6 +1065,7 @@ def test_apply_pauli_exp_box(seed: int) -> None:
     with CuTensorNetHandle() as libhandle:
         # Run it without decomposition
         mps = simulate(libhandle, c, SimulationAlgorithm.MPSxGate, Config())
+        assert mps.is_valid()
 
         assert all(cmd.op.type == OpType.PauliExpBox for cmd in c.get_commands())
         DecomposeBoxes().apply(c)
