@@ -243,6 +243,15 @@ class StructuredState(ABC):
             if outcome_1:
                 self._apply_command(Op.create(OpType.X), [q], [], [q])
 
+        elif op.type == OpType.PauliExpBox:
+            angle = op.get_phase()  # type: ignore
+            if not isinstance(angle, float):
+                raise ValueError(f"PauliExpBox with Expr as phase are not supported")
+
+            paulis = op.get_paulis()  # type: ignore
+            assert len(qubits) == len(paulis)
+            self.apply_pauli_gadget(QubitPauliString(qubits, paulis), angle)
+
         elif op.is_gate():  # Either a unitary gate or a not supported "gate"
             try:
                 unitary = op.get_unitary()
@@ -302,6 +311,23 @@ class StructuredState(ABC):
             ValueError: If the number of qubits provided is not one or two.
             ValueError: If the size of the matrix does not match with the number of
                 qubits provided.
+        """
+        raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
+
+    @abstractmethod
+    def apply_pauli_gadget(
+        self, pauli_str: QubitPauliString, angle: float
+    ) -> StructuredState:
+        """Applies the Pauli gadget to the MPS.
+
+        The MPS is converted to canonical and truncation is applied if necessary.
+
+        Args:
+            pauli_str: The Pauli string of the Pauli gadget
+            angle: The angle in half turns
+
+        Returns:
+            ``self``, to allow for method chaining.
         """
         raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
 

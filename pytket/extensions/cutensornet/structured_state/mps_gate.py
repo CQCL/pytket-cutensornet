@@ -269,12 +269,6 @@ class MPSxGate(MPS):
         )
         assert S is None  # Due to "partition" option in SVDMethod
 
-        #################################
-        ### Apply the gate to the MPS ###
-        #################################
-
-        orig_fidelity = self.fidelity
-
         # First, contract `l_gate_tensor` with the
         # MPS site tensor on the left position. Then, decompose the new tensor so
         # that a "message tensor" carrying the bond `s` is sent through the right
@@ -322,120 +316,15 @@ class MPSxGate(MPS):
             options=options,
             optimize={"path": [(0, 2), (0, 1)]},
         )
-
         # The site tensor is not in canonical form anymore
         self.canonical_form[r_pos] = None
 
-        ############################################################
-        ### Setup SVD configuration depending on user's settings ###
-        ############################################################
-
-        if self._cfg.truncation_fidelity < 1:
-            # Apply SVD decomposition to truncate as much as possible before exceeding
-            # a `discarded_weight_cutoff` of `1 - self._cfg.truncation_fidelity`.
-            self._logger.debug(
-                f"Truncating to target fidelity={self._cfg.truncation_fidelity}"  # noqa: G004
-            )
-
-            # When there are multiple virtual bonds between the two MPS tensors where
-            # the gate is applied (i.e. non-adjacent qubits) we need to distributed the
-            # allowed truncation error between the different bonds.
-            # Our target is to assign a local truncation fidelity `f_i` to each bond
-            # `i` in the input lists so that the lower bound of the fidelity satisfies:
-            #
-            #   real_fidelity > self.fidelity*prod(f_i) > self.fidelity*trunc_fidelity
-            #
-            # Let e_i = 1 - f_i, where we refer to `e_i` as the "truncation error at i".
-            # We can use that when 0 < e_i < 1, it holds that:
-            #
-            #   prod(1 - e_i)   >   1 - sum(e_i)
-            #
-            # Hence, as long as we satisfy
-            #
-            #   1 - sum(e_i)    >    truncation_fidelity
-            #
-            # the target inquality at the top will be satisfied for our chosen f_i.
-            # We achieve this by defining e_i = (1 - trunc_fid) / k, where k is the
-            # number of bonds between the two tensors.
-            distance = r_pos - l_pos
-            local_truncation_error = (1 - self._cfg.truncation_fidelity) / distance
-            self._logger.debug(
-                f"The are {distance} bond between the qubits. Each of these will "
-                f"be truncated to target fidelity={1 - local_truncation_error}"
-            )
-
-            svd_method = tensor.SVDMethod(
-                abs_cutoff=self._cfg.zero,
-                discarded_weight_cutoff=local_truncation_error,
-                partition="U",  # Contract S directly into U (to the "left")
-                normalization="L2",  # Sum of squares singular values must equal 1
-            )
-
-        else:
-            # Apply SVD decomposition and truncate up to a `max_extent` (for the shared
-            # bond) of `self._cfg.chi`.
-            # If the user did not explicitly ask for truncation, `self._cfg.chi` will be
-            # set to a very large default number, so it's like no `max_extent` was set.
-            # Still, we remove any singular values below ``self._cfg.zero``.
-            self._logger.debug(f"Truncating to (or below) chosen chi={self._cfg.chi}")
-
-            svd_method = tensor.SVDMethod(
-                abs_cutoff=self._cfg.zero,
-                max_extent=self._cfg.chi,
-                partition="U",  # Contract S directly into U (to the "left")
-                normalization="L2",  # Sum of squares singular values must equal 1
-            )
-
-        ############################################################
-        ### Apply truncation to all bonds between the two qubits ###
-        ############################################################
-
-        # From right to left, so that we can use the current canonical form.
-        for pos in reversed(range(l_pos, r_pos)):
-            self.tensors[pos], S, self.tensors[pos + 1], info = contract_decompose(
-                "abl,bcr->abl,bcr",  # Note: doesn't follow the glossary above.
-                self.tensors[pos],
-                self.tensors[pos + 1],
-                algorithm={"svd_method": svd_method, "qr_method": False},
-                options=options,
-                optimize={"path": [(0, 1)]},
-                return_info=True,
-            )
-            assert S is None  # Due to "partition" option in SVDMethod
-
-            # Since we are contracting S to the "left" in `svd_method`, the site tensor
-            # at `pos+1` is canonicalised, whereas the site tensor at `pos` is the one
-            # where S has been contracted to and, hence, is not in canonical form
-            self.canonical_form[pos + 1] = DirMPS.RIGHT  # type: ignore
-            self.canonical_form[pos] = None
-            # Update fidelity lower bound
-            this_fidelity = 1.0 - info.svd_info.discarded_weight
-            self.fidelity *= this_fidelity
-            # Report to logger
-            self._logger.debug(
-                f"Truncation done between positions {pos} and {pos+1}. "
-                f"Truncation fidelity={this_fidelity}"
-            )
-            self._logger.debug(
-                "Reduced virtual bond dimension from "
-                f"{info.svd_info.full_extent} to {info.svd_info.reduced_extent}."
-            )
-
-        if self._cfg.truncation_fidelity < 1:
-            # Sanity check: user's requested lower bound of fidelity satisfied
-            assert self.fidelity > orig_fidelity * self._cfg.truncation_fidelity
-
-        # If requested, provide info about memory usage.
-        if self._logger.isEnabledFor(logging.INFO):
-            # If-statetement used so that we only call `get_byte_size` if needed.
-            self._logger.info(f"MPS size (MiB)={self.get_byte_size() / 2**20}")  # noqa: G004
-            self._logger.info(f"MPS fidelity={self.fidelity}")  # noqa: G004
+        # Apply truncations between the leftmost and rightmost qubits
+        self._truncate_path(l_pos, r_pos)
 
         return self
 
-    def apply_pauli_gadget(
-        self, pauli_str: QubitPauliString, angle: float
-    ) -> MPSxGate:
+    def apply_pauli_gadget(self, pauli_str: QubitPauliString, angle: float) -> MPSxGate:
         """Applies the Pauli gadget to the MPS.
 
         The MPS is converted to canonical and truncation is applied if necessary.
@@ -447,9 +336,6 @@ class MPSxGate(MPS):
         Returns:
             ``self``, to allow for method chaining.
         """
-        # TODO: Most of the code here is copy-pasted from _apply_2q_unitary_non_adjacent
-        #   it would be best to separate the common code into its own function that both
-        #   use, but I can't be bothered for a prototype. Do this before merging on main
         options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
 
         pos_qubit_map = {
@@ -470,14 +356,9 @@ class MPSxGate(MPS):
         # s -> a shared bond after decomposition
         # m,M -> virtual bonds connected to the "message tensor"
 
-        ###################################
-        ### Apply the gadget to the MPS ###
-        ###################################
-        orig_fidelity = self.fidelity
-
         # First, create a "message tensor" containing the angle of the Pauli gadget
         msg_tensor = cp.zeros(2, dtype=self._cfg._complex_t)
-        phase = 1j*cp.pi*angle/2
+        phase = 1j * cp.pi * angle / 2
         msg_tensor[0] = cp.exp(-phase)
         msg_tensor[1] = cp.exp(phase)
         # Apply a Kronecker product with the identity of left bond of l_pos
@@ -500,7 +381,7 @@ class MPSxGate(MPS):
                     [0, 0, 0, 1],
                     [0, 0, 1, 0],
                 ],
-                dtype=self._cfg._complex_t
+                dtype=self._cfg._complex_t,
             ),
             Pauli.X: cp.asarray(  # A H*CX*H so that IZ in pm becomes XZ in PM
                 [
@@ -509,7 +390,7 @@ class MPSxGate(MPS):
                     [0.5, -0.5, 0.5, 0.5],
                     [-0.5, 0.5, 0.5, 0.5],
                 ],
-                dtype=self._cfg._complex_t
+                dtype=self._cfg._complex_t,
             ),
             Pauli.Y: cp.asarray(  # S*H*CX*H*Sdg so that IZ in pm becomes YZ in PM
                 [
@@ -518,7 +399,7 @@ class MPSxGate(MPS):
                     [0.5j, -0.5j, 0.5, 0.5],
                     [-0.5j, 0.5j, 0.5, 0.5],
                 ],
-                dtype=self._cfg._complex_t
+                dtype=self._cfg._complex_t,
             ),
         }
         for p, t in connection.items():
@@ -549,7 +430,7 @@ class MPSxGate(MPS):
         # Finally, contract the `msg_tensor` with the site tensor in `r_pos` and
         # cap off the dangling virtual bond from the "connection" tensor with a |0>
         pauli = pauli_str.map[pos_qubit_map[r_pos]]
-        trivial_tensor = cp.asarray([1,0], dtype=self._cfg._complex_t)
+        trivial_tensor = cp.asarray([1, 0], dtype=self._cfg._complex_t)
 
         self.tensors[r_pos] = cq.contract(
             "mab,bcp,PMpm,M->acP",
@@ -560,9 +441,20 @@ class MPSxGate(MPS):
             options=options,
             optimize={"path": [(2, 3), (0, 1), (0, 1)]},
         )
-
         # The site tensor is not in canonical form anymore
         self.canonical_form[r_pos] = None
+
+        # Apply truncations between the leftmost and rightmost qubits
+        self._truncate_path(l_pos, r_pos)
+
+        return self
+
+    def _truncate_path(self, l_pos: int, r_pos: int) -> None:
+        """Truncates all bonds between `l_pos` and `r_pos` according to the policy
+        chosen by the user.
+        """
+        options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
+        orig_fidelity = self.fidelity
 
         ############################################################
         ### Setup SVD configuration depending on user's settings ###
@@ -575,8 +467,26 @@ class MPSxGate(MPS):
                 f"Truncating to target fidelity={self._cfg.truncation_fidelity}"
             )
 
-            # We need to distributed the allowed truncation error between the
-            # different bonds between `l_pos` and `r_pos`.
+            # When there are multiple virtual bonds between the two MPS tensors where
+            # the gate is applied (i.e. non-adjacent qubits) we need to distribute the
+            # allowed truncation error among the different bonds.
+            # Our target is to assign a local truncation fidelity `f_i` to each bond
+            # `i` in the input lists so that the lower bound of the fidelity satisfies:
+            #
+            #   real_fidelity > self.fidelity*prod(f_i) > self.fidelity*trunc_fidelity
+            #
+            # Let e_i = 1 - f_i, where we refer to `e_i` as the "truncation error at i".
+            # We can use that when 0 < e_i < 1, it holds that:
+            #
+            #   prod(1 - e_i)   >   1 - sum(e_i)
+            #
+            # Hence, as long as we satisfy
+            #
+            #   1 - sum(e_i)    >    truncation_fidelity
+            #
+            # the target inquality at the top will be satisfied for our chosen f_i.
+            # We achieve this by defining e_i = (1 - trunc_fid) / k, where k is the
+            # number of bonds between the two tensors.
             distance = r_pos - l_pos
             if distance == 0:
                 local_truncation_error = 1 - self._cfg.truncation_fidelity
@@ -654,8 +564,6 @@ class MPSxGate(MPS):
             self._logger.info(f"MPS size (MiB)={self.get_byte_size() / 2**20}")
             self._logger.info(f"MPS fidelity={self.fidelity}")
 
-        return self
-
     def measure_pauli_string(self, pauli_string: QubitPauliString) -> int:
         """Measure the Pauli string and return `0` or `1` accordingly.
         The MPS is collapsed and renormalised.
@@ -698,122 +606,3 @@ class MPSxGate(MPS):
         self._cfg.truncation_fidelity = orig_tfid
 
         return result[aux_q]
-
-    def add_and_normalise(self, other: MPS) -> MPS:
-        """Add the two MPS together and normalise.
-
-        Returns:
-            A new MPS is generated, containing the (normalised) result of the sum.
-        """
-        assert len(self) == len(other)
-        for q, pos in self.qubit_position.items():
-            assert q in other.qubit_position.keys() and other.qubit_position[q] == pos
-
-        # Copy so I have all the metadata ready
-        new_mps = self.copy()
-
-        # Compute the sum of the tensors on every site
-        #   Note: simply adding them is not valid, as the virtual bonds may be in
-        #   different a basis
-        for pos in range(len(self)):
-            # Obtain the direct sum of the tensors at every site by first padding
-            # with zeros into the appropriate block diagonal forms, then adding together
-            self_l, self_r, _ = self.tensors[pos].shape
-            other_l, other_r, _ = other.tensors[pos].shape
-
-            padded_self = cp.pad(
-                self.tensors[pos], [(0, other_l), (0, other_r), (0, 2)]
-            )
-            padded_other = cp.pad(
-                other.tensors[pos], [(self_l, 0), (self_r, 0), (2, 0)]
-            )
-            dsum_tensor = padded_self + padded_other
-
-            # Apply a tensor on the physical bonds to perform the
-            # addition of the two states.
-            # This tensor is simply [1 1]' \otimes I, allowing us to collapse the
-            # block diagonal matrices in dsum_tensor into the same physical bond
-            # indices.
-            funnel = cp.zeros(shape=(4, 2), dtype=self._cfg._complex_t)
-            funnel[0][0] = 1
-            funnel[1][1] = 1
-            funnel[2][0] = 1
-            funnel[3][1] = 1
-            new_mps.tensors[pos] = cq.contract(
-                "lrp,pP->lrP",
-                dsum_tensor,
-                funnel,
-            )
-
-            # If this is the leftmost (or rightmost) tensor, we also need to collapse the
-            # leftmost (or rightmost) bond back to dimension 1.
-            if pos == 0:
-                funnel = cp.zeros(shape=(2, 1), dtype=self._cfg._complex_t)
-                funnel[0][0] = 1
-                funnel[1][0] = 1
-                new_mps.tensors[pos] = cq.contract(
-                    "lrp,lL->Lrp",
-                    new_mps.tensors[pos],
-                    funnel,
-                )
-            if pos == len(self) - 1:
-                funnel = cp.zeros(shape=(2, 1), dtype=self._cfg._complex_t)
-                funnel[0][0] = 1
-                funnel[1][0] = 1
-                new_mps.tensors[pos] = cq.contract(
-                    "lrp,rR->lRp",
-                    new_mps.tensors[pos],
-                    funnel,
-                )
-
-            # Site is not in canonical form
-            new_mps.canonical_form[pos] = None  # type: ignore
-
-        # Renormalise
-        sq_norm = new_mps.vdot(new_mps)
-        new_mps.apply_scalar(1 / cp.sqrt(sq_norm))
-        assert cp.isclose(new_mps.vdot(new_mps), 1.0)
-
-        # Fix other stuff
-        new_mps.fidelity = 0  # Set to lowest because I don't know
-        new_mps._bits_dict = dict()  # Discard bits
-
-        return new_mps
-
-    def from_statevector(self, statevector: np.ndarray) -> None:
-        """Update the MPS to represent the state from the given statevector."""
-        assert statevector.shape[0] == 2 ** len(self)
-        assert np.isclose(sum(statevector.conj() * statevector), 1.0)  # Normalised
-
-        # Move to GPU (to be honest, SVD may be done faster in CPU, but whatever)
-        sv = statevector.astype(dtype=self._cfg._complex_t, copy=False)
-        sv = cp.asarray(sv, dtype=self._cfg._complex_t)
-
-        # Reshape sv so that it has a dummy bond on the left
-        rest = cp.reshape(sv, (1, 2 ** len(self)))
-
-        # For each qubit, reshape and SVD
-        for pos in range(len(self)):
-            # Reshape to extract another qubit bond
-            current_shape = rest.shape
-            rest = cp.reshape(rest, (current_shape[0], 2, current_shape[1] // 2))
-
-            # Apply SVD on the gate tensor to remove any zero singular values ASAP
-            svd_method = tensor.SVDMethod(
-                abs_cutoff=self._cfg.zero,
-                partition="V",  # Contract S directly into V
-            )
-            options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
-            # Apply the SVD decomposition
-            site, S, rest = tensor.decompose(
-                "xqR->xsq,sR", rest, method=svd_method, options=options
-            )
-            assert S is None  # Due to "partition" option in SVDMethod
-
-            # Update the tensor
-            self.tensors[pos] = site
-            self.canonical_form[pos] = DirMPS.LEFT  # type: ignore
-
-        # Finally, `rest` will contain a scalar (a global phase)
-        self.apply_scalar(rest[0])
-        assert self.is_valid()

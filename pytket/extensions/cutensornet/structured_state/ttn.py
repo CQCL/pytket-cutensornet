@@ -304,6 +304,22 @@ class TTN(StructuredState):
 
         return self
 
+    def apply_pauli_gadget(
+        self, pauli_str: QubitPauliString, angle: float
+    ) -> StructuredState:
+        """Applies the Pauli gadget to the MPS.
+
+        The MPS is converted to canonical and truncation is applied if necessary.
+
+        Args:
+            pauli_str: The Pauli string of the Pauli gadget
+            angle: The angle in half turns
+
+        Returns:
+            ``self``, to allow for method chaining.
+        """
+        raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
+
     def apply_scalar(self, scalar: complex) -> TTN:
         """Multiplies the state by a complex number.
 

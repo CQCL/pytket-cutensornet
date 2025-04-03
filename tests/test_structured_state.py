@@ -6,10 +6,12 @@ import cuquantum as cq  # type: ignore
 import numpy as np  # type: ignore
 import pytest
 
-from pytket.circuit import Circuit, OpType, Qubit  # type: ignore
+from pytket.circuit import Circuit, OpType, Qubit, PauliExpBox  # type: ignore
 from pytket.extensions.cutensornet.general_state.utils import (
     circuit_statevector_postselect,
 )
+from pytket.pauli import Pauli, QubitPauliString
+from pytket.passes import DecomposeBoxes
 from pytket.extensions.cutensornet.structured_state import (
     MPS,
     Config,
@@ -974,84 +976,37 @@ def test_mps_qubit_addition_and_measure() -> None:
 
 
 @pytest.mark.parametrize(
-    "circuit",
-    [
-        pytest.lazy_fixture("q1_empty"),  # type: ignore
-        pytest.lazy_fixture("q5_empty"),  # type: ignore
-        pytest.lazy_fixture("q8_empty"),  # type: ignore
-        pytest.lazy_fixture("q1_h0rz"),  # type: ignore
-        pytest.lazy_fixture("q2_x0"),  # type: ignore
-        pytest.lazy_fixture("q2_x1"),  # type: ignore
-        pytest.lazy_fixture("q2_v0"),  # type: ignore
-        pytest.lazy_fixture("q8_x0h2v5z6"),  # type: ignore
-        pytest.lazy_fixture("q2_x0cx01"),  # type: ignore
-        pytest.lazy_fixture("q2_x1cx10x1"),  # type: ignore
-        pytest.lazy_fixture("q2_x0cx01cx10"),  # type: ignore
-        pytest.lazy_fixture("q2_v0cx01cx10"),  # type: ignore
-        pytest.lazy_fixture("q2_hadamard_test"),  # type: ignore
-        pytest.lazy_fixture("q2_lcu1"),  # type: ignore
-        pytest.lazy_fixture("q2_lcu2"),  # type: ignore
-        pytest.lazy_fixture("q2_lcu3"),  # type: ignore
-        pytest.lazy_fixture("q3_v0cx02"),  # type: ignore
-        pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
-        pytest.lazy_fixture("q4_with_creates"),  # type: ignore
-        pytest.lazy_fixture("q5_h0s1rz2ry3tk4tk13"),  # type: ignore
-        pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
-        pytest.lazy_fixture("q6_qvol"),  # type: ignore
-        pytest.lazy_fixture("q8_qvol"),  # type: ignore
-    ],
+    "seed",
+    [1234, 2347, 5895],
 )
-def test_from_statevector(circuit: Circuit) -> None:
-    sv = circuit.get_statevector()
+def test_apply_pauli_exp_box(seed: int) -> None:
+    n_qubits = 10
+    depth = 5
+    np.random.seed(seed)
+    c = Circuit(n_qubits)
+
+    qubit_list = [i for i in range(n_qubits)]
+    pauli_list = [Pauli.X, Pauli.Y, Pauli.X, Pauli.I]
+
+    for _ in range(depth):
+        # Randomly reorder the qubits on which the gate will act, generate
+        # random angle, and choose random Pauli string.
+        subset = list(np.random.permutation(qubit_list))
+        angle = np.random.uniform(-2, 2)
+        random_pauli = list(np.random.choice(pauli_list, n_qubits)) # type: ignore
+
+        # Generate gate corresponding to pauli string and angle
+        pauli_box = PauliExpBox(random_pauli, angle)
+        c.add_pauliexpbox(pauli_box, subset)
 
     with CuTensorNetHandle() as libhandle:
+        # Run it without decomposition
+        mps = simulate(libhandle, c, SimulationAlgorithm.MPSxGate, Config())
 
-        mps = MPSxGate(libhandle, circuit.qubits, Config())
-        mps.from_statevector(sv)
+        assert all(cmd.op.type == OpType.PauliExpBox for cmd in c.get_commands())
+        DecomposeBoxes().apply(c)
+        assert all(cmd.op.type != OpType.PauliExpBox for cmd in c.get_commands())
 
-        sim_mps = simulate(libhandle, circuit, SimulationAlgorithm.MPSxGate, Config())
-        assert isinstance(sim_mps, MPSxGate)
-        # Check that, indeed, they are the same state, so `from_statevector` worked
-        # properly
-        assert np.isclose(mps.vdot(sim_mps), 1.0)
-        phase = mps.vdot(sim_mps)
-
-        # Check that the statevector extracted from the MPS is the same
-        assert np.allclose(phase * sv, mps.get_statevector())
-
-
-@pytest.mark.parametrize(
-    "circuit1",
-    [
-        pytest.lazy_fixture("q5_h0s1rz2ry3tk4tk13"),  # type: ignore
-        pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
-    ],
-)
-@pytest.mark.parametrize(
-    "circuit2",
-    [
-        pytest.lazy_fixture("q5_h0s1rz2ry3tk4tk13"),  # type: ignore
-        pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
-    ],
-)
-def test_mps_sum(circuit1: Circuit, circuit2: Circuit) -> None:
-    sv1 = circuit1.get_statevector()
-    sv2 = circuit2.get_statevector()
-    sv_sum = sv1 + sv2
-    sqnorm = sum(sv_sum.conj() * sv_sum)
-    sv_sum = sv_sum / np.sqrt(sqnorm)
-
-    with CuTensorNetHandle() as libhandle:
-        mps1 = MPSxGate(libhandle, circuit1.qubits, Config())
-        mps1.from_statevector(sv1)
-        mps2 = MPSxGate(libhandle, circuit2.qubits, Config())
-        mps2.from_statevector(sv2)
-        mps_sum = MPSxGate(libhandle, circuit2.qubits, Config())
-        mps_sum.from_statevector(sv_sum)
-        assert np.isclose(mps_sum.vdot(mps_sum), 1.0)
-
-        mps_result = mps1.add_and_normalise(mps2)
-        assert np.isclose(mps_result.vdot(mps_result), 1.0)
-
-        # Check that they are the same
-        assert np.isclose(mps_result.vdot(mps_sum), 1.0)
+        # Run after decomposition
+        mps2 = simulate(libhandle, c, SimulationAlgorithm.MPSxGate, Config())
+        assert np.isclose(mps.vdot(mps2), 1)

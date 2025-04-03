@@ -222,6 +222,22 @@ class MPS(StructuredState):
 
         return self
 
+    def apply_pauli_gadget(
+        self, pauli_str: QubitPauliString, angle: float
+    ) -> StructuredState:
+        """Applies the Pauli gadget to the MPS.
+
+        The MPS is converted to canonical and truncation is applied if necessary.
+
+        Args:
+            pauli_str: The Pauli string of the Pauli gadget
+            angle: The angle in half turns
+
+        Returns:
+            ``self``, to allow for method chaining.
+        """
+        raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
+
     def apply_scalar(self, scalar: complex) -> MPS:
         """Multiplies the state by a complex number.
 
@@ -1049,7 +1065,7 @@ class MPS(StructuredState):
         self._flush()
 
         # Create a dummy object
-        new_mps = type(self)(self._lib, qubits=[], config=self._cfg.copy())
+        new_mps = MPS(self._lib, qubits=[], config=self._cfg.copy())
         # Copy all data
         new_mps.fidelity = self.fidelity
         new_mps.tensors = [t.copy() for t in self.tensors]
