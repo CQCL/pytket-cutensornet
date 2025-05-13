@@ -222,8 +222,8 @@ class TTN(StructuredState):
             for path, bond in self.qubit_position.values()
         )
         rank_ok = all(
-            node.is_leaf or len(node.tensor.shape) == 3
-            for node in self.nodes.values()  # noqa: PLR2004
+            node.is_leaf or len(node.tensor.shape) == 3  # noqa: PLR2004
+            for node in self.nodes.values()
         )
         shape_ok = all(
             self.get_dimension(path, DirTTN.PARENT)

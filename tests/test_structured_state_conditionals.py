@@ -317,8 +317,8 @@ def test_correctness_reset_register() -> None:
     circ.add_c_range_predicate(
         minval=4,
         maxval=7,
-        args_in=[b for b in c_reg],
-        arg_out=flag[0],  # noqa: C416
+        args_in=[b for b in c_reg],  # noqa: C416
+        arg_out=flag[0],
     )
     circ.add_gate(OpType.X, [q_reg[2]], condition_bits=flag, condition_value=1)
 

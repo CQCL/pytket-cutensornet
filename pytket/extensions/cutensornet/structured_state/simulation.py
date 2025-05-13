@@ -402,8 +402,8 @@ def _get_sorted_gates(  # noqa: PLR0912
         for gate_idx in reachable_gates:
             gate_qubits = all_gates[gate_idx].qubits
             assert (
-                len(gate_qubits) == 2
-            )  # Sanity check: all of them are 2-qubit gates  # noqa: PLR2004
+                len(gate_qubits) == 2  # noqa: PLR2004
+            )  # Sanity check: all of them are 2-qubit gates
             # If the first gate in both qubits coincides, then this gate is available
             if gate_indices[gate_qubits[0]][0] == gate_indices[gate_qubits[1]][0]:
                 assert gate_indices[gate_qubits[0]][0] == gate_idx
