@@ -239,7 +239,7 @@ class GeneralState:
                 )
 
             pauli_list = [pstr[q] for q in self._qubit_idx_map.keys()]  # noqa: SIM118
-            this_pauli_string = "".join(map(lambda x: paulis[x], pauli_list))  # noqa: C417  # type: ignore
+            this_pauli_string = "".join(map(lambda x: paulis[x], pauli_list))  # type: ignore  # noqa: C417
             pauli_strs[this_pauli_string] = complex(coeff)
 
         tn_operator = NetworkOperator.from_pauli_strings(pauli_strs, dtype="complex128")
@@ -547,7 +547,7 @@ class GeneralBraOpKet:
                         f"circuits: {self._qubit_idx_map.keys()}."
                     )
                 pauli_list = [tk_pstr[q] for q in self._qubit_idx_map.keys()]  # noqa: SIM118
-                this_pauli_string = "".join(map(lambda x: paulis[x], pauli_list))  # noqa: C417   # type: ignore
+                this_pauli_string = "".join(map(lambda x: paulis[x], pauli_list))  # type: ignore  # noqa: C417
                 pauli_strs[this_pauli_string] = complex(coeff)
 
         # Calculate the value by iterating over all components of the QubitPauliOperator
