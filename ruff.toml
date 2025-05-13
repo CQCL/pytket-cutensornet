@@ -1,0 +1,82 @@
+exclude = [
+    "docs/pytket-docs-theming",
+]
+
+target-version = "py312"
+
+lint.select = [
+    "A",
+    "AIR",
+    # "ANN",
+    # "ARG", # TODO
+    "ASYNC",
+    "B",
+    "BLE",
+    # "C",
+    "C4",
+    # "C90",
+    "COM",
+    # "CPY",
+    # "D",
+    "DJ",
+    # "DOC",
+    "DTZ",
+    "E",
+    # "EM",
+    # "ERA", # TODO
+    "EXE",
+    "F",
+    "FA",
+    # "FAST",
+    # "FBT",
+    # "FIX",
+    "FLY",
+    "FURB",
+    "G",
+    "I",
+    # "ICN",
+    # "INP",
+    "INT",
+    "ISC",
+    "LOG",
+    # "N",
+    "NPY",
+    # "PD",
+    "PERF",
+    # "PGH",
+    "PIE",
+    "PL",
+    # "PT",
+    # "PTH", # TODO
+    # "PYI", # TODO
+    "Q",
+    "R",
+    "RET",
+    "RSE",
+    "RUF",
+    # "S",
+    "SIM",
+    "SLF",
+    "SLOT",
+    "T10",
+    "T20",
+    "TCH",
+    # "TD",
+    # "TID",
+    # "TRY",
+    "UP",
+    "W",
+    "YTT",
+]
+
+lint.ignore = [
+    "E501", # Allow long lines in strings
+    "E731", # OK to assign to lambdas
+    "E741", # Allow variable names like "l"
+    "F403", # Allow wildcard imports in init files
+    "COM812", # flake8-commas "Trailing comma missing"
+]
+
+[lint.per-file-ignores]
+"__init__.py" = ["F401"]
+"**/{tests}/*" = ["PLR2004"]
