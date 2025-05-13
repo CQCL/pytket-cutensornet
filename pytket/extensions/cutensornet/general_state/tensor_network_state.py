@@ -547,7 +547,7 @@ class GeneralBraOpKet:
                         f"circuits: {self._qubit_idx_map.keys()}."
                     )
                 pauli_list = [tk_pstr[q] for q in self._qubit_idx_map.keys()]  # noqa: SIM118
-                this_pauli_string = "".join(map(lambda x: paulis[x], pauli_list))  # noqa: C417
+                this_pauli_string = "".join(map(lambda x: paulis[x], pauli_list))  # noqa: C417   # type: ignore
                 pauli_strs[this_pauli_string] = complex(coeff)
 
         # Calculate the value by iterating over all components of the QubitPauliOperator
