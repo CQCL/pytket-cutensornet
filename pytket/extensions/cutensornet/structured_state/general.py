@@ -12,29 +12,31 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from __future__ import annotations  # type: ignore
-from abc import ABC, abstractmethod
-import warnings
+
 import logging
-from typing import Any, Optional, Type
+import warnings
+from abc import ABC, abstractmethod
+from typing import Any
 
 import numpy as np  # type: ignore
 
 from pytket.circuit import (
+    Bit,
     Command,
+    Conditional,
     Op,
     OpType,
     Qubit,
-    Bit,
-    Conditional,
 )
-from pytket.pauli import QubitPauliString
+from pytket.pauli import QubitPauliString  # noqa: TC001
 
 try:
     import cupy as cp  # type: ignore
 except ImportError:
-    warnings.warn("local settings failed to import cupy", ImportWarning)
+    warnings.warn("local settings failed to import cupy", ImportWarning)  # noqa: B028
 
-from pytket.extensions.cutensornet import CuTensorNetHandle
+from pytket.extensions.cutensornet import CuTensorNetHandle  # noqa: TC001
+
 from .classical import apply_classical_command, from_little_endian
 
 # An alias for the CuPy type used for tensors
@@ -53,19 +55,19 @@ class LowFidelityException(Exception):
 class Config:
     """Configuration class for simulation using ``StructuredState``."""
 
-    def __init__(
+    def __init__(  # noqa: PLR0913
         self,
-        chi: Optional[int] = None,
-        truncation_fidelity: Optional[float] = None,
+        chi: int | None = None,
+        truncation_fidelity: float | None = None,
         kill_threshold: float = 0.0,
-        seed: Optional[int] = None,
-        float_precision: Type[Any] = np.float64,
+        seed: int | None = None,
+        float_precision: type[Any] = np.float64,
         value_of_zero: float = 1e-16,
         leaf_size: int = 8,
         k: int = 4,
         optim_delta: float = 1e-5,
         loglevel: int = logging.WARNING,
-        logfile: Optional[str] = None,
+        logfile: str | None = None,
     ):
         """Instantiate a configuration object for ``StructuredState`` simulation.
 
@@ -135,7 +137,7 @@ class Config:
         if truncation_fidelity is None:
             truncation_fidelity = 1
 
-        if chi < 2:
+        if chi < 2:  # noqa: PLR2004
             raise ValueError("The max virtual bond dim (chi) must be >= 2.")
         if truncation_fidelity < 0 or truncation_fidelity > 1:
             raise ValueError("Provide a value of truncation_fidelity in [0,1].")
@@ -160,7 +162,7 @@ class Config:
         self.zero = value_of_zero
 
         if value_of_zero > self._atol / 1000:
-            warnings.warn(
+            warnings.warn(  # noqa: B028
                 "Your chosen value_of_zero is relatively large. "
                 "Faithfulness of final fidelity estimate is not guaranteed.",
                 UserWarning,
@@ -168,7 +170,7 @@ class Config:
 
         self.seed = seed
 
-        if leaf_size >= 65:  # Imposed to avoid bond ID collisions
+        if leaf_size >= 65:  # Imposed to avoid bond ID collisions  # noqa: PLR2004
             # More than 20 qubits is already unreasonable for a leaf anyway
             raise ValueError("Maximum allowed leaf_size is 65.")
 
@@ -219,7 +221,7 @@ class StructuredState(ABC):
             ValueError: If the command introduced is not a unitary gate.
             ValueError: If the command acts on more than 2 qubits.
         """
-        self._logger.debug(f"Applying {gate}.")
+        self._logger.debug(f"Applying {gate}.")  # noqa: G004
         self._apply_command(gate.op, gate.qubits, gate.bits, gate.args)
 
         return self
@@ -244,12 +246,12 @@ class StructuredState(ABC):
         elif op.is_gate():  # Either a unitary gate or a not supported "gate"
             try:
                 unitary = op.get_unitary()
-            except:
-                raise ValueError(f"The command {op.type} introduced is not supported.")
+            except:  # noqa: E722
+                raise ValueError(f"The command {op.type} introduced is not supported.")  # noqa: B904
 
             if len(qubits) not in [1, 2]:
                 raise ValueError(
-                    "Gates must act on only 1 or 2 qubits! "
+                    "Gates must act on only 1 or 2 qubits! "  # noqa: ISC003
                     + f"This is not satisfied by {op.type}."
                 )
 

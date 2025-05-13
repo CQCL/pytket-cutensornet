@@ -1,15 +1,14 @@
 # # Tree Tensor Network (TTN) Tutorial
 
-import numpy as np
 from time import time
-import matplotlib.pyplot as plt
-import networkx as nx
-from pytket import Circuit
-from pytket.circuit.display import render_circuit_jupyter
 
+import networkx as nx
+import numpy as np
+
+from pytket import Circuit
 from pytket.extensions.cutensornet.structured_state import (
-    CuTensorNetHandle,
     Config,
+    CuTensorNetHandle,
     SimulationAlgorithm,
     simulate,
 )
@@ -31,10 +30,10 @@ def random_graph_circuit(n_qubits: int, edge_prob: float, layers: int) -> Circui
     """Random circuit with qubit connectivity determined by a random graph."""
     c = Circuit(n_qubits)
 
-    for i in range(layers):
+    for i in range(layers):  # noqa: B007
         # Layer of TK1 gates
         for q in range(n_qubits):
-            c.TK1(np.random.rand(), np.random.rand(), np.random.rand(), q)
+            c.TK1(np.random.rand(), np.random.rand(), np.random.rand(), q)  # noqa: NPY002
 
         # Layer of CX gates
         graph = nx.erdos_renyi_graph(n_qubits, edge_prob, directed=True)
@@ -59,7 +58,7 @@ state = int("10100", 2)
 with CuTensorNetHandle() as libhandle:
     my_ttn.update_libhandle(libhandle)
     amplitude = my_ttn.get_amplitude(state)
-print(amplitude)
+print(amplitude)  # noqa: T201
 
 # Since this is a very small circuit, we can use `pytket`'s state vector simulator capabilities to verify that the state is correct by checking the amplitude of each of the computational states.
 
@@ -72,8 +71,8 @@ with CuTensorNetHandle() as libhandle:
     for i in range(2**n_qubits):
         correct_amplitude[i] = np.isclose(state_vector[i], my_ttn.get_amplitude(i))
 
-print("Are all amplitudes correct?")
-print(all(correct_amplitude))
+print("Are all amplitudes correct?")  # noqa: T201
+print(all(correct_amplitude))  # noqa: T201
 
 # ## Sampling from a TTN
 # Sampling and measurement from a TTN state is not currently supported. This will be added in an upcoming release.
@@ -93,10 +92,10 @@ with CuTensorNetHandle() as libhandle:
     config = Config(chi=64, float_precision=np.float32)
     bound_chi_ttn = simulate(libhandle, circuit, SimulationAlgorithm.TTNxGate, config)
 end = time()
-print("Time taken by approximate contraction with bounded chi:")
-print(f"{round(end-start,2)} seconds")
-print("\nLower bound of the fidelity:")
-print(round(bound_chi_ttn.fidelity, 4))
+print("Time taken by approximate contraction with bounded chi:")  # noqa: T201
+print(f"{round(end-start,2)} seconds")  # noqa: T201
+print("\nLower bound of the fidelity:")  # noqa: T201
+print(round(bound_chi_ttn.fidelity, 4))  # noqa: T201
 
 # Alternatively, we can fix `truncation_fidelity` and let the bond dimension increase as necessary to satisfy it.
 
@@ -107,10 +106,10 @@ with CuTensorNetHandle() as libhandle:
         libhandle, circuit, SimulationAlgorithm.TTNxGate, config
     )
 end = time()
-print("Time taken by approximate contraction with fixed truncation fidelity:")
-print(f"{round(end-start,2)} seconds")
-print("\nLower bound of the fidelity:")
-print(round(fixed_fidelity_ttn.fidelity, 4))
+print("Time taken by approximate contraction with fixed truncation fidelity:")  # noqa: T201
+print(f"{round(end-start,2)} seconds")  # noqa: T201
+print("\nLower bound of the fidelity:")  # noqa: T201
+print(round(fixed_fidelity_ttn.fidelity, 4))  # noqa: T201
 
 # ## Contraction algorithms
 

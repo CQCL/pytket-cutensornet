@@ -1,9 +1,10 @@
-import pytest
 import numpy as np
-from sympy import Symbol
+import pytest
 from scipy.stats import unitary_group  # type: ignore
-from pytket.circuit import Circuit, OpType, Unitary2qBox, ToffoliBox, Qubit
-from pytket.passes import DecomposeBoxes, CnXPairwiseDecomposition
+from sympy import Symbol
+
+from pytket.circuit import Circuit, OpType, Qubit, ToffoliBox, Unitary2qBox
+from pytket.passes import CnXPairwiseDecomposition, DecomposeBoxes
 from pytket.transform import Transform
 
 
@@ -14,7 +15,7 @@ def random_line_circuit(n_qubits: int, layers: int) -> Circuit:
     for i in range(layers):
         # Layer of TK1 gates
         for q in range(n_qubits):
-            c.TK1(np.random.rand(), np.random.rand(), np.random.rand(), q)
+            c.TK1(np.random.rand(), np.random.rand(), np.random.rand(), q)  # noqa: NPY002
 
         # Layer of CX gates
         offset = np.mod(i, 2)  # Even layers connect (q0,q1), odd (q1,q2)
@@ -23,8 +24,8 @@ def random_line_circuit(n_qubits: int, layers: int) -> Circuit:
         ]
         # Direction of each CX gate is random
         for pair in qubit_pairs:
-            if np.random.rand() > 0.5:
-                pair = [pair[1], pair[0]]
+            if np.random.rand() > 0.5:  # noqa: NPY002
+                pair = [pair[1], pair[0]]  # noqa: PLW2901
 
         for pair in qubit_pairs:
             c.CX(pair[0], pair[1])
@@ -38,7 +39,7 @@ def quantum_volume_circuit(n_qubits: int) -> Circuit:
     c = Circuit(n_qubits)
 
     for _ in range(depth):
-        qubits = np.random.permutation([i for i in range(n_qubits)])
+        qubits = np.random.permutation([i for i in range(n_qubits)])  # noqa: C416, NPY002
         qubit_pairs = [[qubits[i], qubits[i + 1]] for i in range(0, n_qubits - 1, 2)]
 
         for pair in qubit_pairs:
@@ -55,19 +56,19 @@ def quantum_volume_circuit(n_qubits: int) -> Circuit:
 @pytest.fixture
 def q1_empty() -> Circuit:
     circuit = Circuit(1)
-    return circuit
+    return circuit  # noqa: RET504
 
 
 @pytest.fixture
 def q5_empty() -> Circuit:
     circuit = Circuit(5)
-    return circuit
+    return circuit  # noqa: RET504
 
 
 @pytest.fixture
 def q8_empty() -> Circuit:
     circuit = Circuit(8)
-    return circuit
+    return circuit  # noqa: RET504
 
 
 @pytest.fixture
@@ -269,31 +270,31 @@ def q8_x0h2v5z6() -> Circuit:
 
 @pytest.fixture
 def q5_line_circ_30_layers() -> Circuit:
-    np.random.seed(1)
+    np.random.seed(1)  # noqa: NPY002
     return random_line_circuit(n_qubits=5, layers=30)
 
 
 @pytest.fixture
 def q20_line_circ_20_layers() -> Circuit:
-    np.random.seed(1)
+    np.random.seed(1)  # noqa: NPY002
     return random_line_circuit(n_qubits=20, layers=20)
 
 
 @pytest.fixture
 def q6_qvol() -> Circuit:
-    np.random.seed(1)
+    np.random.seed(1)  # noqa: NPY002
     return quantum_volume_circuit(n_qubits=6)
 
 
 @pytest.fixture
 def q8_qvol() -> Circuit:
-    np.random.seed(1)
+    np.random.seed(1)  # noqa: NPY002
     return quantum_volume_circuit(n_qubits=8)
 
 
 @pytest.fixture
 def q15_qvol() -> Circuit:
-    np.random.seed(1)
+    np.random.seed(1)  # noqa: NPY002
     return quantum_volume_circuit(n_qubits=15)
 
 

@@ -12,28 +12,28 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from __future__ import annotations  # type: ignore
-import warnings
 
-from typing import Optional, Union
+import warnings
 
 import numpy as np  # type: ignore
 
 try:
     import cupy as cp  # type: ignore
 except ImportError:
-    warnings.warn("local settings failed to import cupy", ImportWarning)
+    warnings.warn("local settings failed to import cupy", ImportWarning)  # noqa: B028
 try:
     import cuquantum as cq  # type: ignore
     from cuquantum.cutensornet import tensor  # type: ignore
 except ImportError:
-    warnings.warn("local settings failed to import cutensornet", ImportWarning)
+    warnings.warn("local settings failed to import cutensornet", ImportWarning)  # noqa: B028
 
-from pytket.circuit import Qubit, Bit
-from pytket.extensions.cutensornet import CuTensorNetHandle
-from .general import Tensor, Config
+from pytket.circuit import Bit, Qubit  # noqa: TC001
+from pytket.extensions.cutensornet import CuTensorNetHandle  # noqa: TC001
+
+from .general import Config, Tensor  # noqa: TC001
 from .mps import (
-    DirMPS,
     MPS,
+    DirMPS,
 )
 from .mps_gate import MPSxGate
 
@@ -49,7 +49,7 @@ class MPSxMPO(MPS):
         libhandle: CuTensorNetHandle,
         qubits: list[Qubit],
         config: Config,
-        bits: Optional[list[Bit]] = None,
+        bits: list[Bit] | None = None,
     ):
         """Initialise an MPS on the computational state ``|0>``.
 
@@ -77,9 +77,9 @@ class MPSxMPO(MPS):
         #
         # Each of the tensors will have four bonds ordered as follows:
         # [input, left, right, output]
-        self._mpo: list[list[Tensor]] = [list() for _ in qubits]
+        self._mpo: list[list[Tensor]] = [list() for _ in qubits]  # noqa: C408
         # This ``_bond_ids`` store global bond IDs of MPO tensors, used by ``_flush()``
-        self._bond_ids: list[list[tuple[int, int, int, int]]] = [list() for _ in qubits]
+        self._bond_ids: list[list[tuple[int, int, int, int]]] = [list() for _ in qubits]  # noqa: C408
 
         # Initialise the MPS that we will use as first approximation of the
         # variational algorithm.
@@ -157,7 +157,7 @@ class MPSxMPO(MPS):
         position = self.qubit_position[qubit]
 
         # Apply the gate to the MPS with eager approximation
-        self._aux_mps._apply_1q_unitary(unitary, qubit)
+        self._aux_mps._apply_1q_unitary(unitary, qubit)  # noqa: SLF001
 
         if len(self) == 1:
             # If there is only one qubit, there is no benefit in using an MPO, so
@@ -223,7 +223,7 @@ class MPSxMPO(MPS):
             self._flush()
 
         # Apply the gate to the MPS with eager approximation
-        self._aux_mps._apply_2q_unitary(unitary, q0, q1)
+        self._aux_mps._apply_2q_unitary(unitary, q0, q1)  # noqa: SLF001
 
         # Reshape into a rank-4 tensor
         gate_tensor = cp.reshape(unitary, (2, 2, 2, 2))
@@ -236,7 +236,7 @@ class MPSxMPO(MPS):
         # s -> virtual bond after QR decomposition
 
         # Assign the bond IDs for the gate
-        if l_pos == positions[0]:
+        if l_pos == positions[0]:  # noqa: SIM108
             gate_bonds = "LRlr"
         else:  # Implicit swap
             gate_bonds = "RLrl"
@@ -264,9 +264,9 @@ class MPSxMPO(MPS):
         # intermediate positions
         if r_pos - l_pos != 1:
             # Identity between input/output at physical bonds
-            p_identity = cp.eye(2, dtype=self._cfg._complex_t)
+            p_identity = cp.eye(2, dtype=self._cfg._complex_t)  # noqa: SLF001
             # Identity between left/right virtual bonds
-            v_identity = cp.eye(dim, dtype=self._cfg._complex_t)
+            v_identity = cp.eye(dim, dtype=self._cfg._complex_t)  # noqa: SLF001
             # Create a "crossing" tensor by applying tensor product of these
             crossing = cq.contract(
                 "io,lr->ilro",
@@ -352,8 +352,7 @@ class MPSxMPO(MPS):
 
         if self._bond_ids[position]:
             return self._bond_ids[position][-1][-1]
-        else:
-            return self._new_bond_id()
+        return self._new_bond_id()
 
     def _get_column_bonds(self, position: int, direction: DirMPS) -> list[int]:
         """Returns the unique identifier of all the left (right) virtual bonds of
@@ -378,7 +377,7 @@ class MPSxMPO(MPS):
 
         return [b_ids[index] for b_ids in self._bond_ids[position]]
 
-    def _flush(self) -> None:
+    def _flush(self) -> None:  # noqa: PLR0915
         """Applies all batched operations within ``self._mpo`` to the MPS.
 
         The method applies variational optimisation of the MPS until it
@@ -386,15 +385,15 @@ class MPSxMPO(MPS):
         """
         if self._mpo_bond_counter == 0:
             # MPO is empty, there is nothing to flush
-            return None
+            return
 
         self._logger.info("Applying variational optimisation.")
-        self._logger.info(f"Fidelity before optimisation={self._aux_mps.fidelity}")
+        self._logger.info(f"Fidelity before optimisation={self._aux_mps.fidelity}")  # noqa: G004
 
         l_cached_tensors: list[Tensor] = []
         r_cached_tensors: list[Tensor] = []
 
-        def update_sweep_cache(pos: int, direction: DirMPS) -> None:
+        def update_sweep_cache(pos: int, direction: DirMPS) -> None:  # noqa: PLR0912
             """Given a position in the MPS and a sweeping direction (see
             ``DirMPS``), calculate the tensor of the partial contraction
             of all MPS-MPO-vMPS* columns from ``pos`` towards ``direction``.
@@ -429,7 +428,7 @@ class MPSxMPO(MPS):
                 # The MPO tensor at this position
                 interleaved_rep.append(mpo_tensor)
 
-                mpo_bonds: list[Union[int, str]] = list(self._bond_ids[pos][i])
+                mpo_bonds: list[int | str] = list(self._bond_ids[pos][i])
                 if i == 0:
                     # The input bond of the first MPO tensor must connect to the
                     # physical bond of the correspondong ``self.tensors`` tensor
@@ -445,24 +444,24 @@ class MPSxMPO(MPS):
                 if pos != len(self) - 1:  # Otherwise, there is nothing cached yet
                     interleaved_rep.append(r_cached_tensors[-1])
                     r_cached_bonds = self._get_column_bonds(pos + 1, DirMPS.LEFT)
-                    interleaved_rep.append(["r", "R"] + r_cached_bonds)
-            elif direction == DirMPS.RIGHT:
+                    interleaved_rep.append(["r", "R"] + r_cached_bonds)  # noqa: RUF005
+            elif direction == DirMPS.RIGHT:  # noqa: SIM102
                 if pos != 0:  # Otherwise, there is nothing cached yet
                     interleaved_rep.append(l_cached_tensors[-1])
                     l_cached_bonds = self._get_column_bonds(pos - 1, DirMPS.RIGHT)
-                    interleaved_rep.append(["l", "L"] + l_cached_bonds)
+                    interleaved_rep.append(["l", "L"] + l_cached_bonds)  # noqa: RUF005
 
             # Figure out the ID of the bonds of the contracted tensor
             if direction == DirMPS.LEFT:
                 # Take the left bond of each of the MPO tensors
                 result_bonds = self._get_column_bonds(pos, DirMPS.LEFT)
                 # Take the left virtual bond of both of the MPS
-                interleaved_rep.append(["l", "L"] + result_bonds)
+                interleaved_rep.append(["l", "L"] + result_bonds)  # noqa: RUF005
             elif direction == DirMPS.RIGHT:
                 # Take the right bond of each of the MPO tensors
                 result_bonds = self._get_column_bonds(pos, DirMPS.RIGHT)
                 # Take the right virtual bond of both of the MPS
-                interleaved_rep.append(["r", "R"] + result_bonds)
+                interleaved_rep.append(["r", "R"] + result_bonds)  # noqa: RUF005
 
             # Contract and store
             T = cq.contract(
@@ -478,7 +477,7 @@ class MPSxMPO(MPS):
             self._logger.debug("Completed update of the sweep cache.")
 
         def update_variational_tensor(
-            pos: int, left_tensor: Optional[Tensor], right_tensor: Optional[Tensor]
+            pos: int, left_tensor: Tensor | None, right_tensor: Tensor | None
         ) -> float:
             """Update the tensor at ``pos`` of the variational MPS using ``left_tensor``
             (and ``right_tensor``) which is meant to contain the contraction of all
@@ -486,7 +485,7 @@ class MPSxMPO(MPS):
             Contract these with the MPS-MPO column at ``pos``.
             Return the current fidelity of this sweep.
             """
-            self._logger.debug(f"Optimising tensor at position={pos}")
+            self._logger.debug(f"Optimising tensor at position={pos}")  # noqa: G004
 
             interleaved_rep = [
                 # The tensor of the MPS
@@ -500,7 +499,7 @@ class MPSxMPO(MPS):
                 # The MPO tensor at this position
                 interleaved_rep.append(mpo_tensor)
 
-                mpo_bonds: list[Union[int, str]] = list(self._bond_ids[pos][i])
+                mpo_bonds: list[int | str] = list(self._bond_ids[pos][i])
                 if i == 0:
                     # The input bond of the first MPO tensor must connect to the
                     # physical bond of the correspondong ``self.tensors`` tensor
@@ -515,12 +514,12 @@ class MPSxMPO(MPS):
             if left_tensor is not None:
                 interleaved_rep.append(left_tensor)
                 left_tensor_bonds = self._get_column_bonds(pos - 1, DirMPS.RIGHT)
-                interleaved_rep.append(["l", "L"] + left_tensor_bonds)
+                interleaved_rep.append(["l", "L"] + left_tensor_bonds)  # noqa: RUF005
                 result_bonds[0] = "L"
             if right_tensor is not None:
                 interleaved_rep.append(right_tensor)
                 right_tensor_bonds = self._get_column_bonds(pos + 1, DirMPS.LEFT)
-                interleaved_rep.append(["r", "R"] + right_tensor_bonds)
+                interleaved_rep.append(["r", "R"] + right_tensor_bonds)  # noqa: RUF005
                 result_bonds[1] = "R"
 
             # Append the bond IDs of the resulting tensor
@@ -546,12 +545,13 @@ class MPSxMPO(MPS):
                     optimize={"path": [(0, 1)]},
                 )
             )
-            assert np.isclose(optim_fidelity.imag, 0.0, atol=self._cfg._atol)
+            assert np.isclose(optim_fidelity.imag, 0.0, atol=self._cfg._atol)  # noqa: SLF001
             optim_fidelity = float(optim_fidelity.real)
 
             # Normalise F and update the variational MPS
             self._aux_mps.tensors[pos] = F / cp.sqrt(
-                optim_fidelity, dtype=self._cfg._complex_t
+                optim_fidelity,
+                dtype=self._cfg._complex_t,  # noqa: SLF001
             )
 
             return optim_fidelity
@@ -571,7 +571,7 @@ class MPSxMPO(MPS):
         # Repeat sweeps until the fidelity converges
         sweep_direction = DirMPS.RIGHT
         while not np.isclose(prev_fidelity, sweep_fidelity, atol=self._cfg.optim_delta):
-            self._logger.info(f"Doing another optimisation sweep...")
+            self._logger.info("Doing another optimisation sweep...")
             prev_fidelity = sweep_fidelity
 
             if sweep_direction == DirMPS.RIGHT:
@@ -613,13 +613,13 @@ class MPSxMPO(MPS):
                 sweep_direction = DirMPS.RIGHT
 
             self._logger.info(
-                "Optimisation sweep completed. "
-                f"Current fidelity={self.fidelity*sweep_fidelity}"
+                "Optimisation sweep completed. "  # noqa: G004
+                f"Current fidelity={self.fidelity * sweep_fidelity}"
             )
 
         # Clear out the MPO
-        self._mpo = [list() for _ in range(len(self))]
-        self._bond_ids = [list() for _ in range(len(self))]
+        self._mpo = [list() for _ in range(len(self))]  # noqa: C408
+        self._bond_ids = [list() for _ in range(len(self))]  # noqa: C408
         self._mpo_bond_counter = 0
 
         # Update the MPS tensors
@@ -629,7 +629,7 @@ class MPSxMPO(MPS):
         self.fidelity *= sweep_fidelity
         self._aux_mps.fidelity = self.fidelity
 
-        self._logger.info(f"Final fidelity after optimisation={self.fidelity}")
+        self._logger.info(f"Final fidelity after optimisation={self.fidelity}")  # noqa: G004
 
     def _new_bond_id(self) -> int:
         self._mpo_bond_counter += 1

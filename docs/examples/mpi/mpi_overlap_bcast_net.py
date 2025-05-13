@@ -37,17 +37,16 @@ Notes:
 import sys
 from random import random
 
+import cuquantum as cq
 from cupy.cuda.runtime import getDeviceCount
 from mpi4py import MPI
-import cuquantum as cq
 
 from pytket.circuit import Circuit, fresh_symbol
-
 from pytket.extensions.cutensornet import TensorNetwork
 
 # Parameters
-if len(sys.argv) < 3:
-    print(f"You need call this script as {sys.argv[0]} <n_qubits> <n_circs>")
+if len(sys.argv) < 3:  # noqa: PLR2004
+    print(f"You need call this script as {sys.argv[0]} <n_qubits> <n_circs>")  # noqa: T201
 n_qubits = int(sys.argv[1])
 n_circs = int(sys.argv[2])
 
@@ -67,7 +66,7 @@ if n_circs % n_procs != 0:
     )
 
 if rank == root:
-    print("\nGenerating the circuits.")
+    print("\nGenerating the circuits.")  # noqa: T201
     time0 = MPI.Wtime()
 
 # Generate the list of circuits in parallel
@@ -79,11 +78,11 @@ sym_circ = Circuit(n_qubits)
 even_qs = sym_circ.qubits[0::2]
 odd_qs = sym_circ.qubits[1::2]
 
-for q0, q1 in zip(even_qs, odd_qs):
+for q0, q1 in zip(even_qs, odd_qs, strict=False):
     sym_circ.TK2(fresh_symbol(), fresh_symbol(), fresh_symbol(), q0, q1)
 for q in sym_circ.qubits:
     sym_circ.H(q)
-for q0, q1 in zip(even_qs[1:], odd_qs):
+for q0, q1 in zip(even_qs[1:], odd_qs, strict=False):
     sym_circ.TK2(fresh_symbol(), fresh_symbol(), fresh_symbol(), q0, q1)
 free_symbols = sym_circ.free_symbols()
 
@@ -96,8 +95,8 @@ for _ in range(circs_per_proc):
 
 if rank == root:
     time1 = MPI.Wtime()
-    print(f"Circuit list generated. Time taken: {time1-time0} seconds.\n")
-    print("Converting circuits to nets.")
+    print(f"Circuit list generated. Time taken: {time1-time0} seconds.\n")  # noqa: T201
+    print("Converting circuits to nets.")  # noqa: T201
     sys.stdout.flush()
     time0 = MPI.Wtime()
 
@@ -106,8 +105,8 @@ this_proc_nets = [TensorNetwork(circ) for circ in this_proc_circs]
 
 if rank == root:
     time1 = MPI.Wtime()
-    print(f"Net list generated. Time taken: {time1-time0} seconds.\n")
-    print("Broadcasting the net of the circuits.")
+    print(f"Net list generated. Time taken: {time1-time0} seconds.\n")  # noqa: T201
+    print("Broadcasting the net of the circuits.")  # noqa: T201
     sys.stdout.flush()
 
 # Broadcast the list of nets
@@ -116,7 +115,7 @@ for proc_i in range(n_procs):
     net_list += comm.bcast(this_proc_nets, proc_i)
 
 time1 = MPI.Wtime()
-print(f"Nets broadcasted to {rank} in {time1-time0} seconds")
+print(f"Nets broadcasted to {rank} in {time1-time0} seconds")  # noqa: T201
 
 # Enumerate all pairs of circuits to be calculated
 pairs = [(i, j) for i in range(n_circs) for j in range(n_circs) if i < j]
@@ -132,13 +131,13 @@ path, info = overlap_network.contract_path(optimize={"samples": 8})
 # Select the best path from all ranks.
 opt_cost, sender = comm.allreduce(sendobj=(info.opt_cost, rank), op=MPI.MINLOC)
 if rank == root:
-    print(f"Process {sender} has the path with the lowest FLOP count {opt_cost}.")
+    print(f"Process {sender} has the path with the lowest FLOP count {opt_cost}.")  # noqa: T201
 # Broadcast path from the sender to all other processes
 path = comm.bcast(path, sender)
 # Report back to user
 time1 = MPI.Wtime()
 if rank == root:
-    print(f"Contraction path found in {time1-time0} seconds.\n")
+    print(f"Contraction path found in {time1-time0} seconds.\n")  # noqa: T201
     sys.stdout.flush()
 
 # Parallelise across all available processes
@@ -157,7 +156,7 @@ for k in range(iterations):
     # Report back to user
     # print(f"Sample of circuit pair {(i, j)} taken. Overlap: {overlap}")
     if rank == root and progress_bar * progress_checkpoint < k:
-        print(f"{progress_bar*10}%")
+        print(f"{progress_bar*10}%")  # noqa: T201
         sys.stdout.flush()
         progress_bar += 1
 
@@ -177,17 +176,17 @@ time_end = MPI.Wtime()
 
 # Report back to user
 duration = time1 - time0
-print(f"Runtime at {rank} is {duration}")
+print(f"Runtime at {rank} is {duration}")  # noqa: T201
 totaltime = comm.reduce(duration, op=MPI.SUM, root=root)
 
 if rank == root:
-    print(f"\nBroadcasting net.")
-    print(f"Number of qubits: {n_qubits}")
-    print(f"Number of circuits: {n_circs}")
-    print(f"Number of processes used: {n_procs}")
-    print(f"Average time per process: {totaltime / n_procs} seconds\n")
+    print("\nBroadcasting net.")  # noqa: T201
+    print(f"Number of qubits: {n_qubits}")  # noqa: T201
+    print(f"Number of circuits: {n_circs}")  # noqa: T201
+    print(f"Number of processes used: {n_procs}")  # noqa: T201
+    print(f"Average time per process: {totaltime / n_procs} seconds\n")  # noqa: T201
 
 full_duration = time_end - time_start
 actual_walltime = comm.reduce(full_duration, op=MPI.MAX, root=root)
 if rank == root:
-    print(f"\n**Full walltime duration** {actual_walltime} seconds\n")
+    print(f"\n**Full walltime duration** {actual_walltime} seconds\n")  # noqa: T201

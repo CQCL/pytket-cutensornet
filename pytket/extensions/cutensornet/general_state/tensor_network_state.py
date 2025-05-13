@@ -13,27 +13,32 @@
 # limitations under the License.
 
 from __future__ import annotations
+
 import logging
-from typing import Union, Optional, Any
 import warnings
+from typing import Any
 
 try:
     import cupy as cp  # type: ignore
 except ImportError:
-    warnings.warn("local settings failed to import cupy", ImportWarning)
+    warnings.warn("local settings failed to import cupy", ImportWarning)  # noqa: B028
 import numpy as np
+from numpy.typing import NDArray  # noqa: TC002
 from sympy import Expr, Symbol  # type: ignore
-from numpy.typing import NDArray
-from pytket.circuit import Circuit, Qubit, Bit, OpType, Op
+
+from pytket.backends.backendresult import BackendResult
+from pytket.circuit import Bit, Circuit, Op, OpType, Qubit
 from pytket.extensions.cutensornet.general import set_logger
 from pytket.utils import OutcomeArray
-from pytket.utils.operators import QubitPauliOperator
-from pytket.backends.backendresult import BackendResult
+from pytket.utils.operators import QubitPauliOperator  # noqa: TC001
 
 try:
-    from cuquantum.cutensornet.experimental import NetworkState, NetworkOperator  # type: ignore
+    from cuquantum.cutensornet.experimental import (  # type: ignore
+        NetworkOperator,
+        NetworkState,
+    )
 except ImportError:
-    warnings.warn("local settings failed to import cuquantum", ImportWarning)
+    warnings.warn("local settings failed to import cuquantum", ImportWarning)  # noqa: B028
 
 
 class GeneralState:
@@ -63,10 +68,10 @@ class GeneralState:
     def __init__(
         self,
         circuit: Circuit,
-        attributes: Optional[dict] = None,
+        attributes: dict | None = None,
         scratch_fraction: float = 0.8,
         loglevel: int = logging.WARNING,
-        logfile: Optional[str] = None,
+        logfile: str | None = None,
     ) -> None:
         self._logger = set_logger("GeneralState", level=loglevel, file=logfile)
 
@@ -89,14 +94,14 @@ class GeneralState:
             dtype=data_type,
             config=attributes,
             options={
-                "memory_limit": f"{int(scratch_fraction*100)}%",
+                "memory_limit": f"{int(scratch_fraction * 100)}%",
                 "logger": self._logger,
             },
         )
 
         # Maintain a dict of tensor_id->Op for symbolic Ops to be update when the user
         # calls any evaluation function with the symbols specified.
-        self._symbolic_ops: dict[int, Op] = dict()
+        self._symbolic_ops: dict[int, Op] = dict()  # noqa: C408
         # Append all gates to the NetworkState
         commands = circuit.get_commands()
         for com in commands:
@@ -136,9 +141,9 @@ class GeneralState:
 
     def get_statevector(
         self,
-        symbol_map: Optional[dict[Symbol, float]] = None,
+        symbol_map: dict[Symbol, float] | None = None,
         on_host: bool = True,
-    ) -> Union[cp.ndarray, np.ndarray]:
+    ) -> cp.ndarray | np.ndarray:
         """Contracts the circuit and returns the final statevector.
 
         Args:
@@ -168,7 +173,7 @@ class GeneralState:
     def get_amplitude(
         self,
         state: int,
-        symbol_map: Optional[dict[Symbol, float]] = None,
+        symbol_map: dict[Symbol, float] | None = None,
     ) -> complex:
         """Returns the amplitude of the chosen computational state.
 
@@ -201,7 +206,7 @@ class GeneralState:
     def expectation_value(
         self,
         operator: QubitPauliOperator,
-        symbol_map: Optional[dict[Symbol, float]] = None,
+        symbol_map: dict[Symbol, float] | None = None,
     ) -> complex:
         """Calculates the expectation value of the given operator.
 
@@ -223,19 +228,18 @@ class GeneralState:
         self._logger.debug("(Expectation value) converting operator to NetworkOperator")
 
         paulis = ["I", "X", "Y", "Z"]
-        pauli_strs = dict()
-        for pstr, coeff in operator._dict.items():
-
+        pauli_strs = dict()  # noqa: C408
+        for pstr, coeff in operator._dict.items():  # noqa: SLF001
             # Raise an error if the operator acts on qubits that are not in the circuit
-            if any(q not in self._qubit_idx_map.keys() for q in pstr.map.keys()):
+            if any(q not in self._qubit_idx_map.keys() for q in pstr.map.keys()):  # noqa: SIM118
                 raise ValueError(
                     f"The operator is acting on qubits {pstr.map.keys()}, "
                     "but some of these are not present in the circuit, whose set of "
                     f"qubits is: {self._qubit_idx_map.keys()}."
                 )
 
-            pauli_list = [pstr[q] for q in self._qubit_idx_map.keys()]
-            this_pauli_string = "".join(map(lambda x: paulis[x], pauli_list))
+            pauli_list = [pstr[q] for q in self._qubit_idx_map.keys()]  # noqa: SIM118
+            this_pauli_string = "".join(map(lambda x: paulis[x], pauli_list))  # noqa: C417
             pauli_strs[this_pauli_string] = complex(coeff)
 
         tn_operator = NetworkOperator.from_pauli_strings(pauli_strs, dtype="complex128")
@@ -246,8 +250,8 @@ class GeneralState:
     def sample(
         self,
         n_shots: int,
-        symbol_map: Optional[dict[Symbol, float]] = None,
-        seed: Optional[int] = None,
+        symbol_map: dict[Symbol, float] | None = None,
+        seed: int | None = None,
     ) -> BackendResult:
         """Obtains samples from the measurements at the end of the circuit.
 
@@ -276,7 +280,7 @@ class GeneralState:
         # We will need both a list of the qubits and a list of the classical bits
         # and it is essential that the elements in the same index of either list
         # match according to the self._measurements map. We guarantee this here.
-        qbit_list, cbit_list = zip(*self._measurements.items())
+        qbit_list, cbit_list = zip(*self._measurements.items(), strict=False)
         measured_modes = tuple(self._qubit_idx_map[qb] for qb in qbit_list)
 
         self._logger.debug("(Sampling) contracting the TN")
@@ -357,14 +361,14 @@ class GeneralBraOpKet:
         ValueError: If the set of qubits of ``ket`` and ``bra`` do not match.
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0912, PLR0913, PLR0915
         self,
         bra: Circuit,
         ket: Circuit,
-        attributes: Optional[dict] = None,
+        attributes: dict | None = None,
         scratch_fraction: float = 0.8,
         loglevel: int = logging.WARNING,
-        logfile: Optional[str] = None,
+        logfile: str | None = None,
     ) -> None:
         self._logger = set_logger("GeneralBraOpKet", level=loglevel, file=logfile)
 
@@ -400,14 +404,14 @@ class GeneralBraOpKet:
             dtype=data_type,
             config=attributes,
             options={
-                "memory_limit": f"{int(scratch_fraction*100)}%",
+                "memory_limit": f"{int(scratch_fraction * 100)}%",
                 "logger": self._logger,
             },
         )
 
         # Maintain a dict of tensor_id->Op for symbolic Ops to be update when the user
         # calls any evaluation function with the symbols specified.
-        self._symbolic_ops: dict[int, Op] = dict()
+        self._symbolic_ops: dict[int, Op] = dict()  # noqa: C408
         # Apply all commands from the ket circuit
         self._logger.debug("Converting the ket circuit to a NetworkState")
         commands = ket.get_commands()
@@ -501,8 +505,8 @@ class GeneralBraOpKet:
 
     def contract(
         self,
-        operator: Optional[QubitPauliOperator] = None,
-        symbol_map: Optional[dict[Symbol, float]] = None,
+        operator: QubitPauliOperator | None = None,
+        symbol_map: dict[Symbol, float] | None = None,
     ) -> complex:
         """Contract the tensor network to obtain the value of ``<bra|operator|ket>``.
 
@@ -527,23 +531,23 @@ class GeneralBraOpKet:
             "Y": Op.create(OpType.Y).get_unitary(),
             "Z": Op.create(OpType.Z).get_unitary(),
         }
-        pauli_strs: dict[str, complex] = dict()
+        pauli_strs: dict[str, complex] = dict()  # noqa: C408
 
         # Some care has to be taken when handling QubitPauliOperators, since identity
         # Paulis may be omitted from the dictionary.
         if operator is None:
             pauli_strs = {"".join("I" for _ in range(self.n_qubits)): complex(1.0)}
         else:
-            for tk_pstr, coeff in operator._dict.items():
+            for tk_pstr, coeff in operator._dict.items():  # noqa: SLF001
                 # Raise an error if the operator acts on qubits missing from the circuit
-                if any(q not in self._qubit_idx_map.keys() for q in tk_pstr.map.keys()):
+                if any(q not in self._qubit_idx_map.keys() for q in tk_pstr.map.keys()):  # noqa: SIM118
                     raise ValueError(
                         f"The operator is acting on qubits {tk_pstr.map.keys()}, some "
                         "of these are missing from the set of qubits present in the "
                         f"circuits: {self._qubit_idx_map.keys()}."
                     )
-                pauli_list = [tk_pstr[q] for q in self._qubit_idx_map.keys()]
-                this_pauli_string = "".join(map(lambda x: paulis[x], pauli_list))
+                pauli_list = [tk_pstr[q] for q in self._qubit_idx_map.keys()]  # noqa: SIM118
+                this_pauli_string = "".join(map(lambda x: paulis[x], pauli_list))  # noqa: C417
                 pauli_strs[this_pauli_string] = complex(coeff)
 
         # Calculate the value by iterating over all components of the QubitPauliOperator
@@ -551,7 +555,7 @@ class GeneralBraOpKet:
         zero_bitstring = "".join("0" for _ in range(self.n_qubits))
         for pstr, coeff in pauli_strs.items():
             # Update the NetworkState with this Pauli
-            self._logger.debug(f"Updating the tensors of the Pauli operator {pstr}")
+            self._logger.debug(f"Updating the tensors of the Pauli operator {pstr}")  # noqa: G004
             for mode, pauli in enumerate(pstr):
                 self.tn.update_tensor_operator(
                     self._pauli_op_ids[mode],
@@ -567,7 +571,7 @@ class GeneralBraOpKet:
             # Compute the amplitude of the |0> state. Since NetworkState holds the
             # circuit bra.dagger()*operator*ket|0>, the value of the amplitude at <0|
             # will be <bra|operator|ket>.
-            self._logger.debug(f"Computing the contribution of Pauli operator {pstr}")
+            self._logger.debug(f"Computing the contribution of Pauli operator {pstr}")  # noqa: G004
             value += numeric_coeff * self.tn.compute_amplitude(zero_bitstring)
 
         # Apply the phases from the circuits
@@ -614,7 +618,7 @@ def _remove_meas_and_implicit_swaps(circ: Circuit) -> tuple[Circuit, dict[Qubit,
         pure_circ.add_qubit(q)
     q_perm = circ.implicit_qubit_permutation()
 
-    measure_map = dict()
+    measure_map = dict()  # noqa: C408
     # Track measured Qubits to identify mid-circuit measurement
     measured_qubits = set()
 
@@ -640,7 +644,7 @@ def _remove_meas_and_implicit_swaps(circ: Circuit) -> tuple[Circuit, dict[Qubit,
 def _update_tensors(
     tn: NetworkState,
     symbolic_ops: dict[int, Op],
-    symbol_map: Optional[dict[Symbol, float]],
+    symbol_map: dict[Symbol, float] | None,
 ) -> None:
     """Updates the tensors with the specified values for symbols.
 
@@ -654,11 +658,11 @@ def _update_tensors(
             value in ``symbol_map``.
     """
     if symbol_map is None:
-        symbol_map = dict()
+        symbol_map = dict()  # noqa: C408
 
     for tensor_id, op in symbolic_ops.items():
         subs_params = op.params.copy()
-        if any(symb not in symbol_map.keys() for symb in op.free_symbols()):
+        if any(symb not in symbol_map.keys() for symb in op.free_symbols()):  # noqa: SIM118
             raise ValueError(
                 f"Missing values for some of the free symbols {op.free_symbols()}. "
                 f"Symbols given: {symbol_map}."

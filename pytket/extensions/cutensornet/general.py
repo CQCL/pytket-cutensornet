@@ -12,20 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from __future__ import annotations  # type: ignore
-import warnings
-import logging
-from logging import Logger
 
-from typing import Any, Optional
+import logging
+import warnings
+from logging import Logger
+from typing import Any
 
 try:
     import cupy as cp  # type: ignore
 except ImportError:
-    warnings.warn("local settings failed to import cupy", ImportWarning)
+    warnings.warn("local settings failed to import cupy", ImportWarning)  # noqa: B028
 try:
     import cuquantum.cutensornet as cutn  # type: ignore
 except ImportError:
-    warnings.warn("local settings failed to import cutensornet", ImportWarning)
+    warnings.warn("local settings failed to import cutensornet", ImportWarning)  # noqa: B028
 
 
 class CuTensorNetHandle:
@@ -42,7 +42,7 @@ class CuTensorNetHandle:
             If not provided, defaults to ``cp.cuda.Device()``.
     """
 
-    def __init__(self, device_id: Optional[int] = None):
+    def __init__(self, device_id: int | None = None):
         self._is_destroyed = False
 
         # Make sure CuPy uses the specified device
@@ -82,19 +82,19 @@ class CuTensorNetHandle:
         """Prints local GPU properties."""
         device_props = cp.cuda.runtime.getDeviceProperties(self.dev.id)
         logger.info("===== device info ======")
-        logger.info("GPU-name: " + device_props["name"].decode())
-        logger.info("GPU-clock: " + str(device_props["clockRate"]))
-        logger.info("GPU-memoryClock: " + str(device_props["memoryClockRate"]))
-        logger.info("GPU-nSM: " + str(device_props["multiProcessorCount"]))
-        logger.info("GPU-major: " + str(device_props["major"]))
-        logger.info("GPU-minor: " + str(device_props["minor"]))
+        logger.info("GPU-name: " + device_props["name"].decode())  # noqa: G003
+        logger.info("GPU-clock: " + str(device_props["clockRate"]))  # noqa: G003
+        logger.info("GPU-memoryClock: " + str(device_props["memoryClockRate"]))  # noqa: G003
+        logger.info("GPU-nSM: " + str(device_props["multiProcessorCount"]))  # noqa: G003
+        logger.info("GPU-major: " + str(device_props["major"]))  # noqa: G003
+        logger.info("GPU-minor: " + str(device_props["minor"]))  # noqa: G003
         logger.info("========================")
 
 
 def set_logger(
     logger_name: str,
     level: int = logging.WARNING,
-    file: Optional[str] = None,
+    file: str | None = None,
     fmt: str = "[%(asctime)s.%(msecs)03d] %(name)s (%(levelname)s) - %(message)s",
 ) -> Logger:
     """Initialises and configures a logger object.
@@ -113,7 +113,7 @@ def set_logger(
     logger.propagate = False
 
     handler: logging.StreamHandler
-    if file is None:
+    if file is None:  # noqa: SIM108
         handler = logging.StreamHandler()
     else:
         handler = logging.FileHandler(file)

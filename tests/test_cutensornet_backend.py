@@ -1,11 +1,18 @@
 import numpy as np
 import pytest
-from pytket.circuit import Circuit, BasisOrder, ToffoliBox, DummyBox, OpType  # type: ignore
-from pytket.passes import CliffordSimp  # type: ignore
-from pytket.extensions.cutensornet.backends import (
-    CuTensorNetStateBackend,
-    CuTensorNetShotsBackend,
+
+from pytket.circuit import (  # type: ignore
+    BasisOrder,
+    Circuit,
+    DummyBox,
+    OpType,
+    ToffoliBox,
 )
+from pytket.extensions.cutensornet.backends import (
+    CuTensorNetShotsBackend,
+    CuTensorNetStateBackend,
+)
+from pytket.passes import CliffordSimp  # type: ignore
 
 
 def test_bell() -> None:
@@ -45,7 +52,7 @@ def test_sampler_bell_seed() -> None:
     res1 = b.run_circuit(c, n_shots=n_shots, seed=1234)
     res2 = b.run_circuit(c, n_shots=n_shots, seed=1234)
     res3 = b.run_circuit(c, n_shots=n_shots, seed=4321)
-    print(type(res1.get_shots()))
+    print(type(res1.get_shots()))  # noqa: T201
     assert np.all(res1.get_shots() == res2.get_shots())
     assert np.any(res1.get_shots() != res3.get_shots())
 

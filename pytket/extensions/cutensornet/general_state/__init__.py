@@ -13,16 +13,14 @@
 # limitations under the License.
 """Module for simulating circuits with no predetermined tensor network structure."""
 
-from .utils import circuit_statevector_postselect
-
 from .tensor_network_convert import (
-    TensorNetwork,
-    PauliOperatorTensorNetwork,
     ExpectationValueTensorNetwork,
-    tk_to_tensor_network,
-    measure_qubits_state,
-    get_operator_expectation_value,
+    PauliOperatorTensorNetwork,
+    TensorNetwork,
     get_circuit_overlap,
+    get_operator_expectation_value,
+    measure_qubits_state,
+    tk_to_tensor_network,
 )
-
-from .tensor_network_state import GeneralState, GeneralBraOpKet
+from .tensor_network_state import GeneralBraOpKet, GeneralState
+from .utils import circuit_statevector_postselect

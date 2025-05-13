@@ -1,17 +1,18 @@
 # # Matrix Product State (MPS) Tutorial
 
-import numpy as np
 from time import time
+
 import matplotlib.pyplot as plt
+import numpy as np
+
 from pytket import Circuit, OpType
 from pytket.circuit.display import render_circuit_jupyter
-
 from pytket.extensions.cutensornet.structured_state import (
-    CuTensorNetHandle,
     Config,
+    CuTensorNetHandle,
     SimulationAlgorithm,
-    simulate,
     prepare_circuit_mps,
+    simulate,
 )
 
 # ## Introduction
@@ -60,7 +61,7 @@ state = int("10100", 2)
 with CuTensorNetHandle() as libhandle:
     my_mps.update_libhandle(libhandle)
     amplitude = my_mps.get_amplitude(state)
-print(amplitude)
+print(amplitude)  # noqa: T201
 
 # Since this is a very small circuit, we can use `pytket`'s state vector simulator capabilities to verify that the state is correct by checking the amplitude of each of the computational states.
 
@@ -73,8 +74,8 @@ with CuTensorNetHandle() as libhandle:
     for i in range(2**n_qubits):
         correct_amplitude[i] = np.isclose(state_vector[i], my_mps.get_amplitude(i))
 
-print("Are all amplitudes correct?")
-print(all(correct_amplitude))
+print("Are all amplitudes correct?")  # noqa: T201
+print(all(correct_amplitude))  # noqa: T201
 
 # ### Sampling from an MPS
 # We can also sample from the output state of a circuit by calling `my_mps.sample`, where `my_mps` is the outcome of simulating the circuit.
@@ -119,8 +120,8 @@ with CuTensorNetHandle() as libhandle:
     my_mps.update_libhandle(libhandle)
     norm_sq = my_mps.vdot(my_mps)
 
-print("As expected, the squared norm of a state is 1")
-print(np.isclose(norm_sq, 1))
+print("As expected, the squared norm of a state is 1")  # noqa: T201
+print(np.isclose(norm_sq, 1))  # noqa: T201
 
 # Let's come up with another circuit on the same qubits and apply an inner product between the two `MPS` objects.
 
@@ -144,8 +145,8 @@ with CuTensorNetHandle() as libhandle:
 my_state = my_circ.get_statevector()
 other_state = other_circ.get_statevector()
 
-print("Is the inner product correct?")
-print(np.isclose(np.vdot(my_state, other_state), inner_product))
+print("Is the inner product correct?")  # noqa: T201
+print(np.isclose(np.vdot(my_state, other_state), inner_product))  # noqa: T201
 
 # ### Mid-circuit measurements and classical control
 # Mid-circuit measurements and classical control is supported (only in `MPSxGate` as of v0.8.0). For instance, we can implement the teleportation protocol on a pytket circuit and simulate it:
@@ -174,15 +175,15 @@ render_circuit_jupyter(circ)
 
 # We can now simulate the circuit and check that the qubit has been successfully teleported.
 
-print(
+print(  # noqa: T201
     f"Initial state:\n {np.round(orig_state[0],2)}|00>|0> + {np.round(orig_state[4],2)}|10>|0>"
 )
 with CuTensorNetHandle() as libhandle:
     state = simulate(libhandle, circ, SimulationAlgorithm.MPSxGate, Config())
-    print(
+    print(  # noqa: T201
         f"Teleported state:\n {np.round(state.get_amplitude(0),2)}|00>|0> + {np.round(state.get_amplitude(1),2)}|00>|1>"
     )
-    print(f"Measurement outcomes:\n {state.get_bits()}")
+    print(f"Measurement outcomes:\n {state.get_bits()}")  # noqa: T201
 
 # ### Two-qubit gates acting on non-adjacent qubits
 # Standard MPS algorithms only support simulation of two-qubit gates acting on neighbour qubits. In our implementation, however, two-qubit gates between arbitrary qubits may be applied, as shown below.
@@ -200,8 +201,8 @@ render_circuit_jupyter(circ)
 
 with CuTensorNetHandle() as libhandle:
     mps = simulate(libhandle, circ, SimulationAlgorithm.MPSxGate, Config())
-    print("Did simulation succeed?")
-    print(mps.is_valid())
+    print("Did simulation succeed?")  # noqa: T201
+    print(mps.is_valid())  # noqa: T201
 
 # **Note**: Even though two-qubit gates on non-adjacent qubits are simulable, the overhead on these is considerably larger than simulating gates on adjacent qubits. As a rule of thumb if the two qubits are `n` positions apart, the overhead is upper bounded by the cost of simulating `n-1` additional SWAP gates to move the leftmost qubit near the rightmost. In reality, the implementation we use is more nuanced than just applying SWAP gates, and the qubits don't actually change position.
 # When circuits are shallow, using our approach to simulate long-distance two-qubit gates is advantageous. In the case of deep circuits with many long-distance gates, it is sometimes beneficial to use TKET routing on the circuit, explicitly adding SWAP gates so that all two-qubit gates act on nearest neighbour qubits. Users may do this by calling `prepare_circuit_mps`, which is a wrapper of the corresponding TKET routing pass.
@@ -213,12 +214,12 @@ render_circuit_jupyter(prepared_circ)
 
 with CuTensorNetHandle() as libhandle:
     mps = simulate(libhandle, prepared_circ, SimulationAlgorithm.MPSxGate, Config())
-    print("Did simulation succeed?")
-    print(mps.is_valid())
+    print("Did simulation succeed?")  # noqa: T201
+    print(mps.is_valid())  # noqa: T201
 
 # Notice that the qubits in the `prepared_circ` were renamed when applying `prepare_circuit_mps`. Implicit SWAPs may have been added to the circuit, meaning that the logical qubit held at the ``node[i]`` qubit at the beginning of the circuit may differ from the one it holds at the end; this information is captured by the `qubit_map` output. We recommend applying ``apply_qubit_relabelling`` on the MPS after simulation, relabelling the qubits according to these implicit SWAPs.
 
-print(qubit_map)
+print(qubit_map)  # noqa: T201
 mps.apply_qubit_relabelling(qubit_map)
 
 # ## Approximate simulation
@@ -235,7 +236,7 @@ def random_line_circuit(n_qubits: int, layers: int) -> Circuit:
     for i in range(layers):
         # Layer of TK1 gates
         for q in range(n_qubits):
-            c.TK1(np.random.rand(), np.random.rand(), np.random.rand(), q)
+            c.TK1(np.random.rand(), np.random.rand(), np.random.rand(), q)  # noqa: NPY002
 
         # Layer of CX gates
         offset = np.mod(i, 2)  # Even layers connect (q0,q1), odd (q1,q2)
@@ -244,7 +245,7 @@ def random_line_circuit(n_qubits: int, layers: int) -> Circuit:
         ]
         # Direction of each CX gate is random
         for pair in qubit_pairs:
-            np.random.shuffle(pair)
+            np.random.shuffle(pair)  # noqa: NPY002
 
         for pair in qubit_pairs:
             c.CX(pair[0], pair[1])
@@ -261,10 +262,10 @@ with CuTensorNetHandle() as libhandle:
     config = Config(chi=16)
     bound_chi_mps = simulate(libhandle, circuit, SimulationAlgorithm.MPSxGate, config)
 end = time()
-print("Time taken by approximate contraction with bound chi:")
-print(f"{round(end-start,2)} seconds")
-print("\nLower bound of the fidelity:")
-print(round(bound_chi_mps.fidelity, 4))
+print("Time taken by approximate contraction with bound chi:")  # noqa: T201
+print(f"{round(end-start,2)} seconds")  # noqa: T201
+print("\nLower bound of the fidelity:")  # noqa: T201
+print(round(bound_chi_mps.fidelity, 4))  # noqa: T201
 
 # Alternatively, we can fix `truncation_fidelity` and let `chi` increase as necessary to satisfy it.
 
@@ -275,10 +276,10 @@ with CuTensorNetHandle() as libhandle:
         libhandle, circuit, SimulationAlgorithm.MPSxGate, config
     )
 end = time()
-print("Time taken by approximate contraction with fixed truncation fidelity:")
-print(f"{round(end-start,2)} seconds")
-print("\nLower bound of the fidelity:")
-print(round(fixed_fidelity_mps.fidelity, 4))
+print("Time taken by approximate contraction with fixed truncation fidelity:")  # noqa: T201
+print(f"{round(end-start,2)} seconds")  # noqa: T201
+print("\nLower bound of the fidelity:")  # noqa: T201
+print(round(fixed_fidelity_mps.fidelity, 4))  # noqa: T201
 
 # ## Contraction algorithms
 
@@ -297,9 +298,9 @@ with CuTensorNetHandle() as libhandle:
         libhandle, circuit, SimulationAlgorithm.MPSxGate, config
     )
 end = time()
-print("MPSxGate")
-print(f"\tTime taken: {round(end-start,2)} seconds")
-print(f"\tLower bound of the fidelity: {round(fixed_fidelity_mps.fidelity, 4)}")
+print("MPSxGate")  # noqa: T201
+print(f"\tTime taken: {round(end-start,2)} seconds")  # noqa: T201
+print(f"\tLower bound of the fidelity: {round(fixed_fidelity_mps.fidelity, 4)}")  # noqa: T201
 
 start = time()
 with CuTensorNetHandle() as libhandle:
@@ -308,9 +309,9 @@ with CuTensorNetHandle() as libhandle:
         libhandle, circuit, SimulationAlgorithm.MPSxMPO, config
     )
 end = time()
-print("MPSxMPO, default parameters")
-print(f"\tTime taken: {round(end-start,2)} seconds")
-print(f"\tLower bound of the fidelity: {round(fixed_fidelity_mps.fidelity, 4)}")
+print("MPSxMPO, default parameters")  # noqa: T201
+print(f"\tTime taken: {round(end-start,2)} seconds")  # noqa: T201
+print(f"\tLower bound of the fidelity: {round(fixed_fidelity_mps.fidelity, 4)}")  # noqa: T201
 
 start = time()
 with CuTensorNetHandle() as libhandle:
@@ -319,9 +320,9 @@ with CuTensorNetHandle() as libhandle:
         libhandle, circuit, SimulationAlgorithm.MPSxMPO, config
     )
 end = time()
-print("MPSxMPO, custom parameters")
-print(f"\tTime taken: {round(end-start,2)} seconds")
-print(f"\tLower bound of the fidelity: {round(fixed_fidelity_mps.fidelity, 4)}")
+print("MPSxMPO, custom parameters")  # noqa: T201
+print(f"\tTime taken: {round(end-start,2)} seconds")  # noqa: T201
+print(f"\tLower bound of the fidelity: {round(fixed_fidelity_mps.fidelity, 4)}")  # noqa: T201
 
 # **Note**: `MPSxMPO` also admits truncation policy in terms of `truncation_fidelity` instead of `chi`.
 
@@ -332,8 +333,8 @@ print(f"\tLower bound of the fidelity: {round(fixed_fidelity_mps.fidelity, 4)}")
 # - `logging.DEBUG` provides all of the messages from the loglevel above plus detailed information of the current operation being carried out and the values of important variables.
 # **Note**: Due to technical issues with the `logging` module and Jupyter notebooks we need to reload the `logging` module. When working with python scripts and command line, just doing `import logging` is enough.
 
-from importlib import reload  # Not needed in Python 2
-import logging
+import logging  # noqa: E402
+from importlib import reload  # Not needed in Python 2  # noqa: E402
 
 reload(logging)
 

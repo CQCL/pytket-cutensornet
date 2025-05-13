@@ -12,23 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Union, Any
+from typing import Any, Union
 
+from pytket._tket.circuit import ClBitVar, ClExpr, ClOp, ClRegVar
 from pytket.circuit import (
-    Op,
-    OpType,
     Bit,
     BitRegister,
-    SetBitsOp,
-    CopyBitsOp,
-    RangePredicateOp,
     ClExprOp,
+    CopyBitsOp,
     LogicExp,
+    Op,
+    OpType,
+    RangePredicateOp,
+    SetBitsOp,
 )
-from pytket._tket.circuit import ClExpr, ClOp, ClBitVar, ClRegVar
 
-
-ExtendedLogicExp = Union[LogicExp, Bit, BitRegister, int]
+ExtendedLogicExp = Union[LogicExp, Bit, BitRegister, int]  # noqa: UP007
 
 
 def apply_classical_command(
@@ -36,13 +35,13 @@ def apply_classical_command(
 ) -> None:
     """Evaluate classical commands and update the `bits_dict` accordingly."""
     if isinstance(op, SetBitsOp):
-        for b, v in zip(bits, op.values):
-            bits_dict[b] = v
+        for b, v in zip(bits, op.values, strict=False):
+            bits_dict[b] = v  # noqa: PERF403
 
     elif isinstance(op, CopyBitsOp):
         output_bits = bits
         input_bits = args[: len(output_bits)]
-        for i, o in zip(input_bits, output_bits):
+        for i, o in zip(input_bits, output_bits, strict=False):
             assert isinstance(i, Bit)
             bits_dict[o] = bits_dict[i]
 
@@ -96,7 +95,7 @@ def apply_classical_command(
         raise NotImplementedError(f"Commands of type {op.type} are not supported.")
 
 
-def evaluate_clexpr(
+def evaluate_clexpr(  # noqa: PLR0912, PLR0915
     expr: ClExpr,
     bitvar_val: dict[int, int],
     regvar_val: dict[int, int],

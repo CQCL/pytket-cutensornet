@@ -1,31 +1,31 @@
-from typing import List, Union
-import warnings
-import random
 import cmath
+import random
+import warnings
+
 import numpy as np
-from numpy.typing import NDArray
 import pytest
-from pytket.circuit import ToffoliBox, Qubit  # type: ignore
-from pytket.passes import DecomposeBoxes, CnXPairwiseDecomposition  # type: ignore
+from numpy.typing import NDArray
+
+from pytket.circuit import Qubit, ToffoliBox  # type: ignore
+from pytket.passes import CnXPairwiseDecomposition, DecomposeBoxes  # type: ignore
 from pytket.transform import Transform  # type: ignore
 
 try:
     import cuquantum as cq  # type: ignore
 except ImportError:
-    warnings.warn("local settings failed to import cutensornet", ImportWarning)
+    warnings.warn("local settings failed to import cutensornet", ImportWarning)  # noqa: B028
 from pytket.circuit import Circuit
-
 from pytket.extensions.cutensornet.general_state.tensor_network_convert import (  # type: ignore
-    tk_to_tensor_network,
     TensorNetwork,
     get_circuit_overlap,
     get_operator_expectation_value,
+    tk_to_tensor_network,
 )
 from pytket.pauli import Pauli, QubitPauliString
 from pytket.utils.operators import QubitPauliOperator
 
 
-def state_contract(tn: List[Union[NDArray, List]]) -> NDArray:
+def state_contract(tn: list[NDArray | list]) -> NDArray:
     """Calls cuQuantum contract function to contract an input state tensor network."""
     state_tn = tn.copy()
     state: NDArray = cq.contract(*state_tn).flatten()
@@ -107,7 +107,7 @@ def test_generalised_toffoli_box(n_qubits: int) -> None:
     def to_bool_tuple(n_qubits: int, x: int) -> tuple:
         bool_list = []
         for i in reversed(range(n_qubits)):
-            bool_list.append((x >> i) % 2 == 1)
+            bool_list.append((x >> i) % 2 == 1)  # noqa: PERF401
         return tuple(bool_list)
 
     random.seed(1)
@@ -116,7 +116,7 @@ def test_generalised_toffoli_box(n_qubits: int) -> None:
     cycle = list(range(2**n_qubits))
     random.shuffle(cycle)
 
-    perm = dict()
+    perm = dict()  # noqa: C408
     for orig, dest in enumerate(cycle):
         perm[to_bool_tuple(n_qubits, orig)] = to_bool_tuple(n_qubits, dest)
 

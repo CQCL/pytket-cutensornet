@@ -11,28 +11,27 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-from typing import Optional, Any
 import warnings
-from enum import Enum
-
-from pathlib import Path
 from collections import defaultdict  # type: ignore
-import numpy as np  # type: ignore
+from enum import Enum
+from pathlib import Path
+from typing import Any
 
 import networkx as nx  # type: ignore
+import numpy as np  # type: ignore
 
 try:
     import kahypar  # type: ignore
 except ImportError:
-    warnings.warn("local settings failed to import kahypar", ImportWarning)
+    warnings.warn("local settings failed to import kahypar", ImportWarning)  # noqa: B028
 
-from pytket.circuit import Circuit, Command, OpType, Qubit
-from pytket.transform import Transform
 from pytket.architecture import Architecture
+from pytket.circuit import Circuit, Command, OpType, Qubit
+from pytket.extensions.cutensornet.general import CuTensorNetHandle, set_logger
 from pytket.passes import DefaultMappingPass
 from pytket.predicates import CompilationUnit
+from pytket.transform import Transform
 
-from pytket.extensions.cutensornet.general import CuTensorNetHandle, set_logger
 from .general import Config, StructuredState
 from .mps_gate import MPSxGate
 from .mps_mpo import MPSxMPO
@@ -56,7 +55,7 @@ def simulate(
     circuit: Circuit,
     algorithm: SimulationAlgorithm,
     config: Config,
-    compilation_params: Optional[dict[str, Any]] = None,
+    compilation_params: dict[str, Any] | None = None,
 ) -> StructuredState:
     """Simulates the circuit and returns the ``StructuredState`` of the final state.
 
@@ -84,7 +83,7 @@ def simulate(
     logger = set_logger("Simulation", level=config.loglevel, file=config.logfile)
 
     if compilation_params is None:
-        compilation_params = dict()
+        compilation_params = dict()  # noqa: C408
 
     # Initialise the StructuredState
     if algorithm == SimulationAlgorithm.MPSxGate:
@@ -132,15 +131,15 @@ def simulate(
 
     # Run the simulation
     logger.info("Running simulation...")
-    logger.info(f"Using {algorithm}")
+    logger.info(f"Using {algorithm}")  # noqa: G004
     logger.info(vars(config))
     # Apply the gates
     for i, g in enumerate(commands):
         state.apply_gate(g)
-        logger.info(f"Progress... {(100*i) // len(commands)}%")
+        logger.info(f"Progress... {(100 * i) // len(commands)}%")  # noqa: G004
 
     # Apply the batched operations that are left (if any)
-    state._flush()
+    state._flush()  # noqa: SLF001
 
     # Apply the circuit's phase to the state
     state.apply_scalar(np.exp(1j * np.pi * circuit.phase))
@@ -149,8 +148,8 @@ def simulate(
     state.apply_qubit_relabelling(circuit.implicit_qubit_permutation())
 
     logger.info("Simulation completed.")
-    logger.info(f"Final StructuredState size={state.get_byte_size() / 2**20} MiB")
-    logger.info(f"Final StructuredState fidelity={state.fidelity}")
+    logger.info(f"Final StructuredState size={state.get_byte_size() / 2**20} MiB")  # noqa: G004
+    logger.info(f"Final StructuredState fidelity={state.fidelity}")  # noqa: G004
     return state
 
 
@@ -175,7 +174,7 @@ def prepare_circuit_mps(circuit: Circuit) -> tuple[Circuit, dict[Qubit, Qubit]]:
         map of qubit names at the end of the circuit to their corresponding
         original names.
     """
-    if circuit.n_qubits < 2:
+    if circuit.n_qubits < 2:  # noqa: PLR2004
         # Nothing needs to be done
         return (circuit, {q: q for q in circuit.qubits})
 
@@ -218,10 +217,10 @@ def _get_qubit_partition(
     """
 
     # Scan the circuit and generate the edges of the connectivity graph
-    edge_weights: dict[tuple[Qubit, Qubit], int] = dict()
+    edge_weights: dict[tuple[Qubit, Qubit], int] = dict()  # noqa: C408
     for cmd in circuit.get_commands():
         if cmd.op.is_gate():
-            if cmd.op.n_qubits == 2:
+            if cmd.op.n_qubits == 2:  # noqa: PLR2004
                 edge = (min(cmd.qubits), max(cmd.qubits))
 
                 if edge in edge_weights:
@@ -229,9 +228,9 @@ def _get_qubit_partition(
                 else:
                     edge_weights[edge] = 1
 
-            elif cmd.op.n_qubits > 2:
+            elif cmd.op.n_qubits > 2:  # noqa: PLR2004
                 raise RuntimeError(
-                    "Gates must act on only 1 or 2 qubits! "
+                    "Gates must act on only 1 or 2 qubits! "  # noqa: ISC003
                     + f"This is not satisfied by {cmd}."
                 )
 
@@ -262,7 +261,7 @@ def _get_qubit_partition(
             partition[2 * key + 1] = groupB
 
     qubit_partition = {key: list(leaf_qubits) for key, leaf_qubits in partition.items()}
-    return qubit_partition
+    return qubit_partition  # noqa: RET504
 
 
 def _apply_kahypar_bisection(
@@ -327,10 +326,10 @@ def _apply_kahypar_bisection(
     return (groupA, groupB)
 
 
-def _get_sorted_gates(
+def _get_sorted_gates(  # noqa: PLR0912
     circuit: Circuit,
     algorithm: SimulationAlgorithm,
-    qubit_partition: Optional[dict[int, list[Qubit]]] = None,
+    qubit_partition: dict[int, list[Qubit]] | None = None,
 ) -> list[Command]:
     """Sorts the list of gates so that there's less canonicalisation during simulation.
 
@@ -370,7 +369,7 @@ def _get_sorted_gates(
         if qubit_partition is None:
             raise RuntimeError("You must provide a qubit partition!")
 
-        leaf_of_qubit: dict[Qubit, int] = dict()
+        leaf_of_qubit: dict[Qubit, int] = dict()  # noqa: C408
         for leaf, qubits in qubit_partition.items():
             for q in qubits:
                 leaf_of_qubit[q] = leaf
@@ -387,7 +386,7 @@ def _get_sorted_gates(
         for q in g.qubits:
             gate_indices[q].append(i)
     # Schedule all 1-qubit gates at the beginning of the circuit
-    for q, indices in gate_indices.items():
+    for q, indices in gate_indices.items():  # noqa: B007
         while indices and len(all_gates[indices[0]].qubits) == 1:
             i = indices.pop(0)
             sorted_gates.append(all_gates[i])
@@ -402,7 +401,9 @@ def _get_sorted_gates(
         available_gates: list[int] = []
         for gate_idx in reachable_gates:
             gate_qubits = all_gates[gate_idx].qubits
-            assert len(gate_qubits) == 2  # Sanity check: all of them are 2-qubit gates
+            assert (
+                len(gate_qubits) == 2
+            )  # Sanity check: all of them are 2-qubit gates  # noqa: PLR2004
             # If the first gate in both qubits coincides, then this gate is available
             if gate_indices[gate_qubits[0]][0] == gate_indices[gate_qubits[1]][0]:
                 assert gate_indices[gate_qubits[0]][0] == gate_idx
@@ -411,7 +412,7 @@ def _get_sorted_gates(
         assert available_gates
 
         # Find distance from last_qubits to current applicable 2-qubit gates
-        gate_distance: dict[int, int] = dict()
+        gate_distance: dict[int, int] = dict()  # noqa: C408
         for gate_idx in available_gates:
             gate_qubits = all_gates[gate_idx].qubits
 

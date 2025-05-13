@@ -1,13 +1,15 @@
 import random
+
 import numpy as np
 import pytest
 from sympy import Symbol
-from pytket.circuit import Circuit, ToffoliBox, Qubit, Bit
-from pytket.passes import DecomposeBoxes, CnXPairwiseDecomposition
+
+from pytket.circuit import Bit, Circuit, Qubit, ToffoliBox
+from pytket.extensions.cutensornet.general_state import GeneralBraOpKet, GeneralState
+from pytket.passes import CnXPairwiseDecomposition, DecomposeBoxes
+from pytket.pauli import Pauli, QubitPauliString
 from pytket.transform import Transform
-from pytket.pauli import QubitPauliString, Pauli
 from pytket.utils.operators import QubitPauliOperator
-from pytket.extensions.cutensornet.general_state import GeneralState, GeneralBraOpKet
 
 
 @pytest.mark.parametrize(
@@ -43,7 +45,7 @@ def test_basic_circs_state(circuit: Circuit) -> None:
 
     op = QubitPauliOperator(
         {
-            QubitPauliString({q: Pauli.I for q in circuit.qubits}): 1.0,
+            QubitPauliString(dict.fromkeys(circuit.qubits, Pauli.I)): 1.0,
         }
     )
 
@@ -102,7 +104,7 @@ def test_sv_generalised_toffoli_box(n_qubits: int) -> None:
     def to_bool_tuple(n_qubits: int, x: int) -> tuple:
         bool_list = []
         for i in reversed(range(n_qubits)):
-            bool_list.append((x >> i) % 2 == 1)
+            bool_list.append((x >> i) % 2 == 1)  # noqa: PERF401
         return tuple(bool_list)
 
     random.seed(1)
@@ -111,7 +113,7 @@ def test_sv_generalised_toffoli_box(n_qubits: int) -> None:
     cycle = list(range(2**n_qubits))
     random.shuffle(cycle)
 
-    perm = dict()
+    perm = dict()  # noqa: C408
     for orig, dest in enumerate(cycle):
         perm[to_bool_tuple(n_qubits, orig)] = to_bool_tuple(n_qubits, dest)
 
@@ -132,7 +134,7 @@ def test_sv_generalised_toffoli_box(n_qubits: int) -> None:
     # of the identity operator: <psi|psi> = <psi|I|psi>
     op = QubitPauliOperator(
         {
-            QubitPauliString({q: Pauli.I for q in ket_circ.qubits}): 1.0,
+            QubitPauliString(dict.fromkeys(ket_circ.qubits, Pauli.I)): 1.0,
         }
     )
 
@@ -239,14 +241,13 @@ def test_expectation_value(circuit: Circuit, observable: QubitPauliOperator) -> 
 )
 @pytest.mark.parametrize("measure_all", [True, False])  # Measure all or a subset
 def test_sampler(circuit: Circuit, measure_all: bool) -> None:
-
     n_shots = 100000
 
     # Get the statevector so that we can calculate theoretical probabilities
     sv_pytket = circuit.get_statevector()
 
     # Add measurements to qubits
-    if measure_all:
+    if measure_all:  # noqa: SIM108
         num_measured = circuit.n_qubits
     else:
         num_measured = circuit.n_qubits // 2
@@ -304,7 +305,7 @@ def test_parameterised(circuit: Circuit, symbol_map: dict[Symbol, float]) -> Non
 
     op = QubitPauliOperator(
         {
-            QubitPauliString({q: Pauli.I for q in circuit.qubits}): 1.0,
+            QubitPauliString(dict.fromkeys(circuit.qubits, Pauli.I)): 1.0,
         }
     )
 
