@@ -15,7 +15,7 @@
 from typing import Any, Union
 
 from pytket._tket.circuit import ClBitVar, ClExpr, ClOp, ClRegVar
-from pytket.circuit import (
+from pytket.circuit import (  # type: ignore
     Bit,
     BitRegister,
     ClExprOp,
