@@ -1,19 +1,19 @@
 # # `GeneralState` Tutorial
 
 import numpy as np
-from scipy.stats import unitary_group  # type: ignore
 from sympy import Symbol
-
-from pytket._tket.pauli import Pauli, QubitPauliString
-from pytket.circuit import Bit, Circuit, OpType, Qubit, Unitary2qBox
-from pytket.circuit.display import render_circuit_jupyter
-from pytket.extensions.cutensornet.backends import CuTensorNetShotsBackend
-from pytket.extensions.cutensornet.general_state import (
-    GeneralBraOpKet,
-    GeneralState,
-)
+from scipy.stats import unitary_group  # type: ignore
+from pytket.circuit import Circuit, OpType, Unitary2qBox, Qubit, Bit
 from pytket.passes import DecomposeBoxes
 from pytket.utils import QubitPauliOperator
+from pytket._tket.pauli import Pauli, QubitPauliString
+from pytket.circuit.display import render_circuit_jupyter
+
+from pytket.extensions.cutensornet.general_state import (
+    GeneralState,
+    GeneralBraOpKet,
+)
+from pytket.extensions.cutensornet.backends import CuTensorNetShotsBackend
 
 # ## Introduction
 # This notebook is a guide on how to use the features provided in the `general_state` submodule of pytket-cutensornet. This submodule is a thin wrapper of CuTensorNet's `NetworkState`, allowing users to convert pytket circuits into tensor networks and use CuTensorNet's contraction path optimisation algorithm.
@@ -50,19 +50,19 @@ selected_states = [
     x
     for x in range(2**my_circ.n_qubits)
     if (  # Iterate over all possible states
-        (x & int("10000", 2) == 0
-        and x & int("00010", 2) == 0)  # both qubits are 0 or...
-        or (x & int("10000", 2) != 0
-        and x & int("00010", 2) != 0)  # both qubits are 1
+        x & int("10000", 2) == 0
+        and x & int("00010", 2) == 0  # both qubits are 0 or...
+        or x & int("10000", 2) != 0
+        and x & int("00010", 2) != 0  # both qubits are 1
     )
 ]
 
 # We can now query the amplitude of all of these states and calculate the probability by summing their squared absolute values.
 amplitudes = []
 for x in selected_states:
-    amplitudes.append(tn_state.get_amplitude(x))  # noqa: PERF401
+    amplitudes.append(tn_state.get_amplitude(x))
 probability = sum(abs(a) ** 2 for a in amplitudes)
-print(f"Probability: {probability}")  # noqa: T201
+print(f"Probability: {probability}")
 
 # Of course, calculating probabilities by considering the amplitudes of all relevant states is not efficient in general, since we may need to calculate a number of amplitudes that scales exponentially with the number of qubits. An alternative is to use expectation values. In particular, all of the states in `selected_states` are +1 eigenvectors of the `ZIIZI` observable and, hence, we can calculate the probability `p` by solving the equation `<ZIIZI> = (+1)p + (-1)(1-p)` using the fact that `ZIIZI` only has +1 and -1 eigenvalues.
 string_ZIIZI = QubitPauliString(
@@ -72,7 +72,7 @@ observable = QubitPauliOperator({string_ZIIZI: 1.0})
 expectation_val = tn_state.expectation_value(observable).real
 exp_probability = (expectation_val + 1) / 2
 assert np.isclose(probability, exp_probability, atol=0.0001)
-print(f"Probability: {exp_probability}")  # noqa: T201
+print(f"Probability: {exp_probability}")
 
 # Alternatively, we can estimate the probability by sampling.
 n_shots = 100000
@@ -83,7 +83,7 @@ for bit_tuple, count in outcomes.get_counts().items():
         hit_count += count
 samp_probability = hit_count / n_shots
 assert np.isclose(probability, samp_probability, atol=0.01)
-print(f"Probability: {samp_probability}")  # noqa: T201
+print(f"Probability: {samp_probability}")
 
 # When we finish doing computations with the `tn_state` we must destroy it to free GPU memory.
 tn_state.destroy()
@@ -91,7 +91,7 @@ tn_state.destroy()
 # To avoid forgetting this final step, we recommend users call `GeneralState` (and `GeneralBraOpKet`) as context managers:
 with GeneralState(my_circ) as my_state:
     expectation_val = my_state.expectation_value(observable)
-print(expectation_val)  # noqa: T201
+print(expectation_val)
 
 # Using this syntax, `my_state` is automatically destroyed when the code exists the `with ...` block.
 
@@ -112,9 +112,9 @@ render_circuit_jupyter(param_circ1)
 n_circs = 5
 with GeneralState(param_circ1) as param_state:
     for i in range(n_circs):
-        symbol_map = {s: np.random.random() for s in [a, b, c]}  # noqa: NPY002
+        symbol_map = {s: np.random.random() for s in [a, b, c]}
         exp_val = param_state.expectation_value(observable, symbol_map=symbol_map)
-        print(f"Expectation value for circuit {i}: {exp_val.real}")  # noqa: T201
+        print(f"Expectation value for circuit {i}: {exp_val.real}")
 
 
 # ## `GeneralBraOpKet`
@@ -135,8 +135,8 @@ with GeneralBraOpKet(bra=param_circ2, ket=param_circ1) as braket:
 with GeneralBraOpKet(bra=param_circ1, ket=param_circ2) as braket:
     inner_prod_conj = braket.contract(symbol_map=symbol_map)
 assert np.isclose(np.conj(inner_prod), inner_prod_conj)
-print(f"<circ_b|circ_a> = {inner_prod}")  # noqa: T201
-print(f"<circ_a|circ_b> = {inner_prod_conj}")  # noqa: T201
+print(f"<circ_b|circ_a> = {inner_prod}")
+print(f"<circ_a|circ_b> = {inner_prod_conj}")
 
 # And we are not constrained to Hermitian operators:
 string_XZIXX = QubitPauliString(
@@ -153,7 +153,7 @@ operator = QubitPauliOperator(
 )
 with GeneralBraOpKet(bra=param_circ2, ket=param_circ1) as braket:
     value = braket.contract(operator, symbol_map=symbol_map)
-print(value)  # noqa: T201
+print(value)
 
 # ## Backends
 # We provide a pytket `Backend` to obtain shots using `GeneralState`.
@@ -165,7 +165,7 @@ def random_circuit(n_qubits: int, n_layers: int) -> Circuit:
     c = Circuit(n_qubits, n_qubits)
 
     for _ in range(n_layers):
-        qubits = np.random.permutation([i for i in range(n_qubits)])  # noqa: C416, NPY002
+        qubits = np.random.permutation([i for i in range(n_qubits)])
         qubit_pairs = [[qubits[i], qubits[i + 1]] for i in range(0, n_qubits - 1, 2)]
 
         for pair in qubit_pairs:
@@ -191,4 +191,4 @@ quantum_vol_circ.Measure(Qubit(2), Bit(2))
 backend = CuTensorNetShotsBackend()
 compiled_circ = backend.get_compiled_circuit(quantum_vol_circ)
 results = backend.run_circuit(compiled_circ, n_shots=n_shots)
-print(results.get_counts())  # noqa: T201
+print(results.get_counts())
