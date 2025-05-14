@@ -52,7 +52,7 @@ def test_sampler_bell_seed() -> None:
     res1 = b.run_circuit(c, n_shots=n_shots, seed=1234)
     res2 = b.run_circuit(c, n_shots=n_shots, seed=1234)
     res3 = b.run_circuit(c, n_shots=n_shots, seed=4321)
-    print(type(res1.get_shots()))  # noqa: T201
+    print(type(res1.get_shots()))
     assert np.all(res1.get_shots() == res2.get_shots())
     assert np.any(res1.get_shots() != res3.get_shots())
 

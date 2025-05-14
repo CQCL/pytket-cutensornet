@@ -50,7 +50,7 @@ from pytket.extensions.cutensornet.structured_state import (
 
 # Parameters
 if len(sys.argv) < 3:  # noqa: PLR2004
-    print(f"You need call this script as {sys.argv[0]} <n_qubits> <n_circs>")  # noqa: T201
+    print(f"You need call this script as {sys.argv[0]} <n_qubits> <n_circs>")
 n_qubits = int(sys.argv[1])
 n_circs = int(sys.argv[2])
 
@@ -70,7 +70,7 @@ if n_circs % n_procs != 0:
     )
 
 if rank == root:
-    print("\nGenerating the circuits.")  # noqa: T201
+    print("\nGenerating the circuits.")
     time0 = MPI.Wtime()
 
 # Generate the list of circuits in parallel
@@ -99,8 +99,8 @@ for _ in range(circs_per_proc):
 
 if rank == root:
     time1 = MPI.Wtime()
-    print(f"Circuit list generated. Time taken: {time1-time0} seconds.\n")  # noqa: T201
-    print("Contracting the MPS of the circuits.")  # noqa: T201
+    print(f"Circuit list generated. Time taken: {time1-time0} seconds.\n")
+    print("Contracting the MPS of the circuits.")
     sys.stdout.flush()
     time0 = MPI.Wtime()
 
@@ -113,8 +113,8 @@ with CuTensorNetHandle(device_id) as libhandle:  # Different handle for each pro
 
 if rank == root:
     time1 = MPI.Wtime()
-    print(f"All MPS contracted. Time taken: {time1-time0} seconds.\n")  # noqa: T201
-    print("Broadcasting the MPS of the circuits.")  # noqa: T201
+    print(f"All MPS contracted. Time taken: {time1-time0} seconds.\n")
+    print("Broadcasting the MPS of the circuits.")
     sys.stdout.flush()
 
 # Broadcast the list of MPS
@@ -122,7 +122,7 @@ time0 = MPI.Wtime()
 for proc_i in range(n_procs):
     mps_list += comm.bcast(this_proc_mps, proc_i)
 time1 = MPI.Wtime()
-print(f"MPS broadcasted to {rank} in {time1-time0} seconds")  # noqa: T201
+print(f"MPS broadcasted to {rank} in {time1-time0} seconds")
 time0 = MPI.Wtime()
 
 # Enumerate all pairs of circuits to be calculated
@@ -144,7 +144,7 @@ with CuTensorNetHandle(device_id) as libhandle:  # Different handle for each pro
         # Report back to user
         # print(f"Sample of circuit pair {(i, j)} taken. Overlap: {overlap}")
         if rank == root and progress_bar * progress_checkpoint < k:
-            print(f"{progress_bar*10}%")  # noqa: T201
+            print(f"{progress_bar*10}%")
             sys.stdout.flush()
             progress_bar += 1
 
@@ -161,17 +161,17 @@ with CuTensorNetHandle(device_id) as libhandle:  # Different handle for each pro
 time1 = MPI.Wtime()
 time_end = MPI.Wtime()
 duration = time1 - time0
-print(f"Runtime at {rank} is {duration}")  # noqa: T201
+print(f"Runtime at {rank} is {duration}")
 totaltime = comm.reduce(duration, op=MPI.SUM, root=root)
 
 if rank == root:
-    print("\nBroadcasting MPS.")  # noqa: T201
-    print(f"Number of qubits: {n_qubits}")  # noqa: T201
-    print(f"Number of circuits: {n_circs}")  # noqa: T201
-    print(f"Number of processes used: {n_procs}")  # noqa: T201
-    print(f"Average time per process: {totaltime / n_procs} seconds\n")  # noqa: T201
+    print("\nBroadcasting MPS.")
+    print(f"Number of qubits: {n_qubits}")
+    print(f"Number of circuits: {n_circs}")
+    print(f"Number of processes used: {n_procs}")
+    print(f"Average time per process: {totaltime / n_procs} seconds\n")
 
 full_duration = time_end - time_start
 actual_walltime = comm.reduce(full_duration, op=MPI.MAX, root=root)
 if rank == root:
-    print(f"\n**Full walltime duration** {actual_walltime} seconds\n")  # noqa: T201
+    print(f"\n**Full walltime duration** {actual_walltime} seconds\n")
