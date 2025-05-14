@@ -21,12 +21,10 @@ https://github.com/CQCL/pytket-cutensornet.
 
 from pytket.extensions.cutensornet import CuTensorNetHandle
 
-from .general import Config, StructuredState, LowFidelityException
-from .simulation import SimulationAlgorithm, simulate, prepare_circuit_mps
-
-from .mps import DirMPS, MPS
+from .general import Config, LowFidelityException, StructuredState
+from .mps import MPS, DirMPS
 from .mps_gate import MPSxGate
 from .mps_mpo import MPSxMPO
-
+from .simulation import SimulationAlgorithm, prepare_circuit_mps, simulate
 from .ttn import TTN, DirTTN
 from .ttn_gate import TTNxGate

@@ -41,16 +41,15 @@ from cupy.cuda.runtime import getDeviceCount
 from mpi4py import MPI
 
 from pytket.circuit import Circuit, fresh_symbol
-
 from pytket.extensions.cutensornet.structured_state import (
-    simulate,
     Config,
-    SimulationAlgorithm,
     CuTensorNetHandle,
+    SimulationAlgorithm,
+    simulate,
 )
 
 # Parameters
-if len(sys.argv) < 3:
+if len(sys.argv) < 3:  # noqa: PLR2004
     print(f"You need call this script as {sys.argv[0]} <n_qubits> <n_circs>")
 n_qubits = int(sys.argv[1])
 n_circs = int(sys.argv[2])
@@ -83,11 +82,11 @@ sym_circ = Circuit(n_qubits)
 even_qs = sym_circ.qubits[0::2]
 odd_qs = sym_circ.qubits[1::2]
 
-for q0, q1 in zip(even_qs, odd_qs):
+for q0, q1 in zip(even_qs, odd_qs, strict=False):
     sym_circ.TK2(fresh_symbol(), fresh_symbol(), fresh_symbol(), q0, q1)
 for q in sym_circ.qubits:
     sym_circ.H(q)
-for q0, q1 in zip(even_qs[1:], odd_qs):
+for q0, q1 in zip(even_qs[1:], odd_qs, strict=False):
     sym_circ.TK2(fresh_symbol(), fresh_symbol(), fresh_symbol(), q0, q1)
 free_symbols = sym_circ.free_symbols()
 
@@ -166,7 +165,7 @@ print(f"Runtime at {rank} is {duration}")
 totaltime = comm.reduce(duration, op=MPI.SUM, root=root)
 
 if rank == root:
-    print(f"\nBroadcasting MPS.")
+    print("\nBroadcasting MPS.")
     print(f"Number of qubits: {n_qubits}")
     print(f"Number of circuits: {n_circs}")
     print(f"Number of processes used: {n_procs}")

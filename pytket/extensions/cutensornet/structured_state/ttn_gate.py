@@ -12,20 +12,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from __future__ import annotations  # type: ignore
+
 import warnings
 
 try:
     import cupy as cp  # type: ignore
 except ImportError:
-    warnings.warn("local settings failed to import cupy", ImportWarning)
+    warnings.warn("local settings failed to import cupy", ImportWarning)  # noqa: B028
 try:
     import cuquantum as cq  # type: ignore
     from cuquantum.cutensornet import tensor  # type: ignore
     from cuquantum.cutensornet.experimental import contract_decompose  # type: ignore
 except ImportError:
-    warnings.warn("local settings failed to import cutensornet", ImportWarning)
+    warnings.warn("local settings failed to import cutensornet", ImportWarning)  # noqa: B028
 
-from pytket.circuit import Qubit
+from pytket.circuit import Qubit  # noqa: TC001
+
 from .ttn import TTN, DirTTN, RootPath
 
 
@@ -79,7 +81,7 @@ class TTNxGate(TTN):
         self.nodes[path].tensor = new_tensor
         return self
 
-    def _apply_2q_unitary(self, unitary: cp.ndarray, q0: Qubit, q1: Qubit) -> TTNxGate:
+    def _apply_2q_unitary(self, unitary: cp.ndarray, q0: Qubit, q1: Qubit) -> TTNxGate:  # noqa: PLR0915
         """Applies the 2-qubit gate to the TTN.
 
         The TTN is converted to canonical and truncation is applied if necessary.
@@ -143,7 +145,7 @@ class TTNxGate(TTN):
         # Otherwise, we must include the gate in the common ancestor tensor and
         # rewire the inputs and outputs. First, identify common path and direction
         common_dirs = []
-        for d0, d1 in zip(path_q0, path_q1):
+        for d0, d1 in zip(path_q0, path_q1, strict=False):
             if d0 == d1:
                 common_dirs.append(d0)
             else:
@@ -255,7 +257,7 @@ class TTNxGate(TTN):
             R_bonds = "Ssp"  # The new `msg_tensor`
 
             self._logger.debug(
-                f"Pushing msg_tensor ({msg_tensor.nbytes // 2**20} MiB) through node "
+                f"Pushing msg_tensor ({msg_tensor.nbytes // 2**20} MiB) through node "  # noqa: G004
                 f"({node.tensor.nbytes // 2**20} MiB) at {parent_bond}."
             )
 
@@ -284,7 +286,7 @@ class TTNxGate(TTN):
         R_bonds = "Srs" if child_dir == DirTTN.LEFT else "Sls"  # The new `msg_tensor`
 
         self._logger.debug(
-            f"Pushing msg_tensor ({msg_tensor.nbytes // 2**20} MiB) through node "
+            f"Pushing msg_tensor ({msg_tensor.nbytes // 2**20} MiB) through node "  # noqa: G004
             f"({common_ancestor_node.tensor.nbytes // 2**20} MiB) at {parent_bond}."
         )
 
@@ -319,7 +321,7 @@ class TTNxGate(TTN):
             R_bonds = "Sls" if child_dir == DirTTN.LEFT else "Srs"  # New `msg_tensor`
 
             self._logger.debug(
-                f"Pushing msg_tensor ({msg_tensor.nbytes // 2**20} MiB) through node "
+                f"Pushing msg_tensor ({msg_tensor.nbytes // 2**20} MiB) through node "  # noqa: G004
                 f"({node.tensor.nbytes // 2**20} MiB) at {parent_bond}."
             )
 
@@ -457,7 +459,7 @@ class TTNxGate(TTN):
             # normalise the singular values so that the sum of its squares is equal
             # to one (i.e. the TTN is a normalised state after truncation).
             self._logger.debug(
-                f"Truncating at {bond_address} to target fidelity={bond_fidelities[i]}"
+                f"Truncating at {bond_address} to target fidelity={bond_fidelities[i]}"  # noqa: G004
             )
 
             svd_method = tensor.SVDMethod(
@@ -504,13 +506,13 @@ class TTNxGate(TTN):
                 self.nodes[bond_address].canonical_form = None
 
             # Report to logger
-            self._logger.debug(f"Truncation done. Truncation fidelity={this_fidelity}")
+            self._logger.debug(f"Truncation done. Truncation fidelity={this_fidelity}")  # noqa: G004
             self._logger.debug(
-                f"Reduced bond dimension from {dimension_before} to {dimension_after}."
+                f"Reduced bond dimension from {dimension_before} to {dimension_after}."  # noqa: G004
             )
 
         self._logger.debug(
-            "Finished sequential weighted truncation (fidelity bound). "
+            "Finished sequential weighted truncation (fidelity bound). "  # noqa: G004
             f"Fidelity factor = {self.fidelity / initial_fidelity}"
         )
 
@@ -567,7 +569,7 @@ class TTNxGate(TTN):
             # normalise the singular values so that the sum of its squares is equal
             # to one (i.e. the TTN is a normalised state after truncation).
             self._logger.debug(
-                f"Truncating at {bond_address} to (or below) chosen chi={self._cfg.chi}"
+                f"Truncating at {bond_address} to (or below) chosen chi={self._cfg.chi}"  # noqa: G004
             )
 
             svd_method = tensor.SVDMethod(
@@ -613,13 +615,13 @@ class TTNxGate(TTN):
                 self.nodes[bond_address].canonical_form = None
 
             # Report to logger
-            self._logger.debug(f"Truncation done. Truncation fidelity={this_fidelity}")
+            self._logger.debug(f"Truncation done. Truncation fidelity={this_fidelity}")  # noqa: G004
             self._logger.debug(
-                f"Reduced bond dimension from {dimension_before} to {dimension_after}."
+                f"Reduced bond dimension from {dimension_before} to {dimension_after}."  # noqa: G004
             )
 
         self._logger.debug(
-            "Finished sequential truncation (chi bound). "
+            "Finished sequential truncation (chi bound). "  # noqa: G004
             f"Fidelity factor = {self.fidelity / initial_fidelity}"
         )
 
@@ -641,7 +643,7 @@ class TTNxGate(TTN):
 
         # Contract V to the parent node of the bond
         direction = bond_address[-1]
-        if direction == DirTTN.LEFT:
+        if direction == DirTTN.LEFT:  # noqa: SIM108
             indices = "lrp,sl->srp"
         else:
             indices = "lrp,sr->lsp"

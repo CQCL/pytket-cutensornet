@@ -12,21 +12,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from __future__ import annotations  # type: ignore
-import warnings
+
 import logging
+import warnings
 
 try:
     import cupy as cp  # type: ignore
 except ImportError:
-    warnings.warn("local settings failed to import cupy", ImportWarning)
+    warnings.warn("local settings failed to import cupy", ImportWarning)  # noqa: B028
 try:
     import cuquantum as cq  # type: ignore
     from cuquantum.cutensornet import tensor  # type: ignore
     from cuquantum.cutensornet.experimental import contract_decompose  # type: ignore
 except ImportError:
-    warnings.warn("local settings failed to import cutensornet", ImportWarning)
+    warnings.warn("local settings failed to import cutensornet", ImportWarning)  # noqa: B028
 
-from pytket.circuit import Qubit
+from pytket.circuit import Qubit  # noqa: TC001
+
 from .mps import MPS, DirMPS
 
 
@@ -113,7 +115,7 @@ class MPSxGate(MPS):
         # S -> shared bond of the gate tensor's SVD
         # a,b,c -> the virtual bonds of the tensors
 
-        if l_pos == positions[0]:
+        if l_pos == positions[0]:  # noqa: SIM108
             gate_bonds = "LRlr"
         else:  # Implicit swap
             gate_bonds = "RLrl"
@@ -132,7 +134,7 @@ class MPSxGate(MPS):
         # Contract
         self._logger.debug("Contracting the two-qubit gate with its site tensors...")
         T = cq.contract(
-            f"SLl,abl,SRr,bcr->acLR",
+            "SLl,abl,SRr,bcr->acLR",
             U,
             self.tensors[l_pos],
             V,
@@ -140,13 +142,13 @@ class MPSxGate(MPS):
             options=options,
             optimize={"path": [(0, 1), (0, 1), (0, 1)]},
         )
-        self._logger.debug(f"Intermediate tensor of size (MiB)={T.nbytes / 2**20}")
+        self._logger.debug(f"Intermediate tensor of size (MiB)={T.nbytes / 2**20}")  # noqa: G004
 
         if self._cfg.truncation_fidelity < 1:
             # Apply SVD decomposition to truncate as much as possible before exceeding
             # a `discarded_weight_cutoff` of `1 - self._cfg.truncation_fidelity`.
             self._logger.debug(
-                f"Truncating to target fidelity={self._cfg.truncation_fidelity}"
+                f"Truncating to target fidelity={self._cfg.truncation_fidelity}"  # noqa: G004
             )
 
             svd_method = tensor.SVDMethod(
@@ -163,7 +165,7 @@ class MPSxGate(MPS):
             # default value that is so large that it causes no truncation at all.
             # Nevertheless, we apply SVD so that singular values below `self._cfg.zero`
             # are truncated.
-            self._logger.debug(f"Truncating to (or below) chosen chi={self._cfg.chi}")
+            self._logger.debug(f"Truncating to (or below) chosen chi={self._cfg.chi}")  # noqa: G004
 
             svd_method = tensor.SVDMethod(
                 abs_cutoff=self._cfg.zero,
@@ -194,9 +196,9 @@ class MPSxGate(MPS):
         this_fidelity = 1.0 - svd_info.discarded_weight
         self.fidelity *= this_fidelity
         # Report to logger
-        self._logger.debug(f"Truncation done. Truncation fidelity={this_fidelity}")
+        self._logger.debug(f"Truncation done. Truncation fidelity={this_fidelity}")  # noqa: G004
         self._logger.debug(
-            "Reduced virtual bond dimension from "
+            "Reduced virtual bond dimension from "  # noqa: G004
             f"{svd_info.full_extent} to {svd_info.reduced_extent}."
         )
 
@@ -206,8 +208,8 @@ class MPSxGate(MPS):
         # If requested, provide info about memory usage.
         if self._logger.isEnabledFor(logging.INFO):
             # If-statetement used so that we only call `get_byte_size` if needed.
-            self._logger.info(f"MPS size (MiB)={self.get_byte_size() / 2**20}")
-            self._logger.info(f"MPS fidelity={self.fidelity}")
+            self._logger.info(f"MPS size (MiB)={self.get_byte_size() / 2**20}")  # noqa: G004
+            self._logger.info(f"MPS fidelity={self.fidelity}")  # noqa: G004
 
         return self
 
@@ -249,7 +251,7 @@ class MPSxGate(MPS):
         # a,b -> virtual bonds of the MPS
         # m,M -> virtual bonds connected to the "message tensor"
 
-        if l_pos == positions[0]:
+        if l_pos == positions[0]:  # noqa: SIM108
             gate_bonds = "LRlr"
         else:  # Implicit swap
             gate_bonds = "RLrl"
@@ -292,7 +294,7 @@ class MPSxGate(MPS):
         for pos in range(l_pos + 1, r_pos):
             # Report to logger
             self._logger.debug(
-                f"Pushing msg_tensor ({msg_tensor.nbytes // 2**20} MiB) through site "
+                f"Pushing msg_tensor ({msg_tensor.nbytes // 2**20} MiB) through site "  # noqa: G004
                 f"tensor ({self.tensors[pos].nbytes // 2**20} MiB) in position {pos}."
             )
 
@@ -330,7 +332,7 @@ class MPSxGate(MPS):
             # Apply SVD decomposition to truncate as much as possible before exceeding
             # a `discarded_weight_cutoff` of `1 - self._cfg.truncation_fidelity`.
             self._logger.debug(
-                f"Truncating to target fidelity={self._cfg.truncation_fidelity}"
+                f"Truncating to target fidelity={self._cfg.truncation_fidelity}"  # noqa: G004
             )
 
             # When there are multiple virtual bonds between the two MPS tensors where
@@ -356,7 +358,7 @@ class MPSxGate(MPS):
             distance = r_pos - l_pos
             local_truncation_error = (1 - self._cfg.truncation_fidelity) / distance
             self._logger.debug(
-                f"The are {distance} bond between the qubits. Each of these will "
+                f"The are {distance} bond between the qubits. Each of these will "  # noqa: G004
                 f"be truncated to target fidelity={1 - local_truncation_error}"
             )
 
@@ -373,7 +375,7 @@ class MPSxGate(MPS):
             # If the user did not explicitly ask for truncation, `self._cfg.chi` will be
             # set to a very large default number, so it's like no `max_extent` was set.
             # Still, we remove any singular values below ``self._cfg.zero``.
-            self._logger.debug(f"Truncating to (or below) chosen chi={self._cfg.chi}")
+            self._logger.debug(f"Truncating to (or below) chosen chi={self._cfg.chi}")  # noqa: G004
 
             svd_method = tensor.SVDMethod(
                 abs_cutoff=self._cfg.zero,
@@ -409,11 +411,11 @@ class MPSxGate(MPS):
             self.fidelity *= this_fidelity
             # Report to logger
             self._logger.debug(
-                f"Truncation done between positions {pos} and {pos+1}. "
+                f"Truncation done between positions {pos} and {pos + 1}. "  # noqa: G004
                 f"Truncation fidelity={this_fidelity}"
             )
             self._logger.debug(
-                "Reduced virtual bond dimension from "
+                "Reduced virtual bond dimension from "  # noqa: G004
                 f"{info.svd_info.full_extent} to {info.svd_info.reduced_extent}."
             )
 
@@ -424,7 +426,7 @@ class MPSxGate(MPS):
         # If requested, provide info about memory usage.
         if self._logger.isEnabledFor(logging.INFO):
             # If-statetement used so that we only call `get_byte_size` if needed.
-            self._logger.info(f"MPS size (MiB)={self.get_byte_size() / 2**20}")
-            self._logger.info(f"MPS fidelity={self.fidelity}")
+            self._logger.info(f"MPS size (MiB)={self.get_byte_size() / 2**20}")  # noqa: G004
+            self._logger.info(f"MPS fidelity={self.fidelity}")  # noqa: G004
 
         return self

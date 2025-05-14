@@ -15,36 +15,36 @@
 """Methods to allow tket circuits to be run on the cuTensorNet simulator."""
 
 from abc import abstractmethod
-
-from typing import List, Union, Optional, Sequence
+from collections.abc import Sequence
 from uuid import uuid4
-from pytket.circuit import Circuit, OpType
-from pytket.backends import ResultHandle, CircuitStatus, StatusEnum, CircuitNotRunError
-from pytket.backends.backend import KwargTypes, Backend, BackendResult
+
+from pytket.backends import CircuitNotRunError, CircuitStatus, ResultHandle, StatusEnum
+from pytket.backends.backend import Backend, BackendResult, KwargTypes
 from pytket.backends.backendinfo import BackendInfo
 from pytket.backends.resulthandle import _ResultIdTuple
+from pytket.circuit import Circuit, OpType
 from pytket.extensions.cutensornet.general_state import (
     GeneralState,
 )
-from pytket.predicates import (  # type: ignore
-    Predicate,
-    NoSymbolsPredicate,
-    NoClassicalControlPredicate,
-    NoMidMeasurePredicate,
-    NoBarriersPredicate,
-    UserDefinedPredicate,
-)
 from pytket.passes import (  # type: ignore
     BasePass,
-    SequencePass,
-    DecomposeBoxes,
-    RemoveRedundancies,
-    SynthesiseTket,
-    FullPeepholeOptimise,
     CustomPass,
+    DecomposeBoxes,
+    FullPeepholeOptimise,
+    RemoveRedundancies,
+    SequencePass,
+    SynthesiseTket,
+)
+from pytket.predicates import (  # type: ignore
+    NoBarriersPredicate,
+    NoClassicalControlPredicate,
+    NoMidMeasurePredicate,
+    NoSymbolsPredicate,
+    Predicate,
+    UserDefinedPredicate,
 )
 
-from .._metadata import __extension_version__, __extension_name__
+from .._metadata import __extension_name__, __extension_version__
 
 
 class _CuTensorNetBaseBackend(Backend):
@@ -61,7 +61,7 @@ class _CuTensorNetBaseBackend(Backend):
         return (str,)
 
     @property
-    def required_predicates(self) -> List[Predicate]:
+    def required_predicates(self) -> list[Predicate]:
         """Returns the minimum set of predicates that a circuit must satisfy.
 
         Predicates need to be satisfied before the circuit can be successfully run on
@@ -77,7 +77,7 @@ class _CuTensorNetBaseBackend(Backend):
             NoBarriersPredicate(),
             UserDefinedPredicate(_check_all_unitary_or_measurements),
         ]
-        return preds
+        return preds  # noqa: RET504
 
     def rebase_pass(self) -> BasePass:
         """This method returns a dummy pass that does nothing, since there is
@@ -112,7 +112,7 @@ class _CuTensorNetBaseBackend(Backend):
         # benchmarked what's their effect on the simulation time.
         if optimisation_level == 1:
             seq.append(SynthesiseTket())  # Optional fast optimisation
-        elif optimisation_level == 2:
+        elif optimisation_level == 2:  # noqa: PLR2004
             seq.append(FullPeepholeOptimise())  # Optional heavy optimisation
         seq.append(self.rebase_pass())  # Map to target gate set
         return SequencePass(seq)
@@ -134,10 +134,10 @@ class _CuTensorNetBaseBackend(Backend):
     def process_circuits(
         self,
         circuits: Sequence[Circuit],
-        n_shots: Optional[Union[int, Sequence[int]]] = None,
+        n_shots: int | Sequence[int] | None = None,
         valid_check: bool = True,
         **kwargs: KwargTypes,
-    ) -> List[ResultHandle]:
+    ) -> list[ResultHandle]:
         """Submits circuits to the backend for running.
 
         The results will be stored in the backend's result cache to be retrieved by the
@@ -167,7 +167,7 @@ class CuTensorNetStateBackend(_CuTensorNetBaseBackend):
         super().__init__()
 
     @property
-    def backend_info(self) -> Optional[BackendInfo]:
+    def backend_info(self) -> BackendInfo | None:
         """Returns information on the backend."""
         return BackendInfo(
             name="CuTensorNetStateBackend",
@@ -186,10 +186,10 @@ class CuTensorNetStateBackend(_CuTensorNetBaseBackend):
     def process_circuits(
         self,
         circuits: Sequence[Circuit],
-        n_shots: Optional[Union[int, Sequence[int]]] = None,
+        n_shots: int | Sequence[int] | None = None,
         valid_check: bool = True,
         **kwargs: KwargTypes,
-    ) -> List[ResultHandle]:
+    ) -> list[ResultHandle]:
         """Submits circuits to the backend for running.
 
         The results will be stored in the backend's result cache to be retrieved by the
@@ -214,7 +214,7 @@ class CuTensorNetStateBackend(_CuTensorNetBaseBackend):
             Results handle objects.
         """
         scratch_fraction = float(kwargs.get("scratch_fraction", 0.8))  # type: ignore
-        tnconfig = kwargs.get("tnconfig", dict())  # type: ignore
+        tnconfig = kwargs.get("tnconfig", dict())  # type: ignore  # noqa: C408
 
         circuit_list = list(circuits)
         if valid_check:
@@ -225,7 +225,7 @@ class CuTensorNetStateBackend(_CuTensorNetBaseBackend):
                 circuit, attributes=tnconfig, scratch_fraction=scratch_fraction
             ) as tn:
                 sv = tn.get_statevector()
-            res_qubits = [qb for qb in sorted(circuit.qubits)]
+            res_qubits = [qb for qb in sorted(circuit.qubits)]  # noqa: C416
             handle = ResultHandle(str(uuid4()))
             self._cache[handle] = {"result": BackendResult(q_bits=res_qubits, state=sv)}
             handle_list.append(handle)
@@ -243,7 +243,7 @@ class CuTensorNetShotsBackend(_CuTensorNetBaseBackend):
         super().__init__()
 
     @property
-    def backend_info(self) -> Optional[BackendInfo]:
+    def backend_info(self) -> BackendInfo | None:
         """Returns information on the backend."""
         return BackendInfo(
             name="CuTensorNetShotsBackend",
@@ -262,10 +262,10 @@ class CuTensorNetShotsBackend(_CuTensorNetBaseBackend):
     def process_circuits(
         self,
         circuits: Sequence[Circuit],
-        n_shots: Optional[Union[int, Sequence[int]]] = None,
+        n_shots: int | Sequence[int] | None = None,
         valid_check: bool = True,
         **kwargs: KwargTypes,
-    ) -> List[ResultHandle]:
+    ) -> list[ResultHandle]:
         """Submits circuits to the backend for running.
 
         The results will be stored in the backend's result cache to be retrieved by the
@@ -293,14 +293,14 @@ class CuTensorNetShotsBackend(_CuTensorNetBaseBackend):
             Results handle objects.
         """
         scratch_fraction = float(kwargs.get("scratch_fraction", 0.8))  # type: ignore
-        tnconfig = kwargs.get("tnconfig", dict())  # type: ignore
-        seed = kwargs.get("seed", None)
+        tnconfig = kwargs.get("tnconfig", dict())  # type: ignore  # noqa: C408
+        seed = kwargs.get("seed")
 
         if n_shots is None:
             raise ValueError(
                 "You must specify n_shots when using CuTensorNetShotsBackend."
             )
-        if type(n_shots) == int:
+        if type(n_shots) == int:  # noqa: SIM108, E721
             all_shots = [n_shots] * len(circuits)
         else:
             all_shots = n_shots  # type: ignore
@@ -309,7 +309,7 @@ class CuTensorNetShotsBackend(_CuTensorNetBaseBackend):
         if valid_check:
             self._check_all_circuits(circuit_list)
         handle_list = []
-        for circuit, circ_shots in zip(circuit_list, all_shots):
+        for circuit, circ_shots in zip(circuit_list, all_shots, strict=False):
             handle = ResultHandle(str(uuid4()))
             with GeneralState(
                 circuit, attributes=tnconfig, scratch_fraction=scratch_fraction
@@ -326,5 +326,5 @@ def _check_all_unitary_or_measurements(circuit: Circuit) -> bool:
             if cmd.op.type != OpType.Measure:
                 cmd.op.get_unitary()
         return True
-    except:
+    except:  # noqa: E722
         return False

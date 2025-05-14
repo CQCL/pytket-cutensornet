@@ -12,31 +12,30 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from __future__ import annotations  # type: ignore
-import warnings
-from typing import Optional, Union
-from enum import IntEnum
 
-from random import Random  # type: ignore
 import math  # type: ignore
-import numpy as np  # type: ignore
-from numpy.typing import NDArray  # type: ignore
+import warnings
+from enum import IntEnum
+from random import Random  # type: ignore
+
+import numpy as np  # type: ignore  # noqa: TC002
+from numpy.typing import NDArray  # type: ignore  # noqa: TC002
 
 try:
     import cupy as cp  # type: ignore
 except ImportError:
-    warnings.warn("local settings failed to import cupy", ImportWarning)
+    warnings.warn("local settings failed to import cupy", ImportWarning)  # noqa: B028
 try:
     import cuquantum as cq  # type: ignore
     from cuquantum.cutensornet import tensor  # type: ignore
 except ImportError:
-    warnings.warn("local settings failed to import cutensornet", ImportWarning)
+    warnings.warn("local settings failed to import cutensornet", ImportWarning)  # noqa: B028
 
-from pytket.circuit import Qubit, Bit
-from pytket.pauli import QubitPauliString
-
+from pytket.circuit import Bit, Qubit
 from pytket.extensions.cutensornet.general import CuTensorNetHandle, set_logger
+from pytket.pauli import QubitPauliString  # noqa: TC001
 
-from .general import Config, StructuredState, Tensor, LowFidelityException
+from .general import Config, LowFidelityException, StructuredState, Tensor
 
 
 class DirTTN(IntEnum):
@@ -67,7 +66,7 @@ class TreeNode:
     def __init__(self, tensor: Tensor, is_leaf: bool = False):
         self.tensor = tensor
         self.is_leaf = is_leaf
-        self.canonical_form: Optional[DirTTN] = None
+        self.canonical_form: DirTTN | None = None
 
     def copy(self) -> TreeNode:
         new_node = TreeNode(
@@ -92,12 +91,12 @@ class TTN(StructuredState):
             states before and after truncation (assuming both are normalised).
     """
 
-    def __init__(
+    def __init__(  # noqa: PLR0912
         self,
         libhandle: CuTensorNetHandle,
         qubit_partition: dict[int, list[Qubit]],
         config: Config,
-        bits: Optional[list[Bit]] = None,
+        bits: list[Bit] | None = None,
     ):
         """Initialise a TTN on the computational state ``|0>``.
 
@@ -133,13 +132,13 @@ class TTN(StructuredState):
         self._rng.seed(self._cfg.seed)
 
         if bits is None:
-            self._bits_dict = dict()
+            self._bits_dict = dict()  # noqa: C408
         else:
-            self._bits_dict = {b: False for b in bits}
+            self._bits_dict = dict.fromkeys(bits, False)
 
         self.fidelity = 1.0
-        self.nodes: dict[RootPath, TreeNode] = dict()
-        self.qubit_position: dict[Qubit, tuple[RootPath, int]] = dict()
+        self.nodes: dict[RootPath, TreeNode] = dict()  # noqa: C408
+        self.qubit_position: dict[Qubit, tuple[RootPath, int]] = dict()  # noqa: C408
 
         n_groups = len(qubit_partition)
         if n_groups == 0:  # There's no initialisation to be done
@@ -155,7 +154,7 @@ class TTN(StructuredState):
             for k, qubits in qubit_partition.items():
                 if k < 0 or k >= n_groups:
                     raise ValueError(
-                        f"Keys of qubit_partition must range from 0 to {n_groups-1}."
+                        f"Keys of qubit_partition must range from 0 to {n_groups - 1}."
                     )
 
                 # Calculate the root path of this group
@@ -165,7 +164,7 @@ class TTN(StructuredState):
                         path.append(DirTTN.LEFT)
                     else:
                         path.append(DirTTN.RIGHT)
-                        k -= 2**l
+                        k -= 2**l  # noqa: PLW2901
 
                 # Add each qubit to the qubit_position dictionary
                 for i, q in enumerate(qubits):
@@ -179,7 +178,7 @@ class TTN(StructuredState):
                 # end for the parent (dim=1)
                 shape = tuple([2] * len(qubits) + [1])
                 # Initialise the tensor of this group of qubits to |0>
-                tensor = cp.zeros(shape=shape, dtype=self._cfg._complex_t)
+                tensor = cp.zeros(shape=shape, dtype=self._cfg._complex_t)  # noqa: SLF001
                 ket_zero_entry = tuple(0 for _ in shape)  # Index 0 on all bonds
                 tensor[ket_zero_entry] = 1  # Amplitude of |0> set to 1
 
@@ -192,16 +191,16 @@ class TTN(StructuredState):
             for _ in range(n_levels):
                 # Create the TreeNode at this path
                 for p in paths:
-                    tensor = cp.ones(shape=(1, 1, 1), dtype=self._cfg._complex_t)
+                    tensor = cp.ones(shape=(1, 1, 1), dtype=self._cfg._complex_t)  # noqa: SLF001
                     self.nodes[tuple(p)] = TreeNode(tensor)
                 # Generate the paths for the next level
                 paths = [
-                    p + [direction]
+                    p + [direction]  # noqa: RUF005
                     for p in paths
                     for direction in [DirTTN.LEFT, DirTTN.RIGHT]
                 ]
-            self._logger.debug(f"qubit_position={self.qubit_position}")
-            self._logger.debug(f"All root paths: {list(self.nodes.keys())}")
+            self._logger.debug(f"qubit_position={self.qubit_position}")  # noqa: G004
+            self._logger.debug(f"All root paths: {list(self.nodes.keys())}")  # noqa: G004
 
     def is_valid(self) -> bool:
         """Verify that the TTN object is valid.
@@ -216,26 +215,27 @@ class TTN(StructuredState):
         """
         chi_ok = all(
             self.get_dimension(path, DirTTN.PARENT) <= self._cfg.chi
-            for path in self.nodes.keys()
+            for path in self.nodes.keys()  # noqa: SIM118
         )
         phys_ok = all(
-            self.nodes[path].tensor.shape[bond] == 2
+            self.nodes[path].tensor.shape[bond] == 2  # noqa: PLR2004
             for path, bond in self.qubit_position.values()
         )
         rank_ok = all(
-            node.is_leaf or len(node.tensor.shape) == 3 for node in self.nodes.values()
+            node.is_leaf or len(node.tensor.shape) == 3  # noqa: PLR2004
+            for node in self.nodes.values()
         )
         shape_ok = all(
             self.get_dimension(path, DirTTN.PARENT)
             == self.get_dimension(path[:-1], path[-1])
-            for path in self.nodes.keys()
+            for path in self.nodes.keys()  # noqa: SIM118
             if len(path) != 0
         )
         shape_ok = shape_ok and self.get_dimension((), DirTTN.PARENT) == 1
 
         # Debugger logging
         self._logger.debug(
-            "Checking validity of TTN... "
+            "Checking validity of TTN... "  # noqa: G004
             f"chi_ok={chi_ok}, "
             f"phys_ok={phys_ok}, "
             f"rank_ok={rank_ok}, "
@@ -266,7 +266,7 @@ class TTN(StructuredState):
             ValueError: If the size of the matrix does not match with the number of
                 qubits provided.
         """
-        if self._lib._is_destroyed:
+        if self._lib._is_destroyed:  # noqa: SLF001
             raise RuntimeError(
                 "The cuTensorNet library handle is out of scope.",
                 "See the documentation of update_libhandle and CuTensorNetHandle.",
@@ -274,10 +274,10 @@ class TTN(StructuredState):
 
         if not isinstance(unitary, cp.ndarray):
             # Load the gate's unitary to the GPU memory
-            unitary = unitary.astype(dtype=self._cfg._complex_t, copy=False)
-            unitary = cp.asarray(unitary, dtype=self._cfg._complex_t)
+            unitary = unitary.astype(dtype=self._cfg._complex_t, copy=False)  # noqa: SLF001
+            unitary = cp.asarray(unitary, dtype=self._cfg._complex_t)  # noqa: SLF001
 
-        self._logger.debug(f"Applying unitary {unitary} on {qubits}.")
+        self._logger.debug(f"Applying unitary {unitary} on {qubits}.")  # noqa: G004
 
         if len(qubits) == 1:
             if unitary.shape != (2, 2):
@@ -286,7 +286,7 @@ class TTN(StructuredState):
                 )
             self._apply_1q_unitary(unitary, qubits[0])
 
-        elif len(qubits) == 2:
+        elif len(qubits) == 2:  # noqa: PLR2004
             if unitary.shape != (4, 4):
                 raise ValueError(
                     "The unitary introduced acts on two qubits but it is not 4x4."
@@ -331,7 +331,7 @@ class TTN(StructuredState):
         Raises:
             ValueError: If any of the keys in ``qubit_map`` are not qubits in the state.
         """
-        new_qubit_position = dict()
+        new_qubit_position = dict()  # noqa: C408
         for q_orig, q_new in qubit_map.items():
             # Check the qubit is in the state
             if q_orig not in self.qubit_position:
@@ -340,11 +340,11 @@ class TTN(StructuredState):
             new_qubit_position[q_new] = self.qubit_position[q_orig]
 
         self.qubit_position = new_qubit_position
-        self._logger.debug(f"Relabelled qubits... {qubit_map}")
+        self._logger.debug(f"Relabelled qubits... {qubit_map}")  # noqa: G004
         return self
 
-    def canonicalise(
-        self, center: Union[RootPath, Qubit], unsafe: bool = False
+    def canonicalise(  # noqa: PLR0912, PLR0915
+        self, center: RootPath | Qubit, unsafe: bool = False
     ) -> Tensor:
         """Canonicalise the TTN so that all tensors are isometries from ``center``.
 
@@ -365,7 +365,7 @@ class TTN(StructuredState):
         Raises:
             ValueError: If the ``center`` is ``tuple()``.
         """
-        self._logger.debug(f"Canonicalising to {str(center)}")
+        self._logger.debug(f"Canonicalising to {center!s}")  # noqa: G004
         options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
 
         if isinstance(center, Qubit):
@@ -379,7 +379,7 @@ class TTN(StructuredState):
         # Separate nodes to be canonicalised towards children from those towards parent
         towards_child = []
         towards_parent = []
-        for path in self.nodes.keys():
+        for path in self.nodes.keys():  # noqa: SIM118
             # Nodes towards children are closer to the root and coincide in the path
             if len(path) < len(target_path) and all(
                 path[l] == target_path[l] for l in range(len(path))
@@ -404,7 +404,7 @@ class TTN(StructuredState):
 
         # Canonicalise nodes towards parent, start from the furthest away from root
         for path in sorted(towards_parent, key=len, reverse=True):
-            self._logger.debug(f"Canonicalising node at {path} towards parent.")
+            self._logger.debug(f"Canonicalising node at {path} towards parent.")  # noqa: G004
 
             # If already in desired canonical form, do nothing
             if self.nodes[path].canonical_form == DirTTN.PARENT:
@@ -453,7 +453,7 @@ class TTN(StructuredState):
             # The canonical form of the parent node is lost
             parent_node.canonical_form = None
 
-            self._logger.debug(f"Node canonicalised. Shape: {Q.shape}")
+            self._logger.debug(f"Node canonicalised. Shape: {Q.shape}")  # noqa: G004
 
         # Canonicalise the rest of the nodes, from the root up to the center
         for path in sorted(towards_child, key=len):
@@ -464,7 +464,7 @@ class TTN(StructuredState):
             assert target_direction != DirTTN.PARENT
 
             self._logger.debug(
-                f"Canonicalising node at {path} towards {str(target_direction)}."
+                f"Canonicalising node at {path} towards {target_direction!s}."  # noqa: G004
             )
 
             # If already in the desired canonical form, do nothing
@@ -489,7 +489,7 @@ class TTN(StructuredState):
             )
 
             # If the child bond is not the center yet, contract R with child node
-            child_path = tuple(list(path) + [target_direction])
+            child_path = tuple(list(path) + [target_direction])  # noqa: RUF005
             if child_path != target_path:
                 child_node = self.nodes[child_path]
 
@@ -508,14 +508,14 @@ class TTN(StructuredState):
                 self.nodes[path].tensor = Q
                 self.nodes[path].canonical_form = target_direction
 
-                self._logger.debug(f"Node canonicalised. Shape: {Q.shape}")
+                self._logger.debug(f"Node canonicalised. Shape: {Q.shape}")  # noqa: G004
 
         # If ``center`` is not a physical bond, we are done canonicalising and R is
         # the tensor to return. Otherwise, we need to do a final contraction and QR
         # decomposition on the leaf node corresponding to ``target_path``.
         if isinstance(center, Qubit):
             self._logger.debug(
-                f"Applying QR decomposition on leaf node at {target_path}."
+                f"Applying QR decomposition on leaf node at {target_path}."  # noqa: G004
             )
 
             leaf_node = self.nodes[target_path]
@@ -540,7 +540,7 @@ class TTN(StructuredState):
             parent_path = target_path[:-1]
             self.nodes[parent_path].tensor = Q
             self.nodes[parent_path].canonical_form = target_path[-1]
-            self._logger.debug(f"Node canonicalised. Shape: {Q.shape}")
+            self._logger.debug(f"Node canonicalised. Shape: {Q.shape}")  # noqa: G004
 
             # Finally, apply QR decomposition on the leaf_node to obtain the R
             # tensor to be returned
@@ -562,10 +562,10 @@ class TTN(StructuredState):
             self.nodes[target_path[:-1]].tensor = Q
             self.nodes[target_path[:-1]].canonical_form = target_path[-1]
 
-            self._logger.debug(f"Node canonicalised (unsafe!). Shape: {Q.shape}")
+            self._logger.debug(f"Node canonicalised (unsafe!). Shape: {Q.shape}")  # noqa: G004
 
         self._logger.debug(
-            f"Finished canonicalisation. Returning R tensor of shape {R.shape}"
+            f"Finished canonicalisation. Returning R tensor of shape {R.shape}"  # noqa: G004
         )
         return R
 
@@ -588,7 +588,7 @@ class TTN(StructuredState):
             RuntimeError: If the two TTNs do not have the same qubits.
             RuntimeError: If the ``CuTensorNetHandle`` is out of scope.
         """
-        if self._lib._is_destroyed:
+        if self._lib._is_destroyed:  # noqa: SLF001
             raise RuntimeError(
                 "The cuTensorNet library handle is out of scope.",
                 "See the documentation of update_libhandle and CuTensorNetHandle.",
@@ -619,7 +619,7 @@ class TTN(StructuredState):
             optimize={"samples": 0},  # There is little to no optimisation to be done
         )
 
-        self._logger.debug(f"Result from vdot={result}")
+        self._logger.debug(f"Result from vdot={result}")  # noqa: G004
         return complex(result)
 
     def sample(self) -> dict[Qubit, int]:
@@ -713,7 +713,7 @@ class TTN(StructuredState):
         # Specify the output bond IDs in ILO order
         output_bonds = []
         for q in sorted(self.get_qubits()):
-            output_bonds.append(str(q))
+            output_bonds.append(str(q))  # noqa: PERF401
         interleaved_rep.append(output_bonds)
 
         # Contract
@@ -748,7 +748,7 @@ class TTN(StructuredState):
         for i, q in enumerate(ilo_qubits):
             # Create the tensors for each qubit in ``state``
             bitvalue = 1 if state & 2 ** (len(ilo_qubits) - i - 1) else 0
-            tensor = cp.zeros(shape=(2,), dtype=self._cfg._complex_t)
+            tensor = cp.zeros(shape=(2,), dtype=self._cfg._complex_t)  # noqa: SLF001
             tensor[bitvalue] = 1
             # Append it to the interleaved representation
             interleaved_rep.append(tensor)
@@ -763,16 +763,14 @@ class TTN(StructuredState):
             optimize={"samples": 0},  # There is little to no optimisation to be done
         )
 
-        self._logger.debug(f"Amplitude of state {state} is {result}.")
+        self._logger.debug(f"Amplitude of state {state} is {result}.")  # noqa: G004
         return complex(result)
 
     def get_qubits(self) -> set[Qubit]:
         """Returns the set of qubits that this TTN is defined on."""
         return set(self.qubit_position.keys())
 
-    def get_interleaved_representation(
-        self, conj: bool = False
-    ) -> list[Union[Tensor, str]]:
+    def get_interleaved_representation(self, conj: bool = False) -> list[Tensor | str]:
         """Returns the interleaved representation of the TTN used by cuQuantum.
 
         Args:
@@ -803,13 +801,13 @@ class TTN(StructuredState):
             if node.is_leaf:
                 bonds = []
                 for b in range(len(node.tensor.shape) - 1):
-                    bonds.append(qubit_id[(path, b)])
+                    bonds.append(qubit_id[(path, b)])  # noqa: PERF401
                 bonds.append(parentID)
             else:
                 bonds = [parentID + "0", parentID + "1", parentID]
 
             interleaved_rep.append(bonds)
-            self._logger.debug(f"Bond IDs: {bonds}")
+            self._logger.debug(f"Bond IDs: {bonds}")  # noqa: G004
 
         return interleaved_rep
 
@@ -844,7 +842,7 @@ class TTN(StructuredState):
         Returns:
             The identifier of the device (GPU) where the tensors are stored.
         """
-        return int(self.nodes[tuple()].tensor.device)
+        return int(self.nodes[tuple()].tensor.device)  # noqa: C408
 
     def update_libhandle(self, libhandle: CuTensorNetHandle) -> None:
         """Update the ``CuTensorNetHandle`` used by this ``TTN`` object. Multiple
@@ -871,7 +869,7 @@ class TTN(StructuredState):
         """
 
         # Create a dummy object
-        new_ttn = TTN(self._lib, qubit_partition=dict(), config=self._cfg.copy())
+        new_ttn = TTN(self._lib, qubit_partition=dict(), config=self._cfg.copy())  # noqa: C408
         # Copy all data
         new_ttn.fidelity = self.fidelity
         new_ttn.nodes = {path: node.copy() for path, node in self.nodes.items()}
@@ -888,20 +886,20 @@ class TTN(StructuredState):
         # self._rng will be initialised from system randomnes when seed=None.
 
         self._logger.debug(
-            "Successfully copied a TTN "
+            "Successfully copied a TTN "  # noqa: G004
             f"of size {new_ttn.get_byte_size() / 2**20} MiB."
         )
         return new_ttn
 
     def _apply_1q_unitary(self, unitary: cp.ndarray, qubit: Qubit) -> TTN:
         raise NotImplementedError(
-            "TTN is a base class with no contraction algorithm implemented."
+            "TTN is a base class with no contraction algorithm implemented."  # noqa: ISC003
             + " You must use a subclass of TTN, such as TTNxGate."
         )
 
     def _apply_2q_unitary(self, unitary: cp.ndarray, q0: Qubit, q1: Qubit) -> TTN:
         raise NotImplementedError(
-            "TTN is a base class with no contraction algorithm implemented."
+            "TTN is a base class with no contraction algorithm implemented."  # noqa: ISC003
             + " You must use a subclass of TTN, such as TTNxGate."
         )
 

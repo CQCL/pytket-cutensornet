@@ -19,24 +19,27 @@ import warnings
 try:
     import cuquantum as cq  # type: ignore
 except ImportError:
-    warnings.warn("local settings failed to import cutensornet", ImportWarning)
+    warnings.warn("local settings failed to import cutensornet", ImportWarning)  # noqa: B028
 
-from collections import defaultdict
 import logging
+from collections import defaultdict
 from logging import Logger
-from typing import List, Tuple, Union, Any, DefaultDict, Optional
+from typing import Any
+
 import networkx as nx  # type: ignore
-from networkx.classes.reportviews import OutMultiEdgeView, OutMultiEdgeDataView  # type: ignore
 import numpy as np
+from networkx.classes.reportviews import (  # type: ignore
+    OutMultiEdgeDataView,
+    OutMultiEdgeView,
+)
 from numpy.typing import NDArray
 from sympy import Expr  # type: ignore
 
-from pytket.utils import Graph
-from pytket.pauli import QubitPauliString
 from pytket.circuit import Circuit, Qubit
-from pytket.utils import permute_rows_cols_in_unitary
-from pytket.utils.operators import QubitPauliOperator
 from pytket.extensions.cutensornet.general import set_logger
+from pytket.pauli import QubitPauliString
+from pytket.utils import Graph, permute_rows_cols_in_unitary
+from pytket.utils.operators import QubitPauliOperator
 
 
 class TensorNetwork:
@@ -47,7 +50,7 @@ class TensorNetwork:
         circuit: Circuit,
         adj: bool = False,
         loglevel: int = logging.INFO,
-        logfile: Optional[str] = None,
+        logfile: str | None = None,
     ) -> None:
         """Constructs a tensor network from a pytket circuit.
 
@@ -66,16 +69,19 @@ class TensorNetwork:
         self._circuit = circuit
         # self._circuit.replace_implicit_wire_swaps()
         self._qubit_names_ilo = [str(q) for q in self._circuit.qubits]
-        self._logger.debug(f"ILO-ordered qubit names: {self._qubit_names_ilo}")
+        self._logger.debug(f"ILO-ordered qubit names: {self._qubit_names_ilo}")  # noqa: G004
         self._graph = Graph(self._circuit)
-        qname_to_q = {
-            qname: q for qname, q in zip(self._qubit_names_ilo, self._circuit.qubits)
+        qname_to_q = {  # noqa: C416
+            qname: q
+            for qname, q in zip(
+                self._qubit_names_ilo, self._circuit.qubits, strict=False
+            )
         }
         self._output_index_to_qubit = {
             oi: qname_to_q[qname] for oi, qname in self._graph.output_names.items()
         }
         self._logger.debug(
-            f"NX output index to (possibly re-labeled) qubit objects map: "
+            f"NX output index to (possibly re-labeled) qubit objects map: "  # noqa: G004
             f"{self._output_index_to_qubit}"
         )
         self._network = self._graph.as_nx()
@@ -90,7 +96,7 @@ class TensorNetwork:
         """Returns an interleaved format of the circuit tensor network."""
         return self._cuquantum_interleaved
 
-    def _get_gate_tensors(self, adj: bool = False) -> DefaultDict[Any, List[Any]]:
+    def _get_gate_tensors(self, adj: bool = False) -> defaultdict[Any, list[Any]]:
         """Computes and stores tensors for each gate type from the circuit.
 
         The unitaries are reshaped into tensors of bond dimension two prior to being
@@ -130,24 +136,24 @@ class TensorNetwork:
                             .reshape([2] * (2 * com.op.n_qubits))
                         )
                         self._logger.debug(
-                            f"Adding unitary: \n {com.op.get_unitary().T.conjugate()}"
+                            f"Adding unitary: \n {com.op.get_unitary().T.conjugate()}"  # noqa: G004
                         )
                     else:
                         gate_tensors[i].append(
                             com.op.get_unitary().reshape([2] * (2 * com.op.n_qubits))
                         )
-                        self._logger.debug(f"Adding unitary: \n {com.op.get_unitary()}")
+                        self._logger.debug(f"Adding unitary: \n {com.op.get_unitary()}")  # noqa: G004
                     # Add a unitary for a gate pointing "upwards" (e.g. CX[1, 0])
                     if com.op.n_qubits > 1:
                         com_qix = [self._circuit.qubits.index(qb) for qb in com.qubits]
-                        self._logger.debug(f"command qubit indices: {com_qix}")
+                        self._logger.debug(f"command qubit indices: {com_qix}")  # noqa: G004
                         com_qix_compressed = [i for i, _ in enumerate(com_qix)]
                         self._logger.debug(
-                            f"command qubit indices compressed: {com_qix_compressed}"
+                            f"command qubit indices compressed: {com_qix_compressed}"  # noqa: G004
                         )
                         com_qix_permut = list(reversed(com_qix_compressed))
                         self._logger.debug(
-                            f"command qubit indices compressed permuted:"
+                            f"command qubit indices compressed permuted:"  # noqa: G004
                             f" {com_qix_permut}"
                         )
                         # TODO: check type inconsistency and remove type ignore
@@ -155,28 +161,30 @@ class TensorNetwork:
                         if adj:
                             gate_tensors[i].append(
                                 permute_rows_cols_in_unitary(
-                                    com.op.get_unitary(), com_qix_permut  # type: ignore
+                                    com.op.get_unitary(),
+                                    com_qix_permut,  # type: ignore
                                 )
                                 .T.conjugate()
                                 .reshape([2] * (2 * com.op.n_qubits))
                             )
                             self._logger.debug(
-                                f"Adding unitary: \n {permute_rows_cols_in_unitary(com.op.get_unitary(), com_qix_permut).T.conjugate()}"  # type: ignore
+                                f"Adding unitary: \n {permute_rows_cols_in_unitary(com.op.get_unitary(), com_qix_permut).T.conjugate()}"  # type: ignore  # noqa: G004
                             )
                         else:
                             gate_tensors[i].append(
                                 permute_rows_cols_in_unitary(
-                                    com.op.get_unitary(), com_qix_permut  # type: ignore
+                                    com.op.get_unitary(),
+                                    com_qix_permut,  # type: ignore
                                 ).reshape([2] * (2 * com.op.n_qubits))
                             )
                             self._logger.debug(  # type: ignore
-                                f"Adding unitary: \n {permute_rows_cols_in_unitary(com.op.get_unitary(),com_qix_permut)}"  # type: ignore
+                                f"Adding unitary: \n {permute_rows_cols_in_unitary(com.op.get_unitary(), com_qix_permut)}"  # type: ignore  # noqa: G004
                             )
                     break
-        self._logger.debug(f"Gate tensors: \n{gate_tensors}\n")
+        self._logger.debug(f"Gate tensors: \n{gate_tensors}\n")  # noqa: G004
         return gate_tensors
 
-    def _assign_node_tensors(self, adj: bool = False) -> List[Any]:
+    def _assign_node_tensors(self, adj: bool = False) -> list[Any]:
         """Creates a list of tensors representing circuit gates (tensor network nodes).
 
         Args:
@@ -204,26 +212,26 @@ class TensorNetwork:
                         for edge in self._network.out_edges(node[0], data=True)
                     ]
                     # Detect if this is a reversed gate (pointing upward)
-                    self._logger.debug(f"src_ports: {src_ports}, unit_idx: {unit_idx}")
+                    self._logger.debug(f"src_ports: {src_ports}, unit_idx: {unit_idx}")  # noqa: G004
                     self._logger.debug(
-                        f"src_ports relation: {src_ports[0] < src_ports[1]}"
+                        f"src_ports relation: {src_ports[0] < src_ports[1]}"  # noqa: G004
                     )
                     self._logger.debug(
-                        f"unit_idx relation: {unit_idx[0] < unit_idx[1]}"
+                        f"unit_idx relation: {unit_idx[0] < unit_idx[1]}"  # noqa: G004
                     )
                     self._logger.debug(
-                        f"criteria: "
+                        f"criteria: "  # noqa: G004
                         f"{(src_ports[0] < src_ports[1]) != (unit_idx[0] < unit_idx[1])}"  # pylint: disable=line-too-long
                     )
                     if (src_ports[0] < src_ports[1]) != (unit_idx[0] < unit_idx[1]):
                         node_tensors.append(self._gate_tensors[node[1]["desc"]][1])
-                        self._logger.debug(f"Adding an upward gate tensor")
+                        self._logger.debug("Adding an upward gate tensor")
                     else:
                         node_tensors.append(self._gate_tensors[node[1]["desc"]][0])
-                        self._logger.debug(f"Adding a downward gate tensor")
+                        self._logger.debug("Adding a downward gate tensor")
                 else:
                     node_tensors.append(self._gate_tensors[node[1]["desc"]][0])
-                    self._logger.debug(f"Adding a 1-qubit gate tensor")
+                    self._logger.debug("Adding a 1-qubit gate tensor")
             else:
                 if node[1]["desc"] == "Output":
                     self._output_nodes.append(i)
@@ -232,13 +240,13 @@ class TensorNetwork:
                     node_tensors.append(np.array([1, 0], dtype="complex128"))
         if adj:
             node_tensors.reverse()
-        self._logger.debug(f"Node tensors: \n{node_tensors}\n")
+        self._logger.debug(f"Node tensors: \n{node_tensors}\n")  # noqa: G004
 
         return node_tensors
 
-    def _get_tn_indices(
+    def _get_tn_indices(  # noqa: PLR0912, PLR0915
         self, net: nx.MultiDiGraph, adj: bool = False
-    ) -> Tuple[List[Any], dict[Qubit, int]]:
+    ) -> tuple[list[Any], dict[Qubit, int]]:
         """Computes indices of the edges of the tensor network nodes (tensors).
 
         Indices are computed such that they range from high (for circuit leftmost gates)
@@ -265,16 +273,18 @@ class TensorNetwork:
             contraction.
         """
         sign = -1 if adj else 1
-        self._logger.debug(f"Network nodes: \n{net.nodes(data=True)}")
-        self._logger.debug(f"Network edges: \n{net.edges(data=True)}")
+        self._logger.debug(f"Network nodes: \n{net.nodes(data=True)}")  # noqa: G004
+        self._logger.debug(f"Network edges: \n{net.edges(data=True)}")  # noqa: G004
         # There can be several identical edges for which we need different indices
         edge_indices = defaultdict(list)
         n_edges = nx.number_of_edges(net)
         # Append tuples of inverse edge indices (starting from 1) and their unit_id's
         # to each edge entry
-        for i, (e, ed) in enumerate(zip(net.edges(), net.edges(data=True))):
+        for i, (e, ed) in enumerate(
+            zip(net.edges(), net.edges(data=True), strict=False)
+        ):
             edge_indices[e].append((sign * (n_edges - i), int(ed[-1]["unit_id"])))
-        self._logger.debug(f"Network edge indices: \n {edge_indices}")
+        self._logger.debug(f"Network edge indices: \n {edge_indices}")  # noqa: G004
         nodes_out = self._output_nodes
         # Re-order outward edges indices according to ILO
         edges_out = [
@@ -284,8 +294,8 @@ class TensorNetwork:
             record[0][0] for key, record in edge_indices.items() if key in edges_out
         ]
         eids_sorted = sorted(eids, key=abs)
-        qnames_graph_ordered = [qname for qname in self._graph.output_names.values()]
-        oids_graph_ordered = [oid for oid in self._graph.output_names.keys()]
+        qnames_graph_ordered = [qname for qname in self._graph.output_names.values()]  # noqa: C416
+        oids_graph_ordered = [oid for oid in self._graph.output_names.keys()]  # noqa: C416, SIM118
         eids_qubit_ordered = [
             eids_sorted[qnames_graph_ordered.index(q)] for q in self._qubit_names_ilo
         ]  # Order eid's in the same way as qnames_graph_ordered as compared to ILO
@@ -294,14 +304,15 @@ class TensorNetwork:
             for q in self._qubit_names_ilo
         ]  # Order output edges indexes such that each still corresponds to the same
         # qubit from the graph output_names, but with the qubits re-ordered in ILO order
-        oid_to_eid = {
-            oid: eid for oid, eid in zip(oids_qubit_ordered, eids_qubit_ordered)
+        oid_to_eid = {  # noqa: C416
+            oid: eid
+            for oid, eid in zip(oids_qubit_ordered, eids_qubit_ordered, strict=False)
         }
         for edge in edges_out:
             uid = edge_indices[edge][0][1]
             edge_indices[edge] = [(oid_to_eid[edge[1]], uid)]
         self._logger.debug(
-            f"Network edge indices after swaps (if any): \n {edge_indices}"
+            f"Network edge indices after swaps (if any): \n {edge_indices}"  # noqa: G004
         )
         # Store the "sticky" indices
         sticky_indices = {}
@@ -314,23 +325,23 @@ class TensorNetwork:
                 f" is not equal to number of qubits"
                 f" ({len(self._output_nodes)})"
             )
-        self._logger.debug(f"sticky (outer) edge indices: \n {sticky_indices}")
+        self._logger.debug(f"sticky (outer) edge indices: \n {sticky_indices}")  # noqa: G004
         # Assign correctly ordered indices to tensors (nodes) and store their lists in
         # the same order as we store tensors themselves.
         tn_indices = []
         for node in reversed(list(net.nodes)):
             if node in nodes_out:
                 continue
-            self._logger.debug(f"Node: {node}")
+            self._logger.debug(f"Node: {node}")  # noqa: G004
             num_edges = len(list(net.in_edges(node))) + len(list(net.out_edges(node)))
             in_edges_data = net.in_edges(node, data=True)
             out_edges_data = net.out_edges(node, data=True)
             in_edges = net.in_edges(node)
             out_edges = net.out_edges(node)
-            self._logger.debug(f"in_edges: {in_edges}")
-            self._logger.debug(f"out_edges: {out_edges}")
+            self._logger.debug(f"in_edges: {in_edges}")  # noqa: G004
+            self._logger.debug(f"out_edges: {out_edges}")  # noqa: G004
             ordered_edges = [0] * num_edges
-            if num_edges > 2:
+            if num_edges > 2:  # noqa: PLR2004
                 ordered_out_edges = self._order_edges_for_multiqubit_gate(
                     edge_indices, out_edges, out_edges_data, 0, self._logger
                 )
@@ -347,25 +358,25 @@ class TensorNetwork:
                     ordered_edges[loc_idx] = edge_idx
 
             else:
-                ordered_edges[0] = edge_indices[list(out_edges)[0]][0][0]
+                ordered_edges[0] = edge_indices[list(out_edges)[0]][0][0]  # noqa: RUF015
                 if in_edges:
-                    ordered_edges[1] = edge_indices[list(in_edges)[0]][0][0]
+                    ordered_edges[1] = edge_indices[list(in_edges)[0]][0][0]  # noqa: RUF015
             if adj and len(ordered_edges) > 1:
                 m = int(len(ordered_edges) / 2)
                 ordered_edges[:m], ordered_edges[m:] = (
                     ordered_edges[m:],
                     ordered_edges[:m],
                 )
-            self._logger.debug(f"New node edges: \n {ordered_edges}")
+            self._logger.debug(f"New node edges: \n {ordered_edges}")  # noqa: G004
             tn_indices.append(ordered_edges)
         if adj:
             tn_indices.reverse()
-        self._logger.debug(f"Final TN edges: \n {tn_indices}")
+        self._logger.debug(f"Final TN edges: \n {tn_indices}")  # noqa: G004
         return tn_indices, sticky_indices
 
     @staticmethod
     def _order_edges_for_multiqubit_gate(
-        edge_indices: DefaultDict[Any, List[Tuple[Any, int]]],
+        edge_indices: defaultdict[Any, list[tuple[Any, int]]],
         edges: OutMultiEdgeView,
         edges_data: OutMultiEdgeDataView,
         offset: int,
@@ -396,14 +407,14 @@ class TensorNetwork:
         uid_to_local_ei = {}
         uids = []
         for edge_data in edges_data:
-            logger.debug(f"Edge data: {edge_data}")
+            logger.debug(f"Edge data: {edge_data}")  # noqa: G004
             uids.append(int(edge_data[-1]["unit_id"]))
-            logger.debug(f"UID: {uids[-1]}")
+            logger.debug(f"UID: {uids[-1]}")  # noqa: G004
         uids.sort()
         for i, uid in enumerate(uids):
             uid_to_local_ei[uid] = offset + i
-        logger.debug(f"UID to local edge index map: {uid_to_local_ei}")
-        for edge_data, edge in zip(edges_data, edges):
+        logger.debug(f"UID to local edge index map: {uid_to_local_ei}")  # noqa: G004
+        for edge_data, edge in zip(edges_data, edges, strict=False):
             uid = int(edge_data[-1]["unit_id"])
             if len(edge_indices[edge]) == 1:
                 gate_edges_ordered[uid_to_local_ei[uid]] = edge_indices[edge][0][0]
@@ -427,10 +438,12 @@ class TensorNetwork:
             indices.
         """
         tn_interleaved = []
-        for tensor, indices in zip(self._node_tensors, self._node_tensor_indices):
+        for tensor, indices in zip(
+            self._node_tensors, self._node_tensor_indices, strict=False
+        ):
             tn_interleaved.append(tensor)
             tn_interleaved.append(indices)
-        self._logger.debug(f"cuQuantum input list: \n{input}")
+        self._logger.debug(f"cuQuantum input list: \n{input}")  # noqa: G004
         return tn_interleaved
 
     def dagger(self) -> "TensorNetwork":
@@ -442,7 +455,7 @@ class TensorNetwork:
         """
         tn_dagger = TensorNetwork(self._circuit.copy(), adj=True)
         self._logger.debug(
-            f"dagger cutensornet input list: \n{tn_dagger._cuquantum_interleaved}"
+            f"dagger cutensornet input list: \n{tn_dagger._cuquantum_interleaved}"  # noqa: G004
         )
         return tn_dagger
 
@@ -468,7 +481,7 @@ class TensorNetwork:
         i_mat = np.array([[1, 0], [0, 1]], dtype="complex128")
         sticky_index_pairs = []
         for q in self.sticky_indices:
-            sticky_index_pairs.append(
+            sticky_index_pairs.append(  # noqa: PERF401
                 (self.sticky_indices[q], tn_other_adj.sticky_indices[q])
             )
         connector = [
@@ -479,7 +492,7 @@ class TensorNetwork:
         tn_concatenated = tn_other_adj.cuquantum_interleaved
         tn_concatenated.extend(connector)
         tn_concatenated.extend(self.cuquantum_interleaved)
-        self._logger.debug(f"Overlap input list: \n{tn_concatenated}")
+        self._logger.debug(f"Overlap input list: \n{tn_concatenated}")  # noqa: G004
         return tn_concatenated
 
 
@@ -511,7 +524,7 @@ def measure_qubit_state(
     }
 
     sticky_ind = ket.sticky_indices[qubit_id]
-    ket._cuquantum_interleaved.extend([cap[bit_value], [sticky_ind]])
+    ket._cuquantum_interleaved.extend([cap[bit_value], [sticky_ind]])  # noqa: SLF001
     ket.sticky_indices.pop(qubit_id)
     return ket
 
@@ -547,7 +560,7 @@ def measure_qubits_state(
 class PauliOperatorTensorNetwork:
     """Handles a tensor network representing a Pauli operator string."""
 
-    PAULI = {
+    PAULI = {  # noqa: RUF012
         "X": np.array([[0, 1], [1, 0]], dtype="complex128"),
         "Y": np.array([[0, -1j], [1j, 0]], dtype="complex128"),
         "Z": np.array([[1, 0], [0, -1]], dtype="complex128"),
@@ -560,7 +573,7 @@ class PauliOperatorTensorNetwork:
         bra: TensorNetwork,
         ket: TensorNetwork,
         loglevel: int = logging.INFO,
-        logfile: Optional[str] = None,
+        logfile: str | None = None,
     ) -> None:
         """Constructs a tensor network representing a Pauli operator string.
 
@@ -582,18 +595,18 @@ class PauliOperatorTensorNetwork:
             "PauliOperatorTensorNetwork", level=loglevel, file=logfile
         )
         self._pauli_tensors = [self.PAULI[pauli.name] for pauli in paulis.map.values()]
-        self._logger.debug(f"Pauli tensors: {self._pauli_tensors}")
-        qubits = [q for q in paulis.map.keys()]
+        self._logger.debug(f"Pauli tensors: {self._pauli_tensors}")  # noqa: G004
+        qubits = [q for q in paulis.map.keys()]  # noqa: C416, SIM118
         # qubit_names = [
         #    "".join([q.reg_name, "".join([f"[{str(i)}]" for i in q.index])])
         #    for q in paulis.map.keys()
         # ]
         # qubit_ids = [qubit.to_list()[1][0] + 1 for qubit in paulis.map.keys()]
-        qubit_to_pauli = {
+        qubit_to_pauli = {  # noqa: C416
             qubit: pauli_tensor
-            for (qubit, pauli_tensor) in zip(qubits, self._pauli_tensors)
+            for (qubit, pauli_tensor) in zip(qubits, self._pauli_tensors, strict=False)
         }
-        self._logger.debug(f"qubit to Pauli mapping: {qubit_to_pauli}")
+        self._logger.debug(f"qubit to Pauli mapping: {qubit_to_pauli}")  # noqa: G004
         if set(bra.sticky_indices.keys()) != set(ket.sticky_indices.keys()):
             raise RuntimeError("The bra and ket tensor networks are incompatible!")
         sticky_index_pairs = []
@@ -603,13 +616,13 @@ class PauliOperatorTensorNetwork:
             sticky_qubits.append(q)
         self._cuquantum_interleaved = [
             f(x, y, q)  # type: ignore
-            for (x, y), q in zip(sticky_index_pairs, sticky_qubits)
+            for (x, y), q in zip(sticky_index_pairs, sticky_qubits, strict=False)
             for f in (
                 lambda x, y, q: qubit_to_pauli[q] if (q in qubits) else self.PAULI["I"],
                 lambda x, y, q: [y, x],
             )
         ]
-        self._logger.debug(f"Pauli TN: {self.cuquantum_interleaved}")
+        self._logger.debug(f"Pauli TN: {self.cuquantum_interleaved}")  # noqa: G004
 
     @property
     def cuquantum_interleaved(self) -> list:
@@ -661,7 +674,7 @@ class ExpectationValueTensorNetwork:
         return tn_concatenated
 
 
-def tk_to_tensor_network(tkc: Circuit) -> List[Union[NDArray, List]]:
+def tk_to_tensor_network(tkc: Circuit) -> list[NDArray | list]:
     """Converts pytket circuit into a tensor network.
 
     Args:
@@ -679,7 +692,7 @@ def tk_to_tensor_network(tkc: Circuit) -> List[Union[NDArray, List]]:
 def get_operator_expectation_value(
     state_circuit: Circuit,
     operator: QubitPauliOperator,
-    post_selection: Optional[dict[Qubit, int]] = None,
+    post_selection: dict[Qubit, int] | None = None,
 ) -> float:
     """Calculates expectation value of an operator using cuTensorNet contraction.
 
@@ -710,7 +723,7 @@ def get_operator_expectation_value(
             bra_network, post_selection
         )  # This needed because dagger does not work with post selection
 
-    for qos, coeff in operator._dict.items():
+    for qos, coeff in operator._dict.items():  # noqa: SLF001
         expectation_value_network = ExpectationValueTensorNetwork(
             bra_network, qos, ket_network
         )
@@ -727,7 +740,7 @@ def get_operator_expectation_value(
 
 def get_circuit_overlap(
     circuit_ket: Circuit,
-    circuit_bra: Optional[Circuit] = None,
+    circuit_bra: Circuit | None = None,
 ) -> float:
     """Calculates an overlap of two states represented by two circuits.
 

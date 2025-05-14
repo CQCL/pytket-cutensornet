@@ -13,8 +13,9 @@
 # limitations under the License.
 
 from numpy.typing import NDArray
+
 from pytket.backends.backendresult import BackendResult
-from pytket.circuit import Qubit, Circuit
+from pytket.circuit import Circuit, Qubit
 
 
 def _reorder_qlist(
@@ -31,7 +32,7 @@ def _reorder_qlist(
         in the list, and the post select qubit.
     """
 
-    post_select_q = list(post_select_dict.keys())[0]
+    post_select_q = list(post_select_dict.keys())[0]  # noqa: RUF015
 
     pop_i = qlist.index(post_select_q)
 

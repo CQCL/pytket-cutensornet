@@ -12,30 +12,29 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 from __future__ import annotations  # type: ignore
-import warnings
-from typing import Union, Optional
-from enum import Enum
 
+import warnings
+from enum import Enum
 from random import Random  # type: ignore
+
 import numpy as np  # type: ignore
-from numpy.typing import NDArray  # type: ignore
+from numpy.typing import NDArray  # type: ignore  # noqa: TC002
 
 try:
     import cupy as cp  # type: ignore
 except ImportError:
-    warnings.warn("local settings failed to import cupy", ImportWarning)
+    warnings.warn("local settings failed to import cupy", ImportWarning)  # noqa: B028
 try:
     import cuquantum as cq  # type: ignore
     from cuquantum.cutensornet import tensor  # type: ignore
 except ImportError:
-    warnings.warn("local settings failed to import cutensornet", ImportWarning)
+    warnings.warn("local settings failed to import cutensornet", ImportWarning)  # noqa: B028
 
-from pytket.circuit import Op, OpType, Qubit, Bit
+from pytket.circuit import Bit, Op, OpType, Qubit
+from pytket.extensions.cutensornet.general import CuTensorNetHandle, set_logger
 from pytket.pauli import Pauli, QubitPauliString
 
-from pytket.extensions.cutensornet.general import CuTensorNetHandle, set_logger
-
-from .general import Config, StructuredState, Tensor, LowFidelityException
+from .general import Config, LowFidelityException, StructuredState, Tensor
 
 
 class DirMPS(Enum):
@@ -75,7 +74,7 @@ class MPS(StructuredState):
         libhandle: CuTensorNetHandle,
         qubits: list[Qubit],
         config: Config,
-        bits: Optional[list[Bit]] = None,
+        bits: list[Bit] | None = None,
     ):
         """Initialise an MPS on the computational state ``|0>``
 
@@ -98,9 +97,9 @@ class MPS(StructuredState):
         self.fidelity = 1.0
 
         if bits is None:
-            self._bits_dict = dict()
+            self._bits_dict = dict()  # noqa: C408
         else:
-            self._bits_dict = {b: False for b in bits}
+            self._bits_dict = dict.fromkeys(bits, False)
 
         n_tensors = len(qubits)
         if n_tensors == 0:  # There's no initialisation to be done
@@ -110,12 +109,12 @@ class MPS(StructuredState):
 
             # Create the list of tensors
             self.tensors: list[Tensor] = []
-            self.canonical_form = {i: None for i in range(n_tensors)}
+            self.canonical_form = dict.fromkeys(range(n_tensors))
 
             # Append each of the tensors initialised in state |0>
             m_shape = (1, 1, 2)  # Two virtual bonds (dim=1) and one physical
-            for i in range(n_tensors):
-                m_tensor = cp.empty(m_shape, dtype=self._cfg._complex_t)
+            for i in range(n_tensors):  # noqa: B007
+                m_tensor = cp.empty(m_shape, dtype=self._cfg._complex_t)  # noqa: SLF001
                 # Initialise the tensor to ket 0
                 m_tensor[0][0][0] = 1
                 m_tensor[0][0][1] = 0
@@ -137,15 +136,15 @@ class MPS(StructuredState):
             all(dim <= self._cfg.chi for dim in self.get_virtual_dimensions(pos))
             for pos in range(len(self))
         )
-        phys_ok = all(self.get_physical_dimension(pos) == 2 for pos in range(len(self)))
-        shape_ok = all(len(tensor.shape) == 3 for tensor in self.tensors)
+        phys_ok = all(self.get_physical_dimension(pos) == 2 for pos in range(len(self)))  # noqa: PLR2004
+        shape_ok = all(len(tensor.shape) == 3 for tensor in self.tensors)  # noqa: PLR2004
 
         ds_ok = set(self.canonical_form.keys()) == set(range(len(self)))
         ds_ok = ds_ok and set(self.qubit_position.values()) == set(range(len(self)))
 
         # Debugger logging
         self._logger.debug(
-            "Checking validity of MPS... "
+            "Checking validity of MPS... "  # noqa: G004
             f"chi_ok={chi_ok}, "
             f"phys_ok={phys_ok}, "
             f"shape_ok={shape_ok}, "
@@ -177,7 +176,7 @@ class MPS(StructuredState):
             ValueError: If the size of the matrix does not match with the number of
                 qubits provided.
         """
-        if self._lib._is_destroyed:
+        if self._lib._is_destroyed:  # noqa: SLF001
             raise RuntimeError(
                 "The cuTensorNet library handle is out of scope.",
                 "See the documentation of update_libhandle and CuTensorNetHandle.",
@@ -185,10 +184,10 @@ class MPS(StructuredState):
 
         if not isinstance(unitary, cp.ndarray):
             # Load the gate's unitary to the GPU memory
-            unitary = unitary.astype(dtype=self._cfg._complex_t, copy=False)
-            unitary = cp.asarray(unitary, dtype=self._cfg._complex_t)
+            unitary = unitary.astype(dtype=self._cfg._complex_t, copy=False)  # noqa: SLF001
+            unitary = cp.asarray(unitary, dtype=self._cfg._complex_t)  # noqa: SLF001
 
-        self._logger.debug(f"Applying unitary {unitary} on {qubits}.")
+        self._logger.debug(f"Applying unitary {unitary} on {qubits}.")  # noqa: G004
 
         if len(qubits) == 1:
             if unitary.shape != (2, 2):
@@ -200,7 +199,7 @@ class MPS(StructuredState):
             # NOTE: if the tensor was in canonical form, it remains being so,
             #   since it is guaranteed that the gate is unitary.
 
-        elif len(qubits) == 2:
+        elif len(qubits) == 2:  # noqa: PLR2004
             if unitary.shape != (4, 4):
                 raise ValueError(
                     "The unitary introduced acts on two qubits but it is not 4x4."
@@ -251,7 +250,7 @@ class MPS(StructuredState):
         """
         self._flush()
 
-        new_qubit_position = dict()
+        new_qubit_position = dict()  # noqa: C408
         for q_orig, q_new in qubit_map.items():
             # Check the qubit is in the state
             if q_orig not in self.qubit_position:
@@ -260,7 +259,7 @@ class MPS(StructuredState):
             new_qubit_position[q_new] = self.qubit_position[q_orig]
 
         self.qubit_position = new_qubit_position
-        self._logger.debug(f"Relabelled qubits... {qubit_map}")
+        self._logger.debug(f"Relabelled qubits... {qubit_map}")  # noqa: G004
         return self
 
     def add_qubit(self, new_qubit: Qubit, position: int, state: int = 0) -> MPS:
@@ -285,7 +284,7 @@ class MPS(StructuredState):
 
         options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
 
-        if new_qubit in self.qubit_position.keys():
+        if new_qubit in self.qubit_position.keys():  # noqa: SIM118
             raise ValueError(
                 f"Qubit {new_qubit} cannot be added, it already is in the MPS."
             )
@@ -305,8 +304,8 @@ class MPS(StructuredState):
             dim = self.get_virtual_dimensions(position)[0]
 
         # Create the tensor for I \otimes |state>
-        identity = cp.eye(dim, dtype=self._cfg._complex_t)
-        qubit_tensor = cp.zeros(2, dtype=self._cfg._complex_t)
+        identity = cp.eye(dim, dtype=self._cfg._complex_t)  # noqa: SLF001
+        qubit_tensor = cp.zeros(2, dtype=self._cfg._complex_t)  # noqa: SLF001
         qubit_tensor[state] = 1
         # Apply the tensor product
         new_tensor = cq.contract(
@@ -349,14 +348,14 @@ class MPS(StructuredState):
             r_pos: The position of the rightmost tensor that is not to be
                 canonicalised.
         """
-        self._logger.debug(f"Start canonicalisation... l_pos={l_pos}, r_pos={r_pos}")
+        self._logger.debug(f"Start canonicalisation... l_pos={l_pos}, r_pos={r_pos}")  # noqa: G004
 
         for pos in range(l_pos):
             self.canonicalise_tensor(pos, form=DirMPS.LEFT)
         for pos in reversed(range(r_pos + 1, len(self))):
             self.canonicalise_tensor(pos, form=DirMPS.RIGHT)
 
-        self._logger.debug(f"Finished canonicalisation.")
+        self._logger.debug("Finished canonicalisation.")
 
     def canonicalise_tensor(self, pos: int, form: DirMPS) -> None:
         """Canonicalises a tensor from an MPS object.
@@ -376,16 +375,16 @@ class MPS(StructuredState):
         """
         if form == self.canonical_form[pos]:
             # Tensor already in canonical form, nothing needs to be done
-            self._logger.debug(f"Position {pos} already in {form}.")
-            return None
+            self._logger.debug(f"Position {pos} already in {form}.")  # noqa: G004
+            return
 
-        if self._lib._is_destroyed:
+        if self._lib._is_destroyed:  # noqa: SLF001
             raise RuntimeError(
                 "The cuTensorNet library handle is out of scope.",
                 "See the documentation of update_libhandle and CuTensorNetHandle.",
             )
 
-        self._logger.debug(f"Canonicalising {pos} to {form}.")
+        self._logger.debug(f"Canonicalising {pos} to {form}.")  # noqa: G004
         # Glossary of bond IDs used here:
         # s -> shared virtual bond between T and Tnext
         # v -> the other virtual bond of T
@@ -417,14 +416,14 @@ class MPS(StructuredState):
             raise ValueError("Argument form must be a value in DirMPS.")
 
         # Apply QR decomposition
-        self._logger.debug(f"QR decompose a {T.nbytes / 2**20} MiB tensor.")
+        self._logger.debug(f"QR decompose a {T.nbytes / 2**20} MiB tensor.")  # noqa: G004
 
         subscripts = T_bonds + "->" + Q_bonds + "," + R_bonds
         options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
         Q, R = tensor.decompose(
             subscripts, T, method=tensor.QRMethod(), options=options
         )
-        self._logger.debug(f"QR decomposition finished.")
+        self._logger.debug("QR decomposition finished.")
 
         # Contract R into Tnext
         subscripts = R_bonds + "," + Tnext_bonds + "->" + result_bonds
@@ -435,7 +434,7 @@ class MPS(StructuredState):
             options=options,
             optimize={"path": [(0, 1)]},
         )
-        self._logger.debug(f"Contraction with {next_pos} applied.")
+        self._logger.debug(f"Contraction with {next_pos} applied.")  # noqa: G004
 
         # Update self.tensors
         self.tensors[pos] = Q
@@ -463,7 +462,7 @@ class MPS(StructuredState):
             RuntimeError: If there are no tensors in the MPS.
             RuntimeError: If the ``CuTensorNetHandle`` is out of scope.
         """
-        if self._lib._is_destroyed:
+        if self._lib._is_destroyed:  # noqa: SLF001
             raise RuntimeError(
                 "The cuTensorNet library handle is out of scope.",
                 "See the documentation of update_libhandle and CuTensorNetHandle.",
@@ -514,12 +513,12 @@ class MPS(StructuredState):
             optimize={"path": contraction_path},
         )
 
-        self._logger.debug(f"Result from vdot={result}")
+        self._logger.debug(f"Result from vdot={result}")  # noqa: G004
         return complex(result)
 
     def _get_interleaved_representation(
         self, conj: bool = False
-    ) -> list[Union[cp.ndarray, str]]:
+    ) -> list[cp.ndarray | str]:
         """Returns the interleaved representation of the MPS used by cuQuantum.
 
         Args:
@@ -545,7 +544,7 @@ class MPS(StructuredState):
                 bonds[0] = "*" + bonds[0]
                 bonds[1] = "*" + bonds[1]
             interleaved_rep.append(bonds)
-            self._logger.debug(f"Bond IDs: {bonds}")
+            self._logger.debug(f"Bond IDs: {bonds}")  # noqa: G004
 
         return interleaved_rep
 
@@ -568,7 +567,7 @@ class MPS(StructuredState):
         # If the user sets a seed for the MPS, we'd like that every copy of the MPS
         # produces the same sequence of samples, but samples within a sequence may be
         # different from each other. Achieved by updating the state of `self._rng`.
-        self._rng.setstate(mps._rng.getstate())
+        self._rng.setstate(mps._rng.getstate())  # noqa: SLF001
 
         return outcomes
 
@@ -593,19 +592,19 @@ class MPS(StructuredState):
             ValueError: If an element in ``qubits`` is not a qubit in the state.
         """
         self._flush()
-        result = dict()
+        result = dict()  # noqa: C408
 
         # Obtain the positions that need to be measured and build the reverse dict
-        position_qubit_map = dict()
+        position_qubit_map = dict()  # noqa: C408
         for q in qubits:
             if q not in self.qubit_position:
                 raise ValueError(f"Qubit {q} is not a qubit in the MPS.")
             position_qubit_map[self.qubit_position[q]] = q
         positions = sorted(position_qubit_map.keys())
-        self._logger.debug(f"Measuring qubits={position_qubit_map}")
+        self._logger.debug(f"Measuring qubits={position_qubit_map}")  # noqa: G004
 
         # Tensor for postselection to |0>
-        zero_tensor = cp.zeros(2, dtype=self._cfg._complex_t)
+        zero_tensor = cp.zeros(2, dtype=self._cfg._complex_t)  # noqa: SLF001
         zero_tensor[0] = 1
 
         # Measure and postselect each of the positions, one by one
@@ -637,10 +636,10 @@ class MPS(StructuredState):
             # Throw a coin to decide measurement outcome
             outcome = 0 if prob > self._rng.random() else 1
             result[position_qubit_map[pos]] = outcome
-            self._logger.debug(f"Outcome of qubit at {pos} is {outcome}.")
+            self._logger.debug(f"Outcome of qubit at {pos} is {outcome}.")  # noqa: G004
 
             # Postselect the MPS for this outcome, renormalising at the same time
-            postselection_tensor = cp.zeros(2, dtype=self._cfg._complex_t)
+            postselection_tensor = cp.zeros(2, dtype=self._cfg._complex_t)  # noqa: SLF001
             postselection_tensor[outcome] = 1 / np.sqrt(
                 abs(outcome - prob)
             )  # Normalise
@@ -688,27 +687,27 @@ class MPS(StructuredState):
             raise ValueError(
                 "Cannot postselect all qubits. You may want to use get_amplitude()."
             )
-        self._logger.debug(f"Postselecting qubits={qubit_outcomes}")
+        self._logger.debug(f"Postselecting qubits={qubit_outcomes}")  # noqa: G004
 
         # Apply a postselection for each of the qubits
         for qubit, outcome in qubit_outcomes.items():
             # Create the rank-1 postselection tensor
-            postselection_tensor = cp.zeros(2, dtype=self._cfg._complex_t)
+            postselection_tensor = cp.zeros(2, dtype=self._cfg._complex_t)  # noqa: SLF001
             postselection_tensor[outcome] = 1
             # Apply postselection
             self._postselect_qubit(qubit, postselection_tensor)
 
         # Calculate the squared norm of the postselected state; this is its probability
         prob = self.vdot(self)
-        assert np.isclose(prob.imag, 0.0, atol=self._cfg._atol)
+        assert np.isclose(prob.imag, 0.0, atol=self._cfg._atol)  # noqa: SLF001
         prob = prob.real
 
         # Renormalise; it suffices to update the first tensor
-        if len(self) > 0 and not np.isclose(prob, 0.0, atol=self._cfg._atol):
+        if len(self) > 0 and not np.isclose(prob, 0.0, atol=self._cfg._atol):  # noqa: SLF001
             self.tensors[0] = self.tensors[0] / np.sqrt(prob)
             self.canonical_form[0] = None
 
-        self._logger.debug(f"Probability of this postselection is {prob}.")
+        self._logger.debug(f"Probability of this postselection is {prob}.")  # noqa: G004
         return prob
 
     def _postselect_qubit(self, qubit: Qubit, postselection_tensor: cp.ndarray) -> None:
@@ -778,11 +777,11 @@ class MPS(StructuredState):
         """
         self._flush()
 
-        for q in pauli_string.map.keys():
+        for q in pauli_string.map.keys():  # noqa: SIM118
             if q not in self.qubit_position:
                 raise ValueError(f"Qubit {q} is not a qubit in the MPS.")
 
-        self._logger.debug(f"Calculating expectation value of {pauli_string}.")
+        self._logger.debug(f"Calculating expectation value of {pauli_string}.")  # noqa: G004
         mps_copy = self.copy()
         pauli_optype = {Pauli.Z: OpType.Z, Pauli.X: OpType.X, Pauli.Y: OpType.Y}
 
@@ -792,8 +791,8 @@ class MPS(StructuredState):
                 pos = mps_copy.qubit_position[qubit]
                 pauli_unitary = Op.create(pauli_optype[pauli]).get_unitary()
                 pauli_tensor = cp.asarray(
-                    pauli_unitary.astype(dtype=self._cfg._complex_t, copy=False),
-                    dtype=self._cfg._complex_t,
+                    pauli_unitary.astype(dtype=self._cfg._complex_t, copy=False),  # noqa: SLF001
+                    dtype=self._cfg._complex_t,  # noqa: SLF001
                 )
 
                 # Contract the Pauli to the MPS tensor of the corresponding qubit
@@ -810,9 +809,9 @@ class MPS(StructuredState):
 
         # Obtain the inner product
         value = self.vdot(mps_copy)
-        assert np.isclose(value.imag, 0.0, atol=self._cfg._atol)
+        assert np.isclose(value.imag, 0.0, atol=self._cfg._atol)  # noqa: SLF001
 
-        self._logger.debug(f"Expectation value is {value.real}.")
+        self._logger.debug(f"Expectation value is {value.real}.")  # noqa: G004
         return value.real
 
     def get_fidelity(self) -> float:
@@ -847,7 +846,7 @@ class MPS(StructuredState):
             # Specify the output bond IDs in ILO order
             output_bonds = []
             for q in sorted(self.qubit_position.keys()):
-                output_bonds.append("p" + str(self.qubit_position[q]))
+                output_bonds.append("p" + str(self.qubit_position[q]))  # noqa: PERF401
             interleaved_rep.append(output_bonds)
 
             # We define the contraction path ourselves
@@ -892,7 +891,7 @@ class MPS(StructuredState):
 
         # Find out what the map MPS_position -> bit value is
         ilo_qubits = sorted(self.qubit_position.keys())
-        mps_pos_bitvalue = dict()
+        mps_pos_bitvalue = dict()  # noqa: C408
 
         for i, q in enumerate(ilo_qubits):
             pos = self.qubit_position[q]
@@ -902,7 +901,7 @@ class MPS(StructuredState):
         # Create the interleaved representation including all postselection tensors
         interleaved_rep = self._get_interleaved_representation()
         for pos in range(len(self)):
-            postselection_tensor = cp.zeros(2, dtype=self._cfg._complex_t)
+            postselection_tensor = cp.zeros(2, dtype=self._cfg._complex_t)  # noqa: SLF001
             postselection_tensor[mps_pos_bitvalue[pos]] = 1
             interleaved_rep.append(postselection_tensor)
             interleaved_rep.append([str(qubit_id[pos])])
@@ -928,7 +927,7 @@ class MPS(StructuredState):
             optimize={"samples": 1},
         )
 
-        self._logger.debug(f"Amplitude of state {state} is {result}.")
+        self._logger.debug(f"Amplitude of state {state} is {result}.")  # noqa: G004
         return complex(result)
 
     def get_qubits(self) -> set[Qubit]:
@@ -1030,7 +1029,7 @@ class MPS(StructuredState):
         # self._rng will be initialised from system randomnes when seed=None.
 
         self._logger.debug(
-            "Successfully copied an MPS "
+            "Successfully copied an MPS "  # noqa: G004
             f"of size {new_mps.get_byte_size() / 2**20} MiB."
         )
         return new_mps
@@ -1044,13 +1043,13 @@ class MPS(StructuredState):
 
     def _apply_1q_unitary(self, unitary: cp.ndarray, qubit: Qubit) -> MPS:
         raise NotImplementedError(
-            "MPS is a base class with no contraction algorithm implemented."
+            "MPS is a base class with no contraction algorithm implemented."  # noqa: ISC003
             + " You must use a subclass of MPS, such as MPSxGate or MPSxMPO."
         )
 
     def _apply_2q_unitary(self, unitary: cp.ndarray, q0: Qubit, q1: Qubit) -> MPS:
         raise NotImplementedError(
-            "MPS is a base class with no contraction algorithm implemented."
+            "MPS is a base class with no contraction algorithm implemented."  # noqa: ISC003
             + " You must use a subclass of MPS, such as MPSxGate or MPSxMPO."
         )
 
