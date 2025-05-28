@@ -1,6 +1,6 @@
+import conftest
 import numpy as np
 import pytest
-import conftest
 
 from pytket.circuit import (  # type: ignore
     BasisOrder,

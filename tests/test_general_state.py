@@ -1,8 +1,8 @@
 import random
 
+import conftest
 import numpy as np
 import pytest
-import conftest
 from sympy import Symbol
 
 from pytket.circuit import Bit, Circuit, Qubit, ToffoliBox

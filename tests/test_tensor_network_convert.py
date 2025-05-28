@@ -2,9 +2,9 @@ import cmath
 import random
 import warnings
 
+import conftest
 import numpy as np
 import pytest
-import conftest
 from numpy.typing import NDArray
 
 from pytket.circuit import Qubit, ToffoliBox  # type: ignore

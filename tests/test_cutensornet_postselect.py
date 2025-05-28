@@ -1,9 +1,9 @@
+import conftest
 import cuquantum as cq  # type: ignore
 import numpy as np
 import pytest
-import conftest
 
-from pytket.circuit import Circuit, Qubit  # type: ignore
+from pytket.circuit import Qubit  # type: ignore
 from pytket.extensions.cutensornet.backends import CuTensorNetStateBackend
 from pytket.extensions.cutensornet.general_state.tensor_network_convert import (  # type: ignore
     TensorNetwork,

@@ -1,11 +1,11 @@
 import random  # type: ignore
 from typing import Any
 
+import conftest
 import cupy as cp  # type: ignore
 import cuquantum as cq  # type: ignore
 import numpy as np  # type: ignore
 import pytest
-import conftest
 
 from pytket.circuit import Circuit, OpType, Qubit  # type: ignore
 from pytket.extensions.cutensornet.general_state.utils import (
