@@ -84,9 +84,7 @@ def test_postselect_qubits_state(circname: str, postselect_dict: dict) -> None:
     ],
 )
 @pytest.mark.parametrize("postselect_dict", [{Qubit("q", 1): 0}, {Qubit("q", 1): 1}])
-def test_expectation_value_postselect_2q(
-    circname: str, postselect_dict: dict
-) -> None:
+def test_expectation_value_postselect_2q(circname: str, postselect_dict: dict) -> None:
     circuit_2q = getattr(conftest, circname)()
     op = QubitPauliOperator(
         {
