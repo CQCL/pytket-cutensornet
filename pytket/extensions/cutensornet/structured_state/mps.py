@@ -225,8 +225,6 @@ class MPS(StructuredState):
     def apply_cnx(self, controls: list[Qubit], target: Qubit) -> MPS:
         """Applies a CnX gate to the MPS.
 
-        The MPS is converted to canonical and truncation is applied if necessary.
-
         Args:
             controls: The control qubits
             target: The target qubit
@@ -238,8 +236,6 @@ class MPS(StructuredState):
 
     def apply_pauli_gadget(self, pauli_str: QubitPauliString, angle: float) -> MPS:
         """Applies the Pauli gadget to the MPS.
-
-        The MPS is converted to canonical and truncation is applied if necessary.
 
         Args:
             pauli_str: The Pauli string of the Pauli gadget

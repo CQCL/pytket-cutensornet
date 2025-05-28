@@ -307,8 +307,6 @@ class TTN(StructuredState):
     def apply_cnx(self, controls: list[Qubit], target: Qubit) -> TTN:
         """Applies a CnX gate to the TTN.
 
-        The MPS is converted to canonical and truncation is applied if necessary.
-
         Args:
             controls: The control qubits
             target: The target qubit
@@ -320,8 +318,6 @@ class TTN(StructuredState):
 
     def apply_pauli_gadget(self, pauli_str: QubitPauliString, angle: float) -> TTN:
         """Applies the Pauli gadget to the TTN.
-
-        The MPS is converted to canonical and truncation is applied if necessary.
 
         Args:
             pauli_str: The Pauli string of the Pauli gadget

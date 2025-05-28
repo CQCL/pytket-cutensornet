@@ -202,8 +202,6 @@ class MPSxMPO(MPS):
     def _apply_2q_unitary(self, unitary: cp.ndarray, q0: Qubit, q1: Qubit) -> MPSxMPO:
         """Applies the 2-qubit unitary to the MPS.
 
-        The MPS is converted to canonical and truncation is applied if necessary.
-
         Args:
             unitary: The unitary to be applied.
             q0: The first qubit in the tuple |q0>|q1> the unitary acts on.

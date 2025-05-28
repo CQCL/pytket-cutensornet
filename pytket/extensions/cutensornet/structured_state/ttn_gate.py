@@ -84,8 +84,6 @@ class TTNxGate(TTN):
     def _apply_2q_unitary(self, unitary: cp.ndarray, q0: Qubit, q1: Qubit) -> TTNxGate:  # noqa: PLR0915
         """Applies the 2-qubit gate to the TTN.
 
-        The TTN is converted to canonical and truncation is applied if necessary.
-
         Args:
             unitary: The unitary to be applied.
             q0: The first qubit in the tuple |q0>|q1> the unitary acts on.

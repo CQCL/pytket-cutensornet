@@ -80,8 +80,6 @@ class MPSxGate(MPS):
     def _apply_2q_unitary(self, unitary: cp.ndarray, q0: Qubit, q1: Qubit) -> MPSxGate:
         """Applies the 2-qubit unitary to the MPS.
 
-        The MPS is converted to canonical and truncation is applied if necessary.
-
         Args:
             unitary: The unitary to be applied.
             q0: The first qubit in the tuple |q0>|q1> the unitary acts on.
@@ -220,8 +218,6 @@ class MPSxGate(MPS):
     ) -> MPSxGate:
         """Applies the 2-qubit unitary to the MPS between non-adjacent qubits.
 
-        The MPS is converted to canonical and truncation is applied if necessary.
-
         Args:
             unitary: The unitary to be applied.
             q0: The first qubit in the tuple |q0>|q1> the unitary acts on.
@@ -326,8 +322,6 @@ class MPSxGate(MPS):
 
     def apply_cnx(self, controls: list[Qubit], target: Qubit) -> MPSxGate:
         """Applies a CnX gate to the MPS.
-
-        The MPS is converted to canonical and truncation is applied if necessary.
 
         Args:
             controls: The control qubits
@@ -476,8 +470,6 @@ class MPSxGate(MPS):
     def apply_pauli_gadget(self, pauli_str: QubitPauliString, angle: float) -> MPSxGate:
         """Applies the Pauli gadget to the MPS.
 
-        The MPS is converted to canonical and truncation is applied if necessary.
-
         Args:
             pauli_str: The Pauli string of the Pauli gadget
             angle: The angle in half turns
@@ -613,7 +605,7 @@ class MPSxGate(MPS):
             # Apply SVD decomposition to truncate as much as possible before exceeding
             # a `discarded_weight_cutoff` of `1 - self._cfg.truncation_fidelity`.
             self._logger.debug(
-                f"Truncating to target fidelity={self._cfg.truncation_fidelity}"
+                f"Truncating to target fidelity={self._cfg.truncation_fidelity}"  # noqa: G004
             )
 
             # When there are multiple virtual bonds between the two MPS tensors where
@@ -642,7 +634,7 @@ class MPSxGate(MPS):
             else:
                 local_truncation_error = (1 - self._cfg.truncation_fidelity) / distance
             self._logger.debug(
-                f"There are {distance} bonds between the qubits. Each of these will "
+                f"There are {distance} bonds between the qubits. Each of these will "  # noqa: G004
                 f"be truncated to target fidelity={1 - local_truncation_error}"
             )
 
@@ -710,8 +702,8 @@ class MPSxGate(MPS):
         # If requested, provide info about memory usage.
         if self._logger.isEnabledFor(logging.INFO):
             # If-statetement used so that we only call `get_byte_size` if needed.
-            self._logger.info(f"MPS size (MiB)={self.get_byte_size() / 2**20}")
-            self._logger.info(f"MPS fidelity={self.fidelity}")
+            self._logger.info(f"MPS size (MiB)={self.get_byte_size() / 2**20}")  # noqa: G004
+            self._logger.info(f"MPS fidelity={self.fidelity}")  # noqa: G004
 
     def measure_pauli_string(self, pauli_string: QubitPauliString) -> int:
         """Measure the Pauli string and return `0` or `1` accordingly.
