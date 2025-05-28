@@ -524,7 +524,7 @@ def measure_qubit_state(
     }
 
     sticky_ind = ket.sticky_indices[qubit_id]
-    ket._cuquantum_interleaved.extend([cap[bit_value], [sticky_ind]])  # noqa: SLF001
+    ket._cuquantum_interleaved.extend([cap[bit_value], [sticky_ind]])
     ket.sticky_indices.pop(qubit_id)
     return ket
 
@@ -723,7 +723,7 @@ def get_operator_expectation_value(
             bra_network, post_selection
         )  # This needed because dagger does not work with post selection
 
-    for qos, coeff in operator._dict.items():  # noqa: SLF001
+    for qos, coeff in operator.get_dict().items():
         expectation_value_network = ExpectationValueTensorNetwork(
             bra_network, qos, ket_network
         )
