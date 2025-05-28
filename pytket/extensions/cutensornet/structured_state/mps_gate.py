@@ -746,3 +746,40 @@ class MPSxGate(MPS):
         self._cfg.truncation_fidelity = orig_tfid
 
         return result[aux_q]
+
+    def get_entanglement_entropy(self, position: int) -> float:
+        """Returns the entanglement entropy of the virtual bond to the right of ``position``.
+
+        Args:
+            position: A position in the MPS.
+
+        Returns:
+            The entanglement entropy.
+
+        Raises:
+            RuntimeError: If ``position`` is out of bounds.
+        """
+        if position < 0 or position >= len(self) - 1:
+            raise RuntimeError(f"Position {position} is out of bounds.")
+
+        # Canonicalise to tensor[position]
+        self.canonicalise(position, position + 1)
+
+        # Contract tensor[position] with tensor[position+1]
+        # Apply SVD to obtain the singular values at the virtual bond
+        options = {"handle": self._lib.handle, "device_id": self._lib.device_id}
+        svd_method = tensor.SVDMethod(
+            abs_cutoff=self._cfg.zero,  # Remove zero singular values
+        )
+        _, S, _ = contract_decompose(
+            "abl,bcr->abl,bcr",  # Note: doesn't follow the glossary above.
+            self.tensors[position],
+            self.tensors[position + 1],
+            algorithm={"svd_method": svd_method, "qr_method": False},
+            options=options,
+            optimize={"path": [(0, 1)]},
+        )
+
+        # Compute the entanglement entropy
+        entropy = -sum(s**2 * cp.log(s**2) for s in S)
+        return float(entropy)
