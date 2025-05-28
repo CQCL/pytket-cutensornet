@@ -1,7 +1,6 @@
 import random  # type: ignore
 from typing import Any
 
-import conftest
 import cupy as cp  # type: ignore
 import cuquantum as cq  # type: ignore
 import numpy as np  # type: ignore
@@ -27,6 +26,8 @@ from pytket.extensions.cutensornet.structured_state import (
 from pytket.extensions.cutensornet.structured_state.ttn import RootPath
 from pytket.passes import CnXPairwiseDecomposition, DecomposeBoxes
 from pytket.pauli import Pauli, QubitPauliString
+
+from . import conftest
 
 
 def test_libhandle_manager() -> None:
@@ -256,9 +257,9 @@ def test_entanglement_entropy() -> None:
         mps = simulate(libhandle, circ, SimulationAlgorithm.MPSxGate, Config())
         assert isinstance(mps, MPSxGate)
 
-        assert np.isclose(mps.get_entanglement_entropy(0), -np.log(0.5))
-        assert np.isclose(mps.get_entanglement_entropy(1), 0)
-        assert np.isclose(mps.get_entanglement_entropy(2), 0.4165, atol=0.0001)
+        assert np.isclose(mps.get_entanglement_entropy(0), -np.log(0.5))  # type: ignore
+        assert np.isclose(mps.get_entanglement_entropy(1), 0)  # type: ignore
+        assert np.isclose(mps.get_entanglement_entropy(2), 0.4165, atol=0.0001)  # type: ignore
 
 
 @pytest.mark.parametrize(

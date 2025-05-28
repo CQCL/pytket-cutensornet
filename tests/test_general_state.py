@@ -1,6 +1,5 @@
 import random
 
-import conftest
 import numpy as np
 import pytest
 from sympy import Symbol
@@ -11,6 +10,8 @@ from pytket.passes import CnXPairwiseDecomposition, DecomposeBoxes
 from pytket.pauli import Pauli, QubitPauliString
 from pytket.transform import Transform
 from pytket.utils.operators import QubitPauliOperator
+
+from . import conftest
 
 
 @pytest.mark.parametrize(

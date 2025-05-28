@@ -1,4 +1,3 @@
-import conftest
 import numpy as np
 import pytest
 
@@ -14,6 +13,8 @@ from pytket.extensions.cutensornet.backends import (
     CuTensorNetStateBackend,
 )
 from pytket.passes import CliffordSimp  # type: ignore
+
+from . import conftest
 
 
 def test_bell() -> None:

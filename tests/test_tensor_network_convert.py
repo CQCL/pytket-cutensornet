@@ -2,7 +2,6 @@ import cmath
 import random
 import warnings
 
-import conftest
 import numpy as np
 import pytest
 from numpy.typing import NDArray
@@ -10,6 +9,8 @@ from numpy.typing import NDArray
 from pytket.circuit import Qubit, ToffoliBox  # type: ignore
 from pytket.passes import CnXPairwiseDecomposition, DecomposeBoxes  # type: ignore
 from pytket.transform import Transform  # type: ignore
+
+from . import conftest
 
 try:
     import cuquantum as cq  # type: ignore

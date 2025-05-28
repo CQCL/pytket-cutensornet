@@ -1,4 +1,3 @@
-import conftest
 import cuquantum as cq  # type: ignore
 import numpy as np
 import pytest
@@ -15,6 +14,8 @@ from pytket.extensions.cutensornet.general_state.utils import (
 )
 from pytket.pauli import Pauli, QubitPauliString  # type: ignore
 from pytket.utils import QubitPauliOperator
+
+from . import conftest
 
 
 @pytest.mark.parametrize(
