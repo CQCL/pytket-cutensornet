@@ -3,12 +3,13 @@
 Changelog
 ~~~~~~~~~
 
-0.12.0 (Unreleased)
--------------------
+0.12.0 (May 2025)
+-----------------
 
 * New feature: ``MPSxGate`` now supports the application of ``CnX`` and ``PauliExpBox`` gates when
 passed to ``apply_gate``.
 * New feature: can now use ``get_entanglement_entropy`` on a virtual bond of an MPS.
+* Added warnings on the incompatibility between ``vdot`` and ``prepare_circuit_mps``.
 * Updated pytket minimum version requirement to 2.4.1.
 
 0.11.1 (March 2025)
