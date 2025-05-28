@@ -723,7 +723,7 @@ def get_operator_expectation_value(
             bra_network, post_selection
         )  # This needed because dagger does not work with post selection
 
-    for qos, coeff in operator._dict.items():
+    for qos, coeff in operator.get_dict().items():
         expectation_value_network = ExpectationValueTensorNetwork(
             bra_network, qos, ket_network
         )
