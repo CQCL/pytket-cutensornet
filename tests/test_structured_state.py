@@ -6,7 +6,7 @@ import cuquantum as cq  # type: ignore
 import numpy as np  # type: ignore
 import pytest
 
-from pytket.circuit import Circuit, OpType, Qubit  # type: ignore
+from pytket.circuit import Circuit, OpType, PauliExpBox, Qubit  # type: ignore
 from pytket.extensions.cutensornet.general_state.utils import (
     circuit_statevector_postselect,
 )
@@ -24,7 +24,8 @@ from pytket.extensions.cutensornet.structured_state import (
     simulate,
 )
 from pytket.extensions.cutensornet.structured_state.ttn import RootPath
-from pytket.pauli import Pauli, QubitPauliString  # type: ignore
+from pytket.passes import CnXPairwiseDecomposition, DecomposeBoxes
+from pytket.pauli import Pauli, QubitPauliString
 
 
 def test_libhandle_manager() -> None:
@@ -34,7 +35,7 @@ def test_libhandle_manager() -> None:
     with CuTensorNetHandle() as libhandle:
         cfg = Config()
         mps = MPS(libhandle, circ.qubits, cfg)
-        assert np.isclose(mps.vdot(mps), 1, atol=cfg._atol)  # noqa: SLF001
+        assert np.isclose(mps.vdot(mps), 1, atol=cfg._atol)
 
     # Catch exception due to library handle out of scope
     with pytest.raises(RuntimeError):
@@ -72,7 +73,7 @@ def test_copy(algorithm: SimulationAlgorithm) -> None:
         assert state.is_valid()
         copy_state = state.copy()
         assert copy_state.is_valid()
-        assert np.isclose(copy_state.vdot(state), 1.0, atol=cfg._atol)  # noqa: SLF001
+        assert np.isclose(copy_state.vdot(state), 1.0, atol=cfg._atol)
 
         # Bounded chi
         cfg = Config(chi=8)
@@ -80,7 +81,7 @@ def test_copy(algorithm: SimulationAlgorithm) -> None:
         assert state.is_valid()
         copy_state = state.copy()
         assert copy_state.is_valid()
-        assert np.isclose(copy_state.vdot(state), 1.0, atol=cfg._atol)  # noqa: SLF001
+        assert np.isclose(copy_state.vdot(state), 1.0, atol=cfg._atol)
 
         # Bounded truncation_fidelity
         cfg = Config(truncation_fidelity=0.9999)
@@ -88,7 +89,7 @@ def test_copy(algorithm: SimulationAlgorithm) -> None:
         assert state.is_valid()
         copy_state = state.copy()
         assert copy_state.is_valid()
-        assert np.isclose(copy_state.vdot(state), 1.0, atol=cfg._atol)  # noqa: SLF001
+        assert np.isclose(copy_state.vdot(state), 1.0, atol=cfg._atol)
 
 
 def test_canonicalise_mps() -> None:
@@ -101,7 +102,7 @@ def test_canonicalise_mps() -> None:
         # Fill up the tensors with random entries
 
         # Leftmost tensor
-        T_d = cp.empty(shape=(1, 4, 2), dtype=cfg._complex_t)  # noqa: SLF001
+        T_d = cp.empty(shape=(1, 4, 2), dtype=cfg._complex_t)
         for i1 in range(T_d.shape[1]):
             for i2 in range(T_d.shape[2]):
                 T_d[0][i1][i2] = cp.random.rand() + 1j * cp.random.rand()
@@ -109,7 +110,7 @@ def test_canonicalise_mps() -> None:
 
         # Middle tensors
         for pos in range(1, len(mps_gate) - 1):
-            T_d = cp.empty(shape=(4, 4, 2), dtype=cfg._complex_t)  # noqa: SLF001
+            T_d = cp.empty(shape=(4, 4, 2), dtype=cfg._complex_t)
             for i0 in range(T_d.shape[0]):
                 for i1 in range(T_d.shape[1]):
                     for i2 in range(T_d.shape[2]):
@@ -117,7 +118,7 @@ def test_canonicalise_mps() -> None:
             mps_gate.tensors[pos] = T_d
 
         # Rightmost tensor
-        T_d = cp.empty(shape=(4, 1, 2), dtype=cfg._complex_t)  # noqa: SLF001
+        T_d = cp.empty(shape=(4, 1, 2), dtype=cfg._complex_t)
         for i0 in range(T_d.shape[0]):
             for i2 in range(T_d.shape[2]):
                 T_d[i0][0][i2] = cp.random.rand() + 1j * cp.random.rand()
@@ -137,7 +138,7 @@ def test_canonicalise_mps() -> None:
 
         # Check that canonicalisation did not change the vector
         overlap = mps_gate.vdot(mps_copy)
-        assert np.isclose(overlap, norm_sq, atol=cfg._atol)  # noqa: SLF001
+        assert np.isclose(overlap, norm_sq, atol=cfg._atol)
 
         # Check that the corresponding tensors are in orthogonal form
         for pos in range(len(mps_gate)):
@@ -179,13 +180,13 @@ def test_canonicalise_ttn(center: RootPath | Qubit) -> None:  # noqa: PLR0912
         # Fill up the tensors with random entries
         for path, node in ttn.nodes.items():
             if node.is_leaf:
-                T = cp.empty(shape=(2, max_dim), dtype=ttn._cfg._complex_t)  # noqa: SLF001
+                T = cp.empty(shape=(2, max_dim), dtype=ttn._cfg._complex_t)
                 for i0 in range(T.shape[0]):
                     for i1 in range(T.shape[1]):
                         T[i0][i1] = cp.random.rand() + 1j * cp.random.rand()
             else:
                 shape = (max_dim, max_dim, max_dim if len(path) != 0 else 1)
-                T = cp.empty(shape=shape, dtype=ttn._cfg._complex_t)  # noqa: SLF001
+                T = cp.empty(shape=shape, dtype=ttn._cfg._complex_t)
                 for i0 in range(shape[0]):
                     for i1 in range(shape[1]):
                         for i2 in range(shape[2]):
@@ -206,11 +207,11 @@ def test_canonicalise_ttn(center: RootPath | Qubit) -> None:  # noqa: PLR0912
 
         # Check that canonicalisation did not change the vector
         overlap = ttn.vdot(ttn_copy)
-        assert np.isclose(overlap / norm_sq, 1.0, atol=ttn._cfg._atol)  # noqa: SLF001
+        assert np.isclose(overlap / norm_sq, 1.0, atol=ttn._cfg._atol)
 
         # Check that the tensor R returned agrees with the norm
         overlap_R = cq.contract("ud,ud->", R, R.conj())
-        assert np.isclose(overlap_R / norm_sq, 1.0, atol=ttn._cfg._atol)  # noqa: SLF001
+        assert np.isclose(overlap_R / norm_sq, 1.0, atol=ttn._cfg._atol)
 
         # Check that the corresponding tensors are in orthogonal form
         for path, node in ttn.nodes.items():
@@ -243,6 +244,20 @@ def test_canonicalise_ttn(center: RootPath | Qubit) -> None:  # noqa: PLR0912
 
             # Check that the result is the identity
             assert cp.allclose(result, cp.eye(result.shape[0]))
+
+
+def test_entanglement_entropy() -> None:
+    circ = Circuit(4)
+    circ.H(0).CX(0, 1)
+    circ.H(2).T(2).H(2).CX(2, 3)
+
+    with CuTensorNetHandle() as libhandle:
+        mps = simulate(libhandle, circ, SimulationAlgorithm.MPSxGate, Config())
+        assert isinstance(mps, MPSxGate)
+
+        assert np.isclose(mps.get_entanglement_entropy(0), -np.log(0.5))
+        assert np.isclose(mps.get_entanglement_entropy(1), 0)
+        assert np.isclose(mps.get_entanglement_entropy(2), 0.4165, atol=0.0001)
 
 
 @pytest.mark.parametrize(
@@ -291,20 +306,20 @@ def test_exact_circ_sim(circuit: Circuit, algorithm: SimulationAlgorithm) -> Non
         state = simulate(libhandle, circuit, algorithm, cfg)
         assert state.is_valid()
         # Check that there was no approximation
-        assert np.isclose(state.get_fidelity(), 1.0, atol=cfg._atol)  # noqa: SLF001
+        assert np.isclose(state.get_fidelity(), 1.0, atol=cfg._atol)
         # Check that overlap is 1
-        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)  # noqa: SLF001
+        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
 
         # Check that all of the amplitudes are correct
         for b in range(2**n_qubits):
             assert np.isclose(
                 state.get_amplitude(b),
                 state_vec[b],
-                atol=cfg._atol,  # noqa: SLF001
+                atol=cfg._atol,
             )
 
         # Check that the statevector is correct
-        assert np.allclose(state.get_statevector(), state_vec, atol=cfg._atol)  # noqa: SLF001
+        assert np.allclose(state.get_statevector(), state_vec, atol=cfg._atol)
 
 
 @pytest.mark.parametrize(
@@ -348,20 +363,20 @@ def test_prepare_circuit_mps(circuit: Circuit, algorithm: SimulationAlgorithm) -
         state.apply_qubit_relabelling(qubit_map)
         assert state.is_valid()
         # Check that there was no approximation
-        assert np.isclose(state.get_fidelity(), 1.0, atol=cfg._atol)  # noqa: SLF001
+        assert np.isclose(state.get_fidelity(), 1.0, atol=cfg._atol)
         # Check that overlap is 1
-        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)  # noqa: SLF001
+        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
 
         # Check that all of the amplitudes are correct
         for b in range(2**n_qubits):
             assert np.isclose(
                 state.get_amplitude(b),
                 state_vec[b],
-                atol=cfg._atol,  # noqa: SLF001
+                atol=cfg._atol,
             )
 
         # Check that the statevector is correct
-        assert np.allclose(state.get_statevector(), state_vec, atol=cfg._atol)  # noqa: SLF001
+        assert np.allclose(state.get_statevector(), state_vec, atol=cfg._atol)
 
 
 @pytest.mark.parametrize(
@@ -409,7 +424,7 @@ def test_approx_circ_sim_gate_fid(
         state = simulate(libhandle, circuit, algorithm, cfg)
         assert state.is_valid()
         # Check that overlap is 1
-        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)  # noqa: SLF001
+        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
 
 
 @pytest.mark.parametrize(
@@ -476,7 +491,7 @@ def test_approx_circ_sim_chi(circuit: Circuit, algorithm: SimulationAlgorithm) -
         state = simulate(libhandle, circuit, algorithm, cfg)
         assert state.is_valid()
         # Check that overlap is 1
-        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)  # noqa: SLF001
+        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
 
 
 @pytest.mark.parametrize(
@@ -517,7 +532,7 @@ def test_float_point_options(
         state = simulate(libhandle, circuit, algorithm, cfg)
         assert state.is_valid()
         # Check that overlap is 1
-        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)  # noqa: SLF001
+        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
 
         # Approximate, bound truncation fidelity
         cfg = Config(
@@ -531,7 +546,7 @@ def test_float_point_options(
         )
         assert state.is_valid()
         # Check that overlap is 1
-        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)  # noqa: SLF001
+        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
 
         # Approximate, bound chi
         cfg = Config(chi=4, float_precision=fp_precision, leaf_size=2)
@@ -543,7 +558,7 @@ def test_float_point_options(
         )
         assert state.is_valid()
         # Check that overlap is 1
-        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)  # noqa: SLF001
+        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
 
 
 @pytest.mark.parametrize(
@@ -567,7 +582,7 @@ def test_circ_approx_explicit_mps(circuit: Circuit) -> None:
         )
         assert mps_gate.get_fidelity() >= 0.3
         assert mps_gate.is_valid()
-        assert np.isclose(mps_gate.vdot(mps_gate), 1.0, atol=cfg._atol)  # noqa: SLF001
+        assert np.isclose(mps_gate.vdot(mps_gate), 1.0, atol=cfg._atol)
 
         # Check for MPSxMPO
         mps_mpo = simulate(
@@ -578,7 +593,7 @@ def test_circ_approx_explicit_mps(circuit: Circuit) -> None:
         )
         assert mps_mpo.get_fidelity() >= 0.5
         assert mps_mpo.is_valid()
-        assert np.isclose(mps_mpo.vdot(mps_mpo), 1.0, atol=cfg._atol)  # noqa: SLF001
+        assert np.isclose(mps_mpo.vdot(mps_mpo), 1.0, atol=cfg._atol)
 
         # Fixed virtual bond dimension
         # Check for MPSxGate
@@ -586,13 +601,13 @@ def test_circ_approx_explicit_mps(circuit: Circuit) -> None:
         mps_gate = simulate(libhandle, circuit, SimulationAlgorithm.MPSxGate, cfg)
         assert mps_gate.get_fidelity() >= 0.02
         assert mps_gate.is_valid()
-        assert np.isclose(mps_gate.vdot(mps_gate), 1.0, atol=cfg._atol)  # noqa: SLF001
+        assert np.isclose(mps_gate.vdot(mps_gate), 1.0, atol=cfg._atol)
 
         # Check for MPSxMPO
         mps_mpo = simulate(libhandle, circuit, SimulationAlgorithm.MPSxMPO, cfg)
         assert mps_mpo.get_fidelity() >= 0.04
         assert mps_mpo.is_valid()
-        assert np.isclose(mps_mpo.vdot(mps_mpo), 1.0, atol=cfg._atol)  # noqa: SLF001
+        assert np.isclose(mps_mpo.vdot(mps_mpo), 1.0, atol=cfg._atol)
 
 
 @pytest.mark.parametrize(
@@ -611,7 +626,7 @@ def test_circ_approx_explicit_ttn(circuit: Circuit) -> None:
         ttn_gate = simulate(libhandle, circuit, SimulationAlgorithm.TTNxGate, cfg)
         assert ttn_gate.get_fidelity() >= 0.75
         assert ttn_gate.is_valid()
-        assert np.isclose(ttn_gate.vdot(ttn_gate), 1.0, atol=cfg._atol)  # noqa: SLF001
+        assert np.isclose(ttn_gate.vdot(ttn_gate), 1.0, atol=cfg._atol)
 
         # Fixed virtual bond dimension
         # Check for TTNxGate
@@ -619,7 +634,7 @@ def test_circ_approx_explicit_ttn(circuit: Circuit) -> None:
         ttn_gate = simulate(libhandle, circuit, SimulationAlgorithm.TTNxGate, cfg)
         assert ttn_gate.get_fidelity() >= 0.85
         assert ttn_gate.is_valid()
-        assert np.isclose(ttn_gate.vdot(ttn_gate), 1.0, atol=cfg._atol)  # noqa: SLF001
+        assert np.isclose(ttn_gate.vdot(ttn_gate), 1.0, atol=cfg._atol)
 
 
 @pytest.mark.parametrize(
@@ -657,8 +672,8 @@ def test_postselect_2q_circ(circuit: Circuit, postselect_dict: dict) -> None:
         cfg = Config()
         mps = simulate(libhandle, circuit, SimulationAlgorithm.MPSxGate, cfg)
         prob = mps.postselect(postselect_dict)
-        assert np.isclose(prob, sv_prob, atol=cfg._atol)  # noqa: SLF001
-        assert np.allclose(mps.get_statevector(), sv, atol=cfg._atol)  # noqa: SLF001
+        assert np.isclose(prob, sv_prob, atol=cfg._atol)
+        assert np.allclose(mps.get_statevector(), sv, atol=cfg._atol)
 
 
 @pytest.mark.parametrize(
@@ -691,8 +706,8 @@ def test_postselect_circ(circuit: Circuit, postselect_dict: dict) -> None:
         mps = simulate(libhandle, circuit, SimulationAlgorithm.MPSxGate, cfg)
 
         prob = mps.postselect(postselect_dict)
-        assert np.isclose(prob, sv_prob, atol=cfg._atol)  # noqa: SLF001
-        assert np.allclose(mps.get_statevector(), sv, atol=cfg._atol)  # noqa: SLF001
+        assert np.isclose(prob, sv_prob, atol=cfg._atol)
+        assert np.allclose(mps.get_statevector(), sv, atol=cfg._atol)
 
 
 @pytest.mark.parametrize(
@@ -741,7 +756,7 @@ def test_expectation_value(circuit: Circuit, observable: QubitPauliString) -> No
         assert np.isclose(
             mps.expectation_value(observable),
             expectation_value,
-            atol=cfg._atol,  # noqa: SLF001
+            atol=cfg._atol,
         )
 
 
@@ -882,7 +897,7 @@ def test_mps_qubit_addition_and_measure() -> None:
                 [0, 1],
                 [1, 0],
             ],
-            dtype=config._complex_t,  # noqa: SLF001
+            dtype=config._complex_t,
         )
         cx = cp.asarray(
             [
@@ -891,7 +906,7 @@ def test_mps_qubit_addition_and_measure() -> None:
                 [0, 0, 0, 1],
                 [0, 0, 1, 0],
             ],
-            dtype=config._complex_t,  # noqa: SLF001
+            dtype=config._complex_t,
         )
 
         # Apply some gates
@@ -957,3 +972,106 @@ def test_mps_qubit_addition_and_measure() -> None:
         sv = np.zeros(2**4)
         sv[int("0100", 2)] = 1
         assert np.allclose(mps.get_statevector(), sv)
+
+
+def test_apply_cnx() -> None:
+    n_qubits = 10
+    qubit_list = list(range(n_qubits))
+
+    # Apply with first qubit as target
+    c = Circuit(n_qubits)
+    for q in qubit_list[1:]:
+        c.X(q)
+    c.add_gate(OpType.CnX, qubit_list[1:] + [0])
+    with CuTensorNetHandle() as libhandle:
+        mps = simulate(libhandle, c, SimulationAlgorithm.MPSxGate, Config())
+        assert mps.is_valid()
+        assert np.isclose(abs(mps.get_amplitude(2**n_qubits - 1)), 1.0)
+
+    # Apply with last qubit as target
+    c = Circuit(n_qubits)
+    for q in qubit_list[:-1]:
+        c.X(q)
+    c.add_gate(OpType.CnX, qubit_list[:-1] + [n_qubits - 1])
+    with CuTensorNetHandle() as libhandle:
+        mps = simulate(libhandle, c, SimulationAlgorithm.MPSxGate, Config())
+        assert mps.is_valid()
+        assert np.isclose(abs(mps.get_amplitude(2**n_qubits - 1)), 1.0)
+
+    # Apply with a qubit in the middle as target
+    c = Circuit(n_qubits)
+    gapped_list = qubit_list[:3] + qubit_list[4:]
+    target = qubit_list[3]
+    for q in gapped_list:
+        c.X(q)
+    c.add_gate(OpType.CnX, gapped_list + [target])
+    with CuTensorNetHandle() as libhandle:
+        mps = simulate(libhandle, c, SimulationAlgorithm.MPSxGate, Config())
+        assert mps.is_valid()
+        assert np.isclose(abs(mps.get_amplitude(2**n_qubits - 1)), 1.0)
+
+
+@pytest.mark.parametrize(
+    "seed",
+    [1234, 2347, 5895],
+)
+def test_apply_cnx_random(seed: int) -> None:
+    n_qubits = 10
+    rng = np.random.default_rng(seed)
+    c = Circuit(n_qubits)
+
+    qubit_list = list(rng.permutation(list(range(n_qubits))))
+
+    for q in qubit_list:
+        c.Rx(rng.uniform(-2, 2), q)
+    c.add_gate(OpType.CnX, qubit_list)
+
+    with CuTensorNetHandle() as libhandle:
+        # Run it without decomposition
+        mps = simulate(libhandle, c, SimulationAlgorithm.MPSxGate, Config())
+        assert mps.is_valid()
+
+        CnXPairwiseDecomposition().apply(c)
+        assert all(cmd.op.type != OpType.CnX for cmd in c.get_commands())
+
+        # Run after decomposition
+        mps2 = simulate(libhandle, c, SimulationAlgorithm.MPSxGate, Config())
+        assert np.isclose(mps.vdot(mps2), 1)
+
+
+@pytest.mark.parametrize(
+    "seed",
+    [1234, 2347, 5895],
+)
+def test_apply_pauli_exp_box(seed: int) -> None:
+    n_qubits = 10
+    depth = 5
+    rng = np.random.default_rng(seed)
+    c = Circuit(n_qubits)
+
+    qubit_list = list(range(n_qubits))
+    pauli_list = [Pauli.X, Pauli.Y, Pauli.X, Pauli.I]
+
+    for _ in range(depth):
+        # Randomly reorder the qubits on which the gate will act, generate
+        # random angle, and choose random Pauli string.
+        subset = list(rng.permutation(qubit_list))
+        angle = rng.uniform(-2, 2)
+        random_pauli = list(rng.choice(pauli_list, n_qubits))  # type: ignore
+
+        # Generate gate corresponding to pauli string and angle
+        pauli_box = PauliExpBox(random_pauli, angle)
+        c.add_pauliexpbox(pauli_box, subset)
+
+    with CuTensorNetHandle() as libhandle:
+        # Run it without decomposition
+        mps = simulate(libhandle, c, SimulationAlgorithm.MPSxGate, Config())
+        assert mps.is_valid()
+
+        assert all(cmd.op.type == OpType.PauliExpBox for cmd in c.get_commands())
+        DecomposeBoxes().apply(c)
+        assert all(cmd.op.type != OpType.PauliExpBox for cmd in c.get_commands())
+
+        # Run after decomposition
+        mps2 = simulate(libhandle, c, SimulationAlgorithm.MPSxGate, Config())
+        assert np.isclose(mps.vdot(mps2), 1)

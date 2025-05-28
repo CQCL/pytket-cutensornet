@@ -61,20 +61,9 @@ tests and is accepted after review, it will be merged in.
 
 #### Docstrings
 
-We use the Google style docstrings, please see this 
+We use the Google style docstrings, please see this
 [page](https://sphinxcontrib-napoleon.readthedocs.io/en/latest/example_google.html) for
 reference.
-
-#### Formatting
-
-All code should be formatted using
-[black](https://black.readthedocs.io/en/stable/), with default options. This is
-checked on the CI. The CI is currently using version 22.12.0. You can install it
-(as well as pylint as described below) by running from the root package folder:
-
-```shell
-pip install -r lint-requirements.txt
-```
 
 #### Type annotation
 

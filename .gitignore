@@ -10,6 +10,7 @@ obj
 docs/extensions
 .ipynb_checkpoints
 pytket/extensions/cutensornet/_metadata.py
+playground/
 # nix artifacts
 result
 .direnv
@@ -19,4 +20,3 @@ docs/pyproject.toml
 docs/poetry.lock
 .jupyter_cache/
 jupyter_execute/
-
