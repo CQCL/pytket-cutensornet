@@ -8,7 +8,7 @@
   #cuda-bundle,
 }:
 let
-  version = "24.08.0.5";
+  version = "25.03.0.11";
   package_map = {
     x86_64-linux = {
       "11" = fetchzip {
