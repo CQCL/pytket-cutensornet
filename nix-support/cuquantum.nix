@@ -13,21 +13,21 @@ let
     x86_64-linux = {
       "11" = fetchzip {
         url = "https://developer.download.nvidia.com/compute/cuquantum/redist/cuquantum/linux-x86_64/cuquantum-linux-x86_64-${version}_cuda11-archive.tar.xz";
-        sha256 = "";
+        sha256 = "is it me?";
       };
       "12" = fetchzip {
         url = "https://developer.download.nvidia.com/compute/cuquantum/redist/cuquantum/linux-x86_64/cuquantum-linux-x86_64-${version}_cuda12-archive.tar.xz";
-        sha256 = "";
+        sha256 = "or perhaps me?";
       };
     };
     aarch64-linux = {
       "11" = fetchzip {
         url = "https://developer.download.nvidia.com/compute/cuquantum/redist/cuquantum/linux-sbsa/cuquantum-linux-sbsa-${version}_cuda11-archive.tar.xz";
-        sha256 = "";
+        sha256 = "could also be me";
       };
       "12" = fetchzip {
         url = "https://developer.download.nvidia.com/compute/cuquantum/redist/cuquantum/linux-sbsa/cuquantum-linux-sbsa-${version}_cuda12-archive.tar.xz";
-        sha256 = "";
+        sha256 = "I don't think its me";
       };
     };
   };
