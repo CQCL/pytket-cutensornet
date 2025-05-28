@@ -2,9 +2,9 @@ import random  # type: ignore
 from typing import Any
 
 import cupy as cp  # type: ignore
-import cuquantum as cq  # type: ignore
 import numpy as np  # type: ignore
 import pytest
+from cuquantum.tensornet import contract  # type: ignore
 
 from pytket.circuit import Circuit, OpType, PauliExpBox, Qubit  # type: ignore
 from pytket.extensions.cutensornet.general_state.utils import (
@@ -148,9 +148,9 @@ def test_canonicalise_mps() -> None:
             T_d = mps_gate.tensors[pos]
 
             if pos < 2:  # Should be in left orthogonal form
-                result = cq.contract("lrp,lRp->rR", T_d, T_d.conj())
+                result = contract("lrp,lRp->rR", T_d, T_d.conj())
             elif pos > 2:  # Should be in right orthogonal form
-                result = cq.contract("lrp,Lrp->lL", T_d, T_d.conj())
+                result = contract("lrp,Lrp->lL", T_d, T_d.conj())
 
             # Check that the result is the identity
             assert cp.allclose(result, cp.eye(result.shape[0]))
@@ -210,7 +210,7 @@ def test_canonicalise_ttn(center: RootPath | Qubit) -> None:  # noqa: PLR0912
         assert np.isclose(overlap / norm_sq, 1.0, atol=ttn._cfg._atol)
 
         # Check that the tensor R returned agrees with the norm
-        overlap_R = cq.contract("ud,ud->", R, R.conj())
+        overlap_R = contract("ud,ud->", R, R.conj())
         assert np.isclose(overlap_R / norm_sq, 1.0, atol=ttn._cfg._atol)
 
         # Check that the corresponding tensors are in orthogonal form
@@ -231,16 +231,16 @@ def test_canonicalise_ttn(center: RootPath | Qubit) -> None:  # noqa: PLR0912
 
             if node.is_leaf:
                 assert node.canonical_form == DirTTN.PARENT
-                result = cq.contract("qp,qP->pP", T, T.conj())
+                result = contract("qp,qP->pP", T, T.conj())
 
             elif node.canonical_form == DirTTN.PARENT:
-                result = cq.contract("lrp,lrP->pP", T, T.conj())
+                result = contract("lrp,lrP->pP", T, T.conj())
 
             elif node.canonical_form == DirTTN.LEFT:
-                result = cq.contract("lrp,Lrp->lL", T, T.conj())
+                result = contract("lrp,Lrp->lL", T, T.conj())
 
             elif node.canonical_form == DirTTN.RIGHT:
-                result = cq.contract("lrp,lRp->rR", T, T.conj())
+                result = contract("lrp,lRp->rR", T, T.conj())
 
             # Check that the result is the identity
             assert cp.allclose(result, cp.eye(result.shape[0]))

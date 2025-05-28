@@ -21,9 +21,8 @@ try:
 except ImportError:
     warnings.warn("local settings failed to import cupy", ImportWarning)  # noqa: B028
 try:
-    import cuquantum as cq  # type: ignore
-    from cuquantum.cutensornet import tensor  # type: ignore
-    from cuquantum.cutensornet.experimental import contract_decompose  # type: ignore
+    from cuquantum.tensornet import contract, tensor  # type: ignore
+    from cuquantum.tensornet.experimental import contract_decompose  # type: ignore
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)  # noqa: B028
 
@@ -64,7 +63,7 @@ class MPSxGate(MPS):
         gate_bonds = "op"
 
         # Contract
-        new_tensor = cq.contract(
+        new_tensor = contract(
             gate_bonds + "," + T_bonds + "->" + result_bonds,
             unitary,
             self.tensors[position],
@@ -132,7 +131,7 @@ class MPSxGate(MPS):
 
         # Contract
         self._logger.debug("Contracting the two-qubit gate with its site tensors...")
-        T = cq.contract(
+        T = contract(
             "SLl,abl,SRr,bcr->acLR",
             U,
             self.tensors[l_pos],
@@ -303,7 +302,7 @@ class MPSxGate(MPS):
 
         # Finally, contract the `msg_tensor` with the site tensor in `r_pos` and the
         # `r_gate_tensor` from the decomposition of `gate_tensor`
-        self.tensors[r_pos] = cq.contract(
+        self.tensors[r_pos] = contract(
             "sam,mbr,sRr->abR",
             msg_tensor,
             self.tensors[r_pos],
@@ -367,7 +366,7 @@ class MPSxGate(MPS):
         lmsg_tensor[1] = 1
         # Apply a Kronecker product with the identity of left bond of l_pos
         l_dim = self.get_virtual_dimensions(l_pos)[0]
-        lmsg_tensor = cq.contract(
+        lmsg_tensor = contract(
             "m,ab->mab",
             lmsg_tensor,
             cp.eye(l_dim, dtype=self._cfg._complex_t),
@@ -400,7 +399,7 @@ class MPSxGate(MPS):
         rmsg_tensor[1] = 1
         # Apply a Kronecker product with the identity of right bond of r_pos
         r_dim = self.get_virtual_dimensions(r_pos)[1]
-        rmsg_tensor = cq.contract(
+        rmsg_tensor = contract(
             "m,bc->mbc",
             rmsg_tensor,
             cp.eye(r_dim, dtype=self._cfg._complex_t),
@@ -448,7 +447,7 @@ class MPSxGate(MPS):
         )
         xor_tensor = cp.reshape(xor_tensor, (2, 2, 2))  # Bonds Zxy (where Z is result)
 
-        self.tensors[t_pos] = cq.contract(
+        self.tensors[t_pos] = contract(
             "lab,rcd,bcp,PpM,Mlr->adP",
             lmsg_tensor,
             rmsg_tensor,
@@ -503,7 +502,7 @@ class MPSxGate(MPS):
         msg_tensor[1] = cp.exp(phase)
         # Apply a Kronecker product with the identity of left bond of l_pos
         l_dim = self.get_virtual_dimensions(l_pos)[0]
-        msg_tensor = cq.contract(
+        msg_tensor = contract(
             "m,ab->mab",
             msg_tensor,
             cp.eye(l_dim, dtype=self._cfg._complex_t),
@@ -572,7 +571,7 @@ class MPSxGate(MPS):
         pauli = pauli_str.map[pos_qubit_map[r_pos]]
         trivial_tensor = cp.asarray([1, 0], dtype=self._cfg._complex_t)
 
-        self.tensors[r_pos] = cq.contract(
+        self.tensors[r_pos] = contract(
             "mab,bcp,PMpm,M->acP",
             msg_tensor,
             self.tensors[r_pos],

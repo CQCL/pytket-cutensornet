@@ -22,8 +22,7 @@ try:
 except ImportError:
     warnings.warn("local settings failed to import cupy", ImportWarning)  # noqa: B028
 try:
-    import cuquantum as cq  # type: ignore
-    from cuquantum.cutensornet import tensor  # type: ignore
+    from cuquantum.tensornet import contract, tensor  # type: ignore
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)  # noqa: B028
 
@@ -183,7 +182,7 @@ class MPSxMPO(MPS):
             new_bonds = "lrg"
 
         # Contract
-        new_tensor = cq.contract(
+        new_tensor = contract(
             "go," + last_bonds + "->" + new_bonds,
             unitary,
             last_tensor,
@@ -266,7 +265,7 @@ class MPSxMPO(MPS):
             # Identity between left/right virtual bonds
             v_identity = cp.eye(dim, dtype=self._cfg._complex_t)
             # Create a "crossing" tensor by applying tensor product of these
-            crossing = cq.contract(
+            crossing = contract(
                 "io,lr->ilro",
                 p_identity,
                 v_identity,
@@ -462,7 +461,7 @@ class MPSxMPO(MPS):
                 interleaved_rep.append(["r", "R"] + result_bonds)
 
             # Contract and store
-            T = cq.contract(
+            T = contract(
                 *interleaved_rep,
                 options={"handle": self._lib.handle, "device_id": self._lib.device_id},
                 optimize={"samples": 0},
@@ -524,7 +523,7 @@ class MPSxMPO(MPS):
             interleaved_rep.append(result_bonds)
 
             # Contract and store tensor
-            F = cq.contract(
+            F = contract(
                 *interleaved_rep,
                 options={"handle": self._lib.handle, "device_id": self._lib.device_id},
                 optimize={"samples": 0},
@@ -532,7 +531,7 @@ class MPSxMPO(MPS):
 
             # Get the fidelity
             optim_fidelity = complex(
-                cq.contract(
+                contract(
                     "LRP,LRP->",
                     F.conj(),
                     F,

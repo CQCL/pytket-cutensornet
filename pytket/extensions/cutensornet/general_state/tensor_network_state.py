@@ -33,7 +33,7 @@ from pytket.utils import OutcomeArray
 from pytket.utils.operators import QubitPauliOperator  # noqa: TC001
 
 try:
-    from cuquantum.cutensornet.experimental import (  # type: ignore
+    from cuquantum.tensornet.experimental import (  # type: ignore
         NetworkOperator,
         NetworkState,
     )

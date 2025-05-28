@@ -1,8 +1,8 @@
 from typing import Any
 
-import cuquantum as cq  # type: ignore
 import numpy as np
 import pytest
+from cuquantum.tensornet import contract  # type: ignore
 
 from pytket.circuit import Qubit  # type: ignore
 from pytket.extensions.cutensornet.backends import CuTensorNetStateBackend
@@ -42,7 +42,7 @@ def test_postselect_qubits_state_2q(
     sv = circuit_statevector_postselect(circuit_2q, postselect_dict)
     tn = TensorNetwork(circuit_2q)
     ten_net = measure_qubits_state(tn, postselect_dict)
-    result_cu = cq.contract(*ten_net.cuquantum_interleaved).flatten().round(10)
+    result_cu = contract(*ten_net.cuquantum_interleaved).flatten().round(10)
     assert np.allclose(result_cu, sv)
 
 
@@ -70,7 +70,7 @@ def test_postselect_qubits_state(
     sv = circuit_statevector_postselect(circuit, postselect_dict.copy())
     tn = TensorNetwork(circuit)
     ten_net = measure_qubits_state(tn, postselect_dict)
-    result_cu = cq.contract(*ten_net.cuquantum_interleaved).flatten()
+    result_cu = contract(*ten_net.cuquantum_interleaved).flatten()
     assert np.allclose(result_cu, sv)
 
 

@@ -26,8 +26,7 @@ try:
 except ImportError:
     warnings.warn("local settings failed to import cupy", ImportWarning)  # noqa: B028
 try:
-    import cuquantum as cq  # type: ignore
-    from cuquantum.cutensornet import tensor  # type: ignore
+    from cuquantum.tensornet import contract, tensor  # type: ignore
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)  # noqa: B028
 
@@ -467,7 +466,7 @@ class TTN(StructuredState):
             node_bonds = "lrp"
 
             parent_node = self.nodes[path[:-1]]
-            parent_node.tensor = cq.contract(
+            parent_node.tensor = contract(
                 R_bonds + "," + node_bonds + "->" + result_bonds,
                 R,
                 parent_node.tensor,
@@ -518,7 +517,7 @@ class TTN(StructuredState):
                 child_node = self.nodes[child_path]
 
                 # Contract R with the child node
-                child_node.tensor = cq.contract(
+                child_node.tensor = contract(
                     "lrp,ps->lrs",
                     child_node.tensor,
                     R,
@@ -550,7 +549,7 @@ class TTN(StructuredState):
             R_bonds = "ps"
 
             # Contract R with the leaf node
-            leaf_node.tensor = cq.contract(
+            leaf_node.tensor = contract(
                 node_bonds + "," + R_bonds + "->" + new_bonds,
                 leaf_node.tensor,
                 R,
@@ -637,7 +636,7 @@ class TTN(StructuredState):
         ttn1 = self.get_interleaved_representation(conj=True)
         ttn2 = other.get_interleaved_representation(conj=False)
         interleaved_rep = ttn1 + ttn2 + [[]]  # Discards dim=1 bonds with []
-        result = cq.contract(
+        result = contract(
             *interleaved_rep,
             options={"handle": self._lib.handle, "device_id": self._lib.device_id},
             optimize={"samples": 0},  # There is little to no optimisation to be done
@@ -741,7 +740,7 @@ class TTN(StructuredState):
         interleaved_rep.append(output_bonds)
 
         # Contract
-        result_tensor = cq.contract(
+        result_tensor = contract(
             *interleaved_rep,
             options={"handle": self._lib.handle, "device_id": self._lib.device_id},
             optimize={"samples": 0},  # There is little to no optimisation to be done
@@ -781,7 +780,7 @@ class TTN(StructuredState):
         interleaved_rep.append([])
 
         # Contract
-        result = cq.contract(
+        result = contract(
             *interleaved_rep,
             options={"handle": self._lib.handle, "device_id": self._lib.device_id},
             optimize={"samples": 0},  # There is little to no optimisation to be done

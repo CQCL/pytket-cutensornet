@@ -12,7 +12,7 @@ from pytket.passes import CnXPairwiseDecomposition, DecomposeBoxes  # type: igno
 from pytket.transform import Transform  # type: ignore
 
 try:
-    import cuquantum as cq  # type: ignore
+    from cuquantum.tensornet import contract  # type: ignore
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)  # noqa: B028
 from pytket.circuit import Circuit
@@ -29,7 +29,7 @@ from pytket.utils.operators import QubitPauliOperator
 def state_contract(tn: list[NDArray | list]) -> NDArray:
     """Calls cuQuantum contract function to contract an input state tensor network."""
     state_tn = tn.copy()
-    state: NDArray = cq.contract(*state_tn).flatten()
+    state: NDArray = contract(*state_tn).flatten()
     return state
 
 
@@ -37,7 +37,7 @@ def circuit_overlap_contract(circuit_ket: Circuit) -> float:
     """Calculates an overlap of a state circuit with its adjoint."""
     ket_net = TensorNetwork(circuit_ket)
     overlap_net_interleaved = ket_net.vdot(TensorNetwork(circuit_ket))
-    overlap: float = cq.contract(*overlap_net_interleaved)
+    overlap: float = contract(*overlap_net_interleaved)
     return overlap
 
 
@@ -95,7 +95,7 @@ def test_toffoli_box_with_implicit_swaps() -> None:
 
     # Convert and contract
     ket_net = TensorNetwork(ket_circ)
-    ket_net_vector = cq.contract(*ket_net.cuquantum_interleaved).flatten()
+    ket_net_vector = contract(*ket_net.cuquantum_interleaved).flatten()
     ket_net_vector = ket_net_vector * cmath.exp(1j * cmath.pi * ket_circ.phase)
 
     # Compare to pytket statevector
@@ -140,18 +140,18 @@ def test_generalised_toffoli_box(n_qubits: int) -> None:
             bra_circ.X(i)
 
     ket_net = TensorNetwork(ket_circ)
-    ket_net_vector = cq.contract(*ket_net.cuquantum_interleaved).flatten()
+    ket_net_vector = contract(*ket_net.cuquantum_interleaved).flatten()
     ket_net_vector = ket_net_vector * cmath.exp(1j * cmath.pi * ket_circ.phase)
     ket_pytket_vector = ket_circ.get_statevector()
     assert np.allclose(ket_net_vector, ket_pytket_vector)
 
     bra_net = TensorNetwork(bra_circ)
-    bra_net_vector = cq.contract(*bra_net.cuquantum_interleaved).flatten()
+    bra_net_vector = contract(*bra_net.cuquantum_interleaved).flatten()
     bra_net_vector = bra_net_vector * cmath.exp(1j * cmath.pi * bra_circ.phase)
     bra_pytket_vector = bra_circ.get_statevector()
     assert np.allclose(bra_net_vector, bra_pytket_vector)
 
-    np.isclose(abs(cq.contract(*ket_net.vdot(bra_net))), 1.0)
+    np.isclose(abs(contract(*ket_net.vdot(bra_net))), 1.0)
 
 
 def test_expectation_value() -> None:
