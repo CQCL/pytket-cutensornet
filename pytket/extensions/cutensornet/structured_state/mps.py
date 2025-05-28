@@ -960,7 +960,7 @@ class MPS(StructuredState):
         return set(self.qubit_position.keys())
 
     def get_entanglement_entropy(self, position: int) -> float:
-        """Returns the entanglement entropy of the virtual bond to the right of ``tensors[position]``.
+        """Returns the entanglement entropy of the virtual bond to the right of ``position``.
 
         Args:
             position: A position in the MPS.

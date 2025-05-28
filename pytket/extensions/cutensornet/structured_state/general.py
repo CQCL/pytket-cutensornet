@@ -208,7 +208,8 @@ class StructuredState(ABC):
         """Apply the command to the `StructuredState`.
 
         Note:
-            Only one-qubit gates and two-qubit gates are supported.
+            All one-qubit gates and two-qubit gates are supported.
+            Multi-qubit `CnX` and `PauliExpBox` gates are supported for `MPSxGate`.
 
         Args:
             gate: The command to be applied.
