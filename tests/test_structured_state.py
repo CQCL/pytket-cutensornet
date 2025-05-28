@@ -5,6 +5,7 @@ import cupy as cp  # type: ignore
 import cuquantum as cq  # type: ignore
 import numpy as np  # type: ignore
 import pytest
+import conftest
 
 from pytket.circuit import Circuit, OpType, Qubit  # type: ignore
 from pytket.extensions.cutensornet.general_state.utils import (
@@ -246,32 +247,32 @@ def test_canonicalise_ttn(center: RootPath | Qubit) -> None:  # noqa: PLR0912
 
 
 @pytest.mark.parametrize(
-    "circuit",
+    "circname",
     [
-        pytest.lazy_fixture("q1_empty"),  # type: ignore
-        pytest.lazy_fixture("q5_empty"),  # type: ignore
-        pytest.lazy_fixture("q8_empty"),  # type: ignore
-        pytest.lazy_fixture("q1_h0rz"),  # type: ignore
-        pytest.lazy_fixture("q2_x0"),  # type: ignore
-        pytest.lazy_fixture("q2_x1"),  # type: ignore
-        pytest.lazy_fixture("q2_v0"),  # type: ignore
-        pytest.lazy_fixture("q8_x0h2v5z6"),  # type: ignore
-        pytest.lazy_fixture("q2_x0cx01"),  # type: ignore
-        pytest.lazy_fixture("q2_x1cx10x1"),  # type: ignore
-        pytest.lazy_fixture("q2_x0cx01cx10"),  # type: ignore
-        pytest.lazy_fixture("q2_v0cx01cx10"),  # type: ignore
-        pytest.lazy_fixture("q2_hadamard_test"),  # type: ignore
-        pytest.lazy_fixture("q2_lcu1"),  # type: ignore
-        pytest.lazy_fixture("q2_lcu2"),  # type: ignore
-        pytest.lazy_fixture("q2_lcu3"),  # type: ignore
-        pytest.lazy_fixture("q3_v0cx02"),  # type: ignore
-        pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
-        pytest.lazy_fixture("q3_toffoli_box_with_implicit_swaps"),  # type: ignore
-        pytest.lazy_fixture("q4_with_creates"),  # type: ignore
-        pytest.lazy_fixture("q5_h0s1rz2ry3tk4tk13"),  # type: ignore
-        pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
-        pytest.lazy_fixture("q6_qvol"),  # type: ignore
-        pytest.lazy_fixture("q8_qvol"),  # type: ignore
+        "q1_empty",
+        "q5_empty",
+        "q8_empty",
+        "q1_h0rz",
+        "q2_x0",
+        "q2_x1",
+        "q2_v0",
+        "q8_x0h2v5z6",
+        "q2_x0cx01",
+        "q2_x1cx10x1",
+        "q2_x0cx01cx10",
+        "q2_v0cx01cx10",
+        "q2_hadamard_test",
+        "q2_lcu1",
+        "q2_lcu2",
+        "q2_lcu3",
+        "q3_v0cx02",
+        "q3_cx01cz12x1rx0",
+        "q3_toffoli_box_with_implicit_swaps",
+        "q4_with_creates",
+        "q5_h0s1rz2ry3tk4tk13",
+        "q5_line_circ_30_layers",
+        "q6_qvol",
+        "q8_qvol",
     ],
 )
 @pytest.mark.parametrize(
@@ -282,7 +283,8 @@ def test_canonicalise_ttn(center: RootPath | Qubit) -> None:  # noqa: PLR0912
         SimulationAlgorithm.TTNxGate,
     ],
 )
-def test_exact_circ_sim(circuit: Circuit, algorithm: SimulationAlgorithm) -> None:
+def test_exact_circ_sim(circname: str, algorithm: SimulationAlgorithm) -> None:
+    circuit = getattr(conftest, circname)()
     n_qubits = len(circuit.qubits)
     state_vec = circuit.get_statevector()
 
@@ -308,18 +310,18 @@ def test_exact_circ_sim(circuit: Circuit, algorithm: SimulationAlgorithm) -> Non
 
 
 @pytest.mark.parametrize(
-    "circuit",
+    "circname",
     [
-        pytest.lazy_fixture("q1_empty"),  # type: ignore
-        pytest.lazy_fixture("q5_empty"),  # type: ignore
-        pytest.lazy_fixture("q1_h0rz"),  # type: ignore
-        pytest.lazy_fixture("q2_lcu1"),  # type: ignore
-        pytest.lazy_fixture("q2_lcu2"),  # type: ignore
-        pytest.lazy_fixture("q2_lcu3"),  # type: ignore
-        pytest.lazy_fixture("q3_toffoli_box_with_implicit_swaps"),  # type: ignore
-        pytest.lazy_fixture("q4_with_creates"),  # type: ignore
-        pytest.lazy_fixture("q6_qvol"),  # type: ignore
-        pytest.lazy_fixture("q8_qvol"),  # type: ignore
+        "q1_empty",
+        "q5_empty",
+        "q1_h0rz",
+        "q2_lcu1",
+        "q2_lcu2",
+        "q2_lcu3",
+        "q3_toffoli_box_with_implicit_swaps",
+        "q4_with_creates",
+        "q6_qvol",
+        "q8_qvol",
     ],
 )
 @pytest.mark.parametrize(
@@ -329,7 +331,8 @@ def test_exact_circ_sim(circuit: Circuit, algorithm: SimulationAlgorithm) -> Non
         SimulationAlgorithm.MPSxMPO,
     ],
 )
-def test_prepare_circuit_mps(circuit: Circuit, algorithm: SimulationAlgorithm) -> None:
+def test_prepare_circuit_mps(circname: str, algorithm: SimulationAlgorithm) -> None:
+    circuit = getattr(conftest, circname)()
     state_vec = circuit.get_statevector()
     n_qubits = len(circuit.qubits)
 
@@ -365,32 +368,32 @@ def test_prepare_circuit_mps(circuit: Circuit, algorithm: SimulationAlgorithm) -
 
 
 @pytest.mark.parametrize(
-    "circuit",
+    "circname",
     [
-        pytest.lazy_fixture("q1_empty"),  # type: ignore
-        pytest.lazy_fixture("q5_empty"),  # type: ignore
-        pytest.lazy_fixture("q8_empty"),  # type: ignore
-        pytest.lazy_fixture("q1_h0rz"),  # type: ignore
-        pytest.lazy_fixture("q2_x0"),  # type: ignore
-        pytest.lazy_fixture("q2_x1"),  # type: ignore
-        pytest.lazy_fixture("q2_v0"),  # type: ignore
-        pytest.lazy_fixture("q8_x0h2v5z6"),  # type: ignore
-        pytest.lazy_fixture("q2_x0cx01"),  # type: ignore
-        pytest.lazy_fixture("q2_x1cx10x1"),  # type: ignore
-        pytest.lazy_fixture("q2_x0cx01cx10"),  # type: ignore
-        pytest.lazy_fixture("q2_v0cx01cx10"),  # type: ignore
-        pytest.lazy_fixture("q2_hadamard_test"),  # type: ignore
-        pytest.lazy_fixture("q2_lcu1"),  # type: ignore
-        pytest.lazy_fixture("q2_lcu2"),  # type: ignore
-        pytest.lazy_fixture("q2_lcu3"),  # type: ignore
-        pytest.lazy_fixture("q3_v0cx02"),  # type: ignore
-        pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
-        pytest.lazy_fixture("q3_toffoli_box_with_implicit_swaps"),  # type: ignore
-        pytest.lazy_fixture("q4_with_creates"),  # type: ignore
-        pytest.lazy_fixture("q5_h0s1rz2ry3tk4tk13"),  # type: ignore
-        pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
-        pytest.lazy_fixture("q6_qvol"),  # type: ignore
-        pytest.lazy_fixture("q8_qvol"),  # type: ignore
+        "q1_empty",
+        "q5_empty",
+        "q8_empty",
+        "q1_h0rz",
+        "q2_x0",
+        "q2_x1",
+        "q2_v0",
+        "q8_x0h2v5z6",
+        "q2_x0cx01",
+        "q2_x1cx10x1",
+        "q2_x0cx01cx10",
+        "q2_v0cx01cx10",
+        "q2_hadamard_test",
+        "q2_lcu1",
+        "q2_lcu2",
+        "q2_lcu3",
+        "q3_v0cx02",
+        "q3_cx01cz12x1rx0",
+        "q3_toffoli_box_with_implicit_swaps",
+        "q4_with_creates",
+        "q5_h0s1rz2ry3tk4tk13",
+        "q5_line_circ_30_layers",
+        "q6_qvol",
+        "q8_qvol",
     ],
 )
 @pytest.mark.parametrize(
@@ -402,8 +405,9 @@ def test_prepare_circuit_mps(circuit: Circuit, algorithm: SimulationAlgorithm) -
     ],
 )
 def test_approx_circ_sim_gate_fid(
-    circuit: Circuit, algorithm: SimulationAlgorithm
+    circname: str, algorithm: SimulationAlgorithm
 ) -> None:
+    circuit = getattr(conftest, circname)()
     with CuTensorNetHandle() as libhandle:
         cfg = Config(truncation_fidelity=0.99, leaf_size=2)
         state = simulate(libhandle, circuit, algorithm, cfg)
@@ -413,9 +417,9 @@ def test_approx_circ_sim_gate_fid(
 
 
 @pytest.mark.parametrize(
-    "circuit",
+    "circname",
     [
-        pytest.lazy_fixture("q8_qvol"),  # type: ignore
+        "q8_qvol",
     ],
 )
 @pytest.mark.parametrize(
@@ -426,7 +430,8 @@ def test_approx_circ_sim_gate_fid(
         SimulationAlgorithm.TTNxGate,
     ],
 )
-def test_kill_threshold(circuit: Circuit, algorithm: SimulationAlgorithm) -> None:
+def test_kill_threshold(circname: str, algorithm: SimulationAlgorithm) -> None:
+    circuit = getattr(conftest, circname)()
     with CuTensorNetHandle() as libhandle:
         cfg = Config(truncation_fidelity=0.99, kill_threshold=0.9999, leaf_size=2)
         with pytest.raises(LowFidelityException):
@@ -434,32 +439,32 @@ def test_kill_threshold(circuit: Circuit, algorithm: SimulationAlgorithm) -> Non
 
 
 @pytest.mark.parametrize(
-    "circuit",
+    "circname",
     [
-        pytest.lazy_fixture("q1_empty"),  # type: ignore
-        pytest.lazy_fixture("q5_empty"),  # type: ignore
-        pytest.lazy_fixture("q8_empty"),  # type: ignore
-        pytest.lazy_fixture("q1_h0rz"),  # type: ignore
-        pytest.lazy_fixture("q2_x0"),  # type: ignore
-        pytest.lazy_fixture("q2_x1"),  # type: ignore
-        pytest.lazy_fixture("q2_v0"),  # type: ignore
-        pytest.lazy_fixture("q8_x0h2v5z6"),  # type: ignore
-        pytest.lazy_fixture("q2_x0cx01"),  # type: ignore
-        pytest.lazy_fixture("q2_x1cx10x1"),  # type: ignore
-        pytest.lazy_fixture("q2_x0cx01cx10"),  # type: ignore
-        pytest.lazy_fixture("q2_v0cx01cx10"),  # type: ignore
-        pytest.lazy_fixture("q2_hadamard_test"),  # type: ignore
-        pytest.lazy_fixture("q2_lcu1"),  # type: ignore
-        pytest.lazy_fixture("q2_lcu2"),  # type: ignore
-        pytest.lazy_fixture("q2_lcu3"),  # type: ignore
-        pytest.lazy_fixture("q3_v0cx02"),  # type: ignore
-        pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
-        pytest.lazy_fixture("q3_toffoli_box_with_implicit_swaps"),  # type: ignore
-        pytest.lazy_fixture("q4_with_creates"),  # type: ignore
-        pytest.lazy_fixture("q5_h0s1rz2ry3tk4tk13"),  # type: ignore
-        pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
-        pytest.lazy_fixture("q6_qvol"),  # type: ignore
-        pytest.lazy_fixture("q8_qvol"),  # type: ignore
+        "q1_empty",
+        "q5_empty",
+        "q8_empty",
+        "q1_h0rz",
+        "q2_x0",
+        "q2_x1",
+        "q2_v0",
+        "q8_x0h2v5z6",
+        "q2_x0cx01",
+        "q2_x1cx10x1",
+        "q2_x0cx01cx10",
+        "q2_v0cx01cx10",
+        "q2_hadamard_test",
+        "q2_lcu1",
+        "q2_lcu2",
+        "q2_lcu3",
+        "q3_v0cx02",
+        "q3_cx01cz12x1rx0",
+        "q3_toffoli_box_with_implicit_swaps",
+        "q4_with_creates",
+        "q5_h0s1rz2ry3tk4tk13",
+        "q5_line_circ_30_layers",
+        "q6_qvol",
+        "q8_qvol",
     ],
 )
 @pytest.mark.parametrize(
@@ -470,7 +475,8 @@ def test_kill_threshold(circuit: Circuit, algorithm: SimulationAlgorithm) -> Non
         SimulationAlgorithm.TTNxGate,
     ],
 )
-def test_approx_circ_sim_chi(circuit: Circuit, algorithm: SimulationAlgorithm) -> None:
+def test_approx_circ_sim_chi(circname: str, algorithm: SimulationAlgorithm) -> None:
+    circuit = getattr(conftest, circname)()
     with CuTensorNetHandle() as libhandle:
         cfg = Config(chi=4, leaf_size=2)
         state = simulate(libhandle, circuit, algorithm, cfg)
@@ -480,17 +486,17 @@ def test_approx_circ_sim_chi(circuit: Circuit, algorithm: SimulationAlgorithm) -
 
 
 @pytest.mark.parametrize(
-    "circuit",
+    "circname",
     [
-        pytest.lazy_fixture("q1_empty"),  # type: ignore
-        pytest.lazy_fixture("q5_empty"),  # type: ignore
-        pytest.lazy_fixture("q1_h0rz"),  # type: ignore
-        pytest.lazy_fixture("q2_x0cx01cx10"),  # type: ignore
-        pytest.lazy_fixture("q2_lcu2"),  # type: ignore
-        pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
-        pytest.lazy_fixture("q4_with_creates"),  # type: ignore
-        pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
-        pytest.lazy_fixture("q6_qvol"),  # type: ignore
+        "q1_empty",
+        "q5_empty",
+        "q1_h0rz",
+        "q2_x0cx01cx10",
+        "q2_lcu2",
+        "q3_cx01cz12x1rx0",
+        "q4_with_creates",
+        "q5_line_circ_30_layers",
+        "q6_qvol",
     ],
 )
 @pytest.mark.parametrize(
@@ -509,8 +515,9 @@ def test_approx_circ_sim_chi(circuit: Circuit, algorithm: SimulationAlgorithm) -
     ],
 )
 def test_float_point_options(
-    circuit: Circuit, algorithm: SimulationAlgorithm, fp_precision: Any
+    circname: str, algorithm: SimulationAlgorithm, fp_precision: Any
 ) -> None:
+    circuit = getattr(conftest, circname)()
     with CuTensorNetHandle() as libhandle:
         # Exact
         cfg = Config(float_precision=fp_precision, leaf_size=2)
@@ -547,12 +554,13 @@ def test_float_point_options(
 
 
 @pytest.mark.parametrize(
-    "circuit",
+    "circname",
     [
-        pytest.lazy_fixture("q20_line_circ_20_layers"),  # type: ignore
+        "q20_line_circ_20_layers",
     ],
 )
-def test_circ_approx_explicit_mps(circuit: Circuit) -> None:
+def test_circ_approx_explicit_mps(circname: str) -> None:
+    circuit = getattr(conftest, circname)()
     random.seed(1)
 
     with CuTensorNetHandle() as libhandle:
@@ -596,12 +604,13 @@ def test_circ_approx_explicit_mps(circuit: Circuit) -> None:
 
 
 @pytest.mark.parametrize(
-    "circuit",
+    "circname",
     [
-        pytest.lazy_fixture("q15_qvol"),  # type: ignore
+        "q15_qvol",
     ],
 )
-def test_circ_approx_explicit_ttn(circuit: Circuit) -> None:
+def test_circ_approx_explicit_ttn(circname: str) -> None:
+    circuit = getattr(conftest, circname)()
     random.seed(1)
 
     with CuTensorNetHandle() as libhandle:
@@ -623,19 +632,19 @@ def test_circ_approx_explicit_ttn(circuit: Circuit) -> None:
 
 
 @pytest.mark.parametrize(
-    "circuit",
+    "circname",
     [
-        pytest.lazy_fixture("q2_x0"),  # type: ignore
-        pytest.lazy_fixture("q2_x1"),  # type: ignore
-        pytest.lazy_fixture("q2_v0"),  # type: ignore
-        pytest.lazy_fixture("q2_x0cx01"),  # type: ignore
-        pytest.lazy_fixture("q2_x1cx10x1"),  # type: ignore
-        pytest.lazy_fixture("q2_x0cx01cx10"),  # type: ignore
-        pytest.lazy_fixture("q2_v0cx01cx10"),  # type: ignore
-        pytest.lazy_fixture("q2_hadamard_test"),  # type: ignore
-        pytest.lazy_fixture("q2_lcu1"),  # type: ignore
-        pytest.lazy_fixture("q2_lcu2"),  # type: ignore
-        pytest.lazy_fixture("q2_lcu3"),  # type: ignore
+        "q2_x0",
+        "q2_x1",
+        "q2_v0",
+        "q2_x0cx01",
+        "q2_x1cx10x1",
+        "q2_x0cx01cx10",
+        "q2_v0cx01cx10",
+        "q2_hadamard_test",
+        "q2_lcu1",
+        "q2_lcu2",
+        "q2_lcu3",
     ],
 )
 @pytest.mark.parametrize(
@@ -647,7 +656,8 @@ def test_circ_approx_explicit_ttn(circuit: Circuit) -> None:
         {Qubit("q", 1): 1},
     ],
 )
-def test_postselect_2q_circ(circuit: Circuit, postselect_dict: dict) -> None:
+def test_postselect_2q_circ(circname: str, postselect_dict: dict) -> None:
+    circuit = getattr(conftest, circname)()
     sv = circuit_statevector_postselect(circuit, postselect_dict.copy())
     sv_prob = sv.conj() @ sv
     if not np.isclose(sv_prob, 0.0):
@@ -662,11 +672,11 @@ def test_postselect_2q_circ(circuit: Circuit, postselect_dict: dict) -> None:
 
 
 @pytest.mark.parametrize(
-    "circuit",
+    "circname",
     [
-        pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
-        pytest.lazy_fixture("q3_toffoli_box_with_implicit_swaps"),  # type: ignore
-        pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
+        "q3_cx01cz12x1rx0",
+        "q3_toffoli_box_with_implicit_swaps",
+        "q5_line_circ_30_layers",
     ],
 )
 @pytest.mark.parametrize(
@@ -679,7 +689,8 @@ def test_postselect_2q_circ(circuit: Circuit, postselect_dict: dict) -> None:
         {Qubit("q", 0): 0, Qubit("q", 2): 1},
     ],
 )
-def test_postselect_circ(circuit: Circuit, postselect_dict: dict) -> None:
+def test_postselect_circ(circname: str, postselect_dict: dict) -> None:
+    circuit = getattr(conftest, circname)()
     sv = circuit_statevector_postselect(circuit, postselect_dict.copy())
     sv_prob = sv.conj() @ sv
     if not np.isclose(sv_prob, 0.0):
@@ -696,21 +707,21 @@ def test_postselect_circ(circuit: Circuit, postselect_dict: dict) -> None:
 
 
 @pytest.mark.parametrize(
-    "circuit",
+    "circname",
     [
-        pytest.lazy_fixture("q2_x0"),  # type: ignore
-        pytest.lazy_fixture("q2_x1"),  # type: ignore
-        pytest.lazy_fixture("q2_v0"),  # type: ignore
-        pytest.lazy_fixture("q2_x0cx01"),  # type: ignore
-        pytest.lazy_fixture("q2_x1cx10x1"),  # type: ignore
-        pytest.lazy_fixture("q2_hadamard_test"),  # type: ignore
-        pytest.lazy_fixture("q2_lcu1"),  # type: ignore
-        pytest.lazy_fixture("q2_lcu2"),  # type: ignore
-        pytest.lazy_fixture("q2_lcu3"),  # type: ignore
-        pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
-        pytest.lazy_fixture("q3_toffoli_box_with_implicit_swaps"),  # type: ignore
-        pytest.lazy_fixture("q4_with_creates"),  # type: ignore
-        pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
+        "q2_x0",
+        "q2_x1",
+        "q2_v0",
+        "q2_x0cx01",
+        "q2_x1cx10x1",
+        "q2_hadamard_test",
+        "q2_lcu1",
+        "q2_lcu2",
+        "q2_lcu3",
+        "q3_cx01cz12x1rx0",
+        "q3_toffoli_box_with_implicit_swaps",
+        "q4_with_creates",
+        "q5_line_circ_30_layers",
     ],
 )
 @pytest.mark.parametrize(
@@ -721,7 +732,8 @@ def test_postselect_circ(circuit: Circuit, postselect_dict: dict) -> None:
         QubitPauliString({Qubit(0): Pauli.X, Qubit(1): Pauli.Z}),
     ],
 )
-def test_expectation_value(circuit: Circuit, observable: QubitPauliString) -> None:
+def test_expectation_value(circname: str, observable: QubitPauliString) -> None:
+    circuit = getattr(conftest, circname)()
     pauli_to_optype = {Pauli.Z: OpType.Z, Pauli.Y: OpType.Z, Pauli.X: OpType.X}
 
     # Use pytket to generate the expectation value of the observable
@@ -746,17 +758,18 @@ def test_expectation_value(circuit: Circuit, observable: QubitPauliString) -> No
 
 
 @pytest.mark.parametrize(
-    "circuit",
+    "circname",
     [
-        pytest.lazy_fixture("q1_h0rz"),  # type: ignore
-        pytest.lazy_fixture("q2_v0cx01cx10"),  # type: ignore
-        pytest.lazy_fixture("q2_hadamard_test"),  # type: ignore
-        pytest.lazy_fixture("q2_lcu2"),  # type: ignore
-        pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
-        pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
+        "q1_h0rz",
+        "q2_v0cx01cx10",
+        "q2_hadamard_test",
+        "q2_lcu2",
+        "q3_cx01cz12x1rx0",
+        "q5_line_circ_30_layers",
     ],
 )
-def test_sample_with_seed(circuit: Circuit) -> None:
+def test_sample_with_seed(circname: str) -> None:
+    circuit = getattr(conftest, circname)()
     n_samples = 10
     config = Config(seed=1234)
 
@@ -780,16 +793,17 @@ def test_sample_with_seed(circuit: Circuit) -> None:
 
 
 @pytest.mark.parametrize(
-    "circuit",
+    "circname",
     [
-        pytest.lazy_fixture("q2_x1"),  # type: ignore
-        pytest.lazy_fixture("q2_x0cx01"),  # type: ignore
-        pytest.lazy_fixture("q2_v0cx01cx10"),  # type: ignore
-        pytest.lazy_fixture("q2_hadamard_test"),  # type: ignore
-        pytest.lazy_fixture("q2_lcu2"),  # type: ignore
+        "q2_x1",
+        "q2_x0cx01",
+        "q2_v0cx01cx10",
+        "q2_hadamard_test",
+        "q2_lcu2",
     ],
 )
-def test_sample_circ_2q(circuit: Circuit) -> None:
+def test_sample_circ_2q(circname: str) -> None:
+    circuit = getattr(conftest, circname)()
     n_samples = 200
 
     q0 = circuit.qubits[0]
@@ -817,14 +831,15 @@ def test_sample_circ_2q(circuit: Circuit) -> None:
 
 
 @pytest.mark.parametrize(
-    "circuit",
+    "circname",
     [
-        pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
-        pytest.lazy_fixture("q3_toffoli_box_with_implicit_swaps"),  # type: ignore
-        pytest.lazy_fixture("q5_line_circ_30_layers"),  # type: ignore
+        "q3_cx01cz12x1rx0",
+        "q3_toffoli_box_with_implicit_swaps",
+        "q5_line_circ_30_layers",
     ],
 )
-def test_measure_circ(circuit: Circuit) -> None:
+def test_measure_circ(circname: str) -> None:
+    circuit = getattr(conftest, circname)()
     n_samples = 200
 
     qA = circuit.qubits[-1]  # Least significant qubit

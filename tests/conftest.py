@@ -53,123 +53,105 @@ def quantum_volume_circuit(n_qubits: int) -> Circuit:
     return c
 
 
-@pytest.fixture
 def q1_empty() -> Circuit:
     circuit = Circuit(1)
     return circuit  # noqa: RET504
 
 
-@pytest.fixture
 def q5_empty() -> Circuit:
     circuit = Circuit(5)
     return circuit  # noqa: RET504
 
 
-@pytest.fixture
 def q8_empty() -> Circuit:
     circuit = Circuit(8)
     return circuit  # noqa: RET504
 
 
-@pytest.fixture
 def q1_h0rz() -> Circuit:
     circuit = Circuit(1)
     circuit.H(0).Rz(0.3, 0)
     return circuit
 
 
-@pytest.fixture
 def q2_x0() -> Circuit:
     circuit = Circuit(2)
     circuit.X(0)
     return circuit
 
 
-@pytest.fixture
 def q2_x1() -> Circuit:
     circuit = Circuit(2)
     circuit.X(1)
     return circuit
 
 
-@pytest.fixture
 def q2_v0() -> Circuit:
     circuit = Circuit(2)
     circuit.V(0)
     return circuit
 
 
-@pytest.fixture
 def q2_x0cx01() -> Circuit:
     circuit = Circuit(2)
     circuit.X(0).CX(0, 1)
     return circuit
 
 
-@pytest.fixture
 def q2_x1cx10x1() -> Circuit:
     circuit = Circuit(2)
     circuit.X(1).CX(1, 0).X(1)
     return circuit
 
 
-@pytest.fixture
 def q2_x0cx01cx10() -> Circuit:
     circuit = Circuit(2)
     circuit.X(0).CX(0, 1).CX(1, 0)
     return circuit
 
 
-@pytest.fixture
 def q2_v0cx01cx10() -> Circuit:
     circuit = Circuit(2)
     circuit.V(0).CX(0, 1).CX(1, 0)
     return circuit
 
 
-@pytest.fixture
 def q2_hadamard_test() -> Circuit:
     circuit = Circuit(2)
     circuit.H(0).CRx(0.5, 0, 1).H(0)
     return circuit
 
 
-@pytest.fixture
 def q2_lcu1() -> Circuit:
     circuit = Circuit(2)
     circuit.Ry(0.78, 1).Ry(0.27, 0).CX(0, 1).CZ(0, 1).Ry(-0.27, 0)
     return circuit
 
 
-@pytest.fixture
 def q2_lcu2() -> Circuit:
     circuit = Circuit(2)
     circuit.Ry(0.78, 1).Ry(0.27, 0).CZ(0, 1).CY(0, 1).Ry(-0.27, 0)
     return circuit
 
 
-@pytest.fixture
 def q2_lcu3() -> Circuit:
     circuit = Circuit(2)
     circuit.Ry(0.78, 1).Rx(0.67, 0).CX(0, 1).CZ(0, 1).Ry(-0.67, 0)
     return circuit
 
 
-@pytest.fixture
 def q3_v0cx02() -> Circuit:
     circuit = Circuit(3)
     circuit.V(0).CX(0, 2)
     return circuit
 
 
-@pytest.fixture
 def q3_cx01cz12x1rx0() -> Circuit:
     circuit = Circuit(3)
     circuit.CX(0, 1).CZ(1, 2).X(1).Rx(0.3, 0)
     return circuit
 
 
-@pytest.fixture
 def q4_lcu1() -> Circuit:
     circuit = Circuit(4)
     circuit.Ry(0.78, 3).Ry(0.27, 2).CX(2, 3).Ry(0.58, 2).Ry(0.21, 3)
@@ -182,7 +164,6 @@ def q4_lcu1() -> Circuit:
     return circuit
 
 
-@pytest.fixture
 def q4_lcu1_parameterised() -> Circuit:
     a, b, c = Symbol("a"), Symbol("b"), Symbol("c")
     circuit = Circuit(4)
@@ -196,7 +177,6 @@ def q4_lcu1_parameterised() -> Circuit:
     return circuit
 
 
-@pytest.fixture
 def q4_multicontrols() -> Circuit:
     circ = Circuit(4)
     circ.X(0)
@@ -215,7 +195,6 @@ def q4_multicontrols() -> Circuit:
     return circ
 
 
-@pytest.fixture
 def q4_with_creates() -> Circuit:
     circuit = Circuit(4)
     circuit.qubit_create_all()
@@ -233,7 +212,6 @@ def q4_with_creates() -> Circuit:
     return circuit
 
 
-@pytest.fixture
 def q5_h0s1rz2ry3tk4tk13() -> Circuit:
     circuit = Circuit(5)
     circuit.H(0)
@@ -245,7 +223,6 @@ def q5_h0s1rz2ry3tk4tk13() -> Circuit:
     return circuit
 
 
-@pytest.fixture
 def q5_h0s1rz2ry3tk4tk13_parameterised() -> Circuit:
     a, b, c = Symbol("a"), Symbol("b"), Symbol("c")
     circuit = Circuit(5)
@@ -258,7 +235,6 @@ def q5_h0s1rz2ry3tk4tk13_parameterised() -> Circuit:
     return circuit
 
 
-@pytest.fixture
 def q8_x0h2v5z6() -> Circuit:
     circuit = Circuit(8)
     circuit.X(0)
@@ -268,37 +244,31 @@ def q8_x0h2v5z6() -> Circuit:
     return circuit
 
 
-@pytest.fixture
 def q5_line_circ_30_layers() -> Circuit:
     np.random.seed(1)  # noqa: NPY002
     return random_line_circuit(n_qubits=5, layers=30)
 
 
-@pytest.fixture
 def q20_line_circ_20_layers() -> Circuit:
     np.random.seed(1)  # noqa: NPY002
     return random_line_circuit(n_qubits=20, layers=20)
 
 
-@pytest.fixture
 def q6_qvol() -> Circuit:
     np.random.seed(1)  # noqa: NPY002
     return quantum_volume_circuit(n_qubits=6)
 
 
-@pytest.fixture
 def q8_qvol() -> Circuit:
     np.random.seed(1)  # noqa: NPY002
     return quantum_volume_circuit(n_qubits=8)
 
 
-@pytest.fixture
 def q15_qvol() -> Circuit:
     np.random.seed(1)  # noqa: NPY002
     return quantum_volume_circuit(n_qubits=15)
 
 
-@pytest.fixture
 def q3_toffoli_box_with_implicit_swaps() -> Circuit:
     # Using specific permutation here
     perm = {

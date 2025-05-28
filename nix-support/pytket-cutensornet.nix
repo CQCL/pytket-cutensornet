@@ -53,7 +53,6 @@ EOF
     test-env = super.python3.withPackages(ps: with ps; [
       self.pytket-cutensornet
       pytest
-      pytest-lazy-fixture
     ]);
     nixgl-bin = self.lib.getExe self.nixgl.auto.nixGLNvidia;
   in super.writeShellScriptBin "run-pytket-cutensornet-tests" ''

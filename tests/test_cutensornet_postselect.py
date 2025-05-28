@@ -1,6 +1,7 @@
 import cuquantum as cq  # type: ignore
 import numpy as np
 import pytest
+import conftest
 
 from pytket.circuit import Circuit, Qubit  # type: ignore
 from pytket.extensions.cutensornet.backends import CuTensorNetStateBackend
@@ -17,23 +18,24 @@ from pytket.utils import QubitPauliOperator
 
 
 @pytest.mark.parametrize(
-    "circuit_2q",
+    "circname",
     [
-        pytest.lazy_fixture("q2_x0"),  # type: ignore
-        pytest.lazy_fixture("q2_x1"),  # type: ignore
-        pytest.lazy_fixture("q2_v0"),  # type: ignore
-        pytest.lazy_fixture("q2_x0cx01"),  # type: ignore
-        pytest.lazy_fixture("q2_x1cx10x1"),  # type: ignore
-        pytest.lazy_fixture("q2_x0cx01cx10"),  # type: ignore
-        pytest.lazy_fixture("q2_v0cx01cx10"),  # type: ignore
-        pytest.lazy_fixture("q2_hadamard_test"),  # type: ignore
-        pytest.lazy_fixture("q2_lcu1"),  # type: ignore
-        pytest.lazy_fixture("q2_lcu2"),  # type: ignore
-        pytest.lazy_fixture("q2_lcu3"),  # type: ignore
+        "q2_x0",
+        "q2_x1",
+        "q2_v0",
+        "q2_x0cx01",
+        "q2_x1cx10x1",
+        "q2_x0cx01cx10",
+        "q2_v0cx01cx10",
+        "q2_hadamard_test",
+        "q2_lcu1",
+        "q2_lcu2",
+        "q2_lcu3",
     ],
 )
 @pytest.mark.parametrize("postselect_dict", [{Qubit("q", 0): 0}, {Qubit("q", 0): 1}])
-def test_postselect_qubits_state_2q(circuit_2q: Circuit, postselect_dict: dict) -> None:
+def test_postselect_qubits_state_2q(circname: str, postselect_dict: dict) -> None:
+    circuit_2q = getattr(conftest, circname)()
     sv = circuit_statevector_postselect(circuit_2q, postselect_dict)
     tn = TensorNetwork(circuit_2q)
     ten_net = measure_qubits_state(tn, postselect_dict)
@@ -42,11 +44,11 @@ def test_postselect_qubits_state_2q(circuit_2q: Circuit, postselect_dict: dict) 
 
 
 @pytest.mark.parametrize(
-    "circuit",
+    "circname",
     [
-        pytest.lazy_fixture("q3_v0cx02"),  # type: ignore
-        pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
-        pytest.lazy_fixture("q4_lcu1"),  # type: ignore
+        "q3_v0cx02",
+        "q3_cx01cz12x1rx0",
+        "q4_lcu1",
     ],
 )
 @pytest.mark.parametrize(
@@ -58,7 +60,8 @@ def test_postselect_qubits_state_2q(circuit_2q: Circuit, postselect_dict: dict) 
         {Qubit("q", 0): 1, Qubit("q", 1): 1},
     ],
 )
-def test_postselect_qubits_state(circuit: Circuit, postselect_dict: dict) -> None:
+def test_postselect_qubits_state(circname: str, postselect_dict: dict) -> None:
+    circuit = getattr(conftest, circname)()
     sv = circuit_statevector_postselect(circuit, postselect_dict.copy())
     tn = TensorNetwork(circuit)
     ten_net = measure_qubits_state(tn, postselect_dict)
@@ -67,23 +70,24 @@ def test_postselect_qubits_state(circuit: Circuit, postselect_dict: dict) -> Non
 
 
 @pytest.mark.parametrize(
-    "circuit_2q",
+    "circname",
     [
-        pytest.lazy_fixture("q2_x0"),  # type: ignore
-        pytest.lazy_fixture("q2_x1"),  # type: ignore
-        pytest.lazy_fixture("q2_v0"),  # type: ignore
-        pytest.lazy_fixture("q2_x0cx01"),  # type: ignore
-        pytest.lazy_fixture("q2_x1cx10x1"),  # type: ignore
-        pytest.lazy_fixture("q2_hadamard_test"),  # type: ignore
-        pytest.lazy_fixture("q2_lcu1"),  # type: ignore
-        pytest.lazy_fixture("q2_lcu2"),  # type: ignore
-        pytest.lazy_fixture("q2_lcu3"),  # type: ignore
+        "q2_x0",
+        "q2_x1",
+        "q2_v0",
+        "q2_x0cx01",
+        "q2_x1cx10x1",
+        "q2_hadamard_test",
+        "q2_lcu1",
+        "q2_lcu2",
+        "q2_lcu3",
     ],
 )
 @pytest.mark.parametrize("postselect_dict", [{Qubit("q", 1): 0}, {Qubit("q", 1): 1}])
 def test_expectation_value_postselect_2q(
-    circuit_2q: Circuit, postselect_dict: dict
+    circname: str, postselect_dict: dict
 ) -> None:
+    circuit_2q = getattr(conftest, circname)()
     op = QubitPauliOperator(
         {
             QubitPauliString({Qubit(0): Pauli.Z}): 1.0,
@@ -99,12 +103,13 @@ def test_expectation_value_postselect_2q(
 
 
 @pytest.mark.parametrize(
-    "circuit_lcu_4q",
+    "circname",
     [
-        pytest.lazy_fixture("q4_lcu1"),  # type: ignore
+        "q4_lcu1",
     ],
 )
-def test_expectation_value_postselect_4q_lcu(circuit_lcu_4q: Circuit) -> None:
+def test_expectation_value_postselect_4q_lcu(circname: str) -> None:
+    circuit_lcu_4q = getattr(conftest, circname)()
     postselect_dict = {Qubit("q", 2): 0, Qubit("q", 3): 0}
     op = QubitPauliOperator(
         {
