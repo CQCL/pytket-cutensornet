@@ -1,6 +1,7 @@
 import cmath
 import random
 import warnings
+from typing import Any
 
 import numpy as np
 import pytest
@@ -9,8 +10,6 @@ from numpy.typing import NDArray
 from pytket.circuit import Qubit, ToffoliBox  # type: ignore
 from pytket.passes import CnXPairwiseDecomposition, DecomposeBoxes  # type: ignore
 from pytket.transform import Transform  # type: ignore
-
-from . import conftest
 
 try:
     import cuquantum as cq  # type: ignore
@@ -63,8 +62,8 @@ def circuit_overlap_contract(circuit_ket: Circuit) -> float:
         "q4_with_creates",
     ],
 )
-def test_convert_statevec_overlap(circname: str) -> None:
-    circuit = getattr(conftest, circname)()
+def test_convert_statevec_overlap(request: Any, circname: str) -> None:
+    circuit = request.getfixturevalue(circname)
     tn = tk_to_tensor_network(circuit)
     result_cu = state_contract(tn).flatten().round(10)
     state_vector = np.array([circuit.get_statevector()])
@@ -195,7 +194,7 @@ def test_expectation_value() -> None:
         "q4_with_creates",
     ],
 )
-def test_compile_convert_statevec_overlap(circname: str) -> None:
-    circuit = getattr(conftest, circname)()
+def test_compile_convert_statevec_overlap(request: Any, circname: str) -> None:
+    circuit = request.getfixturevalue(circname)
     ovl = get_circuit_overlap(circuit)
     assert ovl == pytest.approx(1.0)

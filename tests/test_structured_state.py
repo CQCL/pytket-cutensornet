@@ -27,8 +27,6 @@ from pytket.extensions.cutensornet.structured_state.ttn import RootPath
 from pytket.passes import CnXPairwiseDecomposition, DecomposeBoxes
 from pytket.pauli import Pauli, QubitPauliString
 
-from . import conftest
-
 
 def test_libhandle_manager() -> None:
     circ = Circuit(5)
@@ -299,8 +297,8 @@ def test_entanglement_entropy() -> None:
         SimulationAlgorithm.TTNxGate,
     ],
 )
-def test_exact_circ_sim(circname: str, algorithm: SimulationAlgorithm) -> None:
-    circuit = getattr(conftest, circname)()
+def test_exact_circ_sim(request: Any, circname: str, algorithm: SimulationAlgorithm) -> None:
+    circuit = request.getfixturevalue(circname)
     n_qubits = len(circuit.qubits)
     state_vec = circuit.get_statevector()
 
@@ -347,8 +345,8 @@ def test_exact_circ_sim(circname: str, algorithm: SimulationAlgorithm) -> None:
         SimulationAlgorithm.MPSxMPO,
     ],
 )
-def test_prepare_circuit_mps(circname: str, algorithm: SimulationAlgorithm) -> None:
-    circuit = getattr(conftest, circname)()
+def test_prepare_circuit_mps(request: Any, circname: str, algorithm: SimulationAlgorithm) -> None:
+    circuit = request.getfixturevalue(circname)
     state_vec = circuit.get_statevector()
     n_qubits = len(circuit.qubits)
 
@@ -421,9 +419,9 @@ def test_prepare_circuit_mps(circname: str, algorithm: SimulationAlgorithm) -> N
     ],
 )
 def test_approx_circ_sim_gate_fid(
-    circname: str, algorithm: SimulationAlgorithm
+    request: Any, circname: str, algorithm: SimulationAlgorithm
 ) -> None:
-    circuit = getattr(conftest, circname)()
+    circuit = request.getfixturevalue(circname)
     with CuTensorNetHandle() as libhandle:
         cfg = Config(truncation_fidelity=0.99, leaf_size=2)
         state = simulate(libhandle, circuit, algorithm, cfg)
@@ -446,8 +444,8 @@ def test_approx_circ_sim_gate_fid(
         SimulationAlgorithm.TTNxGate,
     ],
 )
-def test_kill_threshold(circname: str, algorithm: SimulationAlgorithm) -> None:
-    circuit = getattr(conftest, circname)()
+def test_kill_threshold(request: Any, circname: str, algorithm: SimulationAlgorithm) -> None:
+    circuit = request.getfixturevalue(circname)
     with CuTensorNetHandle() as libhandle:
         cfg = Config(truncation_fidelity=0.99, kill_threshold=0.9999, leaf_size=2)
         with pytest.raises(LowFidelityException):
@@ -491,8 +489,8 @@ def test_kill_threshold(circname: str, algorithm: SimulationAlgorithm) -> None:
         SimulationAlgorithm.TTNxGate,
     ],
 )
-def test_approx_circ_sim_chi(circname: str, algorithm: SimulationAlgorithm) -> None:
-    circuit = getattr(conftest, circname)()
+def test_approx_circ_sim_chi(request: Any, circname: str, algorithm: SimulationAlgorithm) -> None:
+    circuit = request.getfixturevalue(circname)
     with CuTensorNetHandle() as libhandle:
         cfg = Config(chi=4, leaf_size=2)
         state = simulate(libhandle, circuit, algorithm, cfg)
@@ -531,9 +529,9 @@ def test_approx_circ_sim_chi(circname: str, algorithm: SimulationAlgorithm) -> N
     ],
 )
 def test_float_point_options(
-    circname: str, algorithm: SimulationAlgorithm, fp_precision: Any
+    request: Any, circname: str, algorithm: SimulationAlgorithm, fp_precision: Any
 ) -> None:
-    circuit = getattr(conftest, circname)()
+    circuit = request.getfixturevalue(circname)
     with CuTensorNetHandle() as libhandle:
         # Exact
         cfg = Config(float_precision=fp_precision, leaf_size=2)
@@ -575,8 +573,8 @@ def test_float_point_options(
         "q20_line_circ_20_layers",
     ],
 )
-def test_circ_approx_explicit_mps(circname: str) -> None:
-    circuit = getattr(conftest, circname)()
+def test_circ_approx_explicit_mps(request: Any, circname: str) -> None:
+    circuit = request.getfixturevalue(circname)
     random.seed(1)
 
     with CuTensorNetHandle() as libhandle:
@@ -625,8 +623,8 @@ def test_circ_approx_explicit_mps(circname: str) -> None:
         "q15_qvol",
     ],
 )
-def test_circ_approx_explicit_ttn(circname: str) -> None:
-    circuit = getattr(conftest, circname)()
+def test_circ_approx_explicit_ttn(request: Any, circname: str) -> None:
+    circuit = request.getfixturevalue(circname)
     random.seed(1)
 
     with CuTensorNetHandle() as libhandle:
@@ -672,8 +670,8 @@ def test_circ_approx_explicit_ttn(circname: str) -> None:
         {Qubit("q", 1): 1},
     ],
 )
-def test_postselect_2q_circ(circname: str, postselect_dict: dict) -> None:
-    circuit = getattr(conftest, circname)()
+def test_postselect_2q_circ(request: Any, circname: str, postselect_dict: dict) -> None:
+    circuit = request.getfixturevalue(circname)
     sv = circuit_statevector_postselect(circuit, postselect_dict.copy())
     sv_prob = sv.conj() @ sv
     if not np.isclose(sv_prob, 0.0):
@@ -705,8 +703,8 @@ def test_postselect_2q_circ(circname: str, postselect_dict: dict) -> None:
         {Qubit("q", 0): 0, Qubit("q", 2): 1},
     ],
 )
-def test_postselect_circ(circname: str, postselect_dict: dict) -> None:
-    circuit = getattr(conftest, circname)()
+def test_postselect_circ(request: Any, circname: str, postselect_dict: dict) -> None:
+    circuit = request.getfixturevalue(circname)
     sv = circuit_statevector_postselect(circuit, postselect_dict.copy())
     sv_prob = sv.conj() @ sv
     if not np.isclose(sv_prob, 0.0):
@@ -748,8 +746,8 @@ def test_postselect_circ(circname: str, postselect_dict: dict) -> None:
         QubitPauliString({Qubit(0): Pauli.X, Qubit(1): Pauli.Z}),
     ],
 )
-def test_expectation_value(circname: str, observable: QubitPauliString) -> None:
-    circuit = getattr(conftest, circname)()
+def test_expectation_value(request: Any, circname: str, observable: QubitPauliString) -> None:
+    circuit = request.getfixturevalue(circname)
     pauli_to_optype = {Pauli.Z: OpType.Z, Pauli.Y: OpType.Z, Pauli.X: OpType.X}
 
     # Use pytket to generate the expectation value of the observable
@@ -784,8 +782,8 @@ def test_expectation_value(circname: str, observable: QubitPauliString) -> None:
         "q5_line_circ_30_layers",
     ],
 )
-def test_sample_with_seed(circname: str) -> None:
-    circuit = getattr(conftest, circname)()
+def test_sample_with_seed(request: Any, circname: str) -> None:
+    circuit = request.getfixturevalue(circname)
     n_samples = 10
     config = Config(seed=1234)
 
@@ -818,8 +816,8 @@ def test_sample_with_seed(circname: str) -> None:
         "q2_lcu2",
     ],
 )
-def test_sample_circ_2q(circname: str) -> None:
-    circuit = getattr(conftest, circname)()
+def test_sample_circ_2q(request: Any, circname: str) -> None:
+    circuit = request.getfixturevalue(circname)
     n_samples = 200
 
     q0 = circuit.qubits[0]
@@ -854,8 +852,8 @@ def test_sample_circ_2q(circname: str) -> None:
         "q5_line_circ_30_layers",
     ],
 )
-def test_measure_circ(circname: str) -> None:
-    circuit = getattr(conftest, circname)()
+def test_measure_circ(request: Any, circname: str) -> None:
+    circuit = request.getfixturevalue(circname)
     n_samples = 200
 
     qA = circuit.qubits[-1]  # Least significant qubit

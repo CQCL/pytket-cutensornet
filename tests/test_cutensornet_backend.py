@@ -1,3 +1,5 @@
+from typing import Any
+
 import numpy as np
 import pytest
 
@@ -13,8 +15,6 @@ from pytket.extensions.cutensornet.backends import (
     CuTensorNetStateBackend,
 )
 from pytket.passes import CliffordSimp  # type: ignore
-
-from . import conftest
 
 
 def test_bell() -> None:
@@ -196,8 +196,8 @@ def test_invalid_measures() -> None:
         "q4_with_creates",
     ],
 )
-def test_compile_convert_statevec(circname: str) -> None:
-    circuit = getattr(conftest, circname)()
+def test_compile_convert_statevec(request: Any, circname: str) -> None:
+    circuit = request.getfixturevalue(circname)
     b = CuTensorNetStateBackend()
     c = b.get_compiled_circuit(circuit)
     h = b.process_circuit(c)

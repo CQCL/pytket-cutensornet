@@ -1,3 +1,5 @@
+from typing import Any
+
 import cuquantum as cq  # type: ignore
 import numpy as np
 import pytest
@@ -14,8 +16,6 @@ from pytket.extensions.cutensornet.general_state.utils import (
 )
 from pytket.pauli import Pauli, QubitPauliString  # type: ignore
 from pytket.utils import QubitPauliOperator
-
-from . import conftest
 
 
 @pytest.mark.parametrize(
@@ -35,8 +35,8 @@ from . import conftest
     ],
 )
 @pytest.mark.parametrize("postselect_dict", [{Qubit("q", 0): 0}, {Qubit("q", 0): 1}])
-def test_postselect_qubits_state_2q(circname: str, postselect_dict: dict) -> None:
-    circuit_2q = getattr(conftest, circname)()
+def test_postselect_qubits_state_2q(request: Any, circname: str, postselect_dict: dict) -> None:
+    circuit_2q = request.getfixturevalue(circname)
     sv = circuit_statevector_postselect(circuit_2q, postselect_dict)
     tn = TensorNetwork(circuit_2q)
     ten_net = measure_qubits_state(tn, postselect_dict)
@@ -61,8 +61,8 @@ def test_postselect_qubits_state_2q(circname: str, postselect_dict: dict) -> Non
         {Qubit("q", 0): 1, Qubit("q", 1): 1},
     ],
 )
-def test_postselect_qubits_state(circname: str, postselect_dict: dict) -> None:
-    circuit = getattr(conftest, circname)()
+def test_postselect_qubits_state(request: Any, circname: str, postselect_dict: dict) -> None:
+    circuit = request.getfixturevalue(circname)
     sv = circuit_statevector_postselect(circuit, postselect_dict.copy())
     tn = TensorNetwork(circuit)
     ten_net = measure_qubits_state(tn, postselect_dict)
@@ -85,8 +85,8 @@ def test_postselect_qubits_state(circname: str, postselect_dict: dict) -> None:
     ],
 )
 @pytest.mark.parametrize("postselect_dict", [{Qubit("q", 1): 0}, {Qubit("q", 1): 1}])
-def test_expectation_value_postselect_2q(circname: str, postselect_dict: dict) -> None:
-    circuit_2q = getattr(conftest, circname)()
+def test_expectation_value_postselect_2q(request: Any, circname: str, postselect_dict: dict) -> None:
+    circuit_2q = request.getfixturevalue(circname)
     op = QubitPauliOperator(
         {
             QubitPauliString({Qubit(0): Pauli.Z}): 1.0,
@@ -107,8 +107,8 @@ def test_expectation_value_postselect_2q(circname: str, postselect_dict: dict) -
         "q4_lcu1",
     ],
 )
-def test_expectation_value_postselect_4q_lcu(circname: str) -> None:
-    circuit_lcu_4q = getattr(conftest, circname)()
+def test_expectation_value_postselect_4q_lcu(request: Any, circname: str) -> None:
+    circuit_lcu_4q = request.getfixturevalue(circname)
     postselect_dict = {Qubit("q", 2): 0, Qubit("q", 3): 0}
     op = QubitPauliOperator(
         {

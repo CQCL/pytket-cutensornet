@@ -1,4 +1,5 @@
 import random
+from typing import Any
 
 import numpy as np
 import pytest
@@ -10,8 +11,6 @@ from pytket.passes import CnXPairwiseDecomposition, DecomposeBoxes
 from pytket.pauli import Pauli, QubitPauliString
 from pytket.transform import Transform
 from pytket.utils.operators import QubitPauliOperator
-
-from . import conftest
 
 
 @pytest.mark.parametrize(
@@ -42,8 +41,8 @@ from . import conftest
         "q8_x0h2v5z6",
     ],
 )
-def test_basic_circs_state(circname: str) -> None:
-    circuit = getattr(conftest, circname)()
+def test_basic_circs_state(request: Any, circname: str) -> None:
+    circuit = request.getfixturevalue(circname)
     sv_pytket = circuit.get_statevector()
 
     op = QubitPauliOperator(
@@ -196,8 +195,8 @@ def test_sv_generalised_toffoli_box(n_qubits: int) -> None:
         ),
     ],
 )
-def test_expectation_value(circname: str, observable: QubitPauliOperator) -> None:
-    circuit = getattr(conftest, circname)()
+def test_expectation_value(request: Any, circname: str, observable: QubitPauliOperator) -> None:
+    circuit = request.getfixturevalue(circname)
     # Note: not all qubits are acted on by the observable. The remaining qubits are
     # interpreted to have I (identity) operators on them both by pytket and cutensornet.
     exp_val_tket = observable.state_expectation(circuit.get_statevector())
@@ -244,8 +243,8 @@ def test_expectation_value(circname: str, observable: QubitPauliOperator) -> Non
     ],
 )
 @pytest.mark.parametrize("measure_all", [True, False])  # Measure all or a subset
-def test_sampler(circname: str, measure_all: bool) -> None:
-    circuit = getattr(conftest, circname)()
+def test_sampler(request: Any, circname: str, measure_all: bool) -> None:
+    circuit = request.getfixturevalue(circname)
     n_shots = 100000
 
     # Get the statevector so that we can calculate theoretical probabilities
@@ -300,8 +299,8 @@ def test_sampler(circname: str, measure_all: bool) -> None:
         {Symbol("a"): 5.3, Symbol("b"): 1.42, Symbol("c"): -0.07, Symbol("d"): 0.53},
     ],
 )
-def test_parameterised(circname: str, symbol_map: dict[Symbol, float]) -> None:
-    circuit = getattr(conftest, circname)()
+def test_parameterised(request: Any, circname: str, symbol_map: dict[Symbol, float]) -> None:
+    circuit = request.getfixturevalue(circname)
     state = GeneralState(circuit)
     sv = state.get_statevector(symbol_map)
 
