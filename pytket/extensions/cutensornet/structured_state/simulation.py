@@ -163,10 +163,10 @@ def prepare_circuit_mps(circuit: Circuit) -> tuple[Circuit, dict[Qubit, Qubit]]:
 
     Note:
         This preprocessing is *not* required by the MPS algorithms we provide.
-        Shallow circuits tend to run faster if this preprocessing is *not* used.
-        In occassions, it has been shown to improve runtime for deep circuits.
         The current implementation of ``vdot`` is not compatible with
         ``prepare_circuit_mps`` and may lead to a ``RuntimeError`` when used.
+        Shallow circuits tend to run faster if this preprocessing is *not* used.
+        In occassions, it has been shown to improve runtime for deep circuits.
 
     Args:
         circuit: The circuit to be simulated.
