@@ -53,7 +53,7 @@ def test_circuit_with_clexpr_i() -> None:
         cfg = Config()
         state = simulate(libhandle, circ, SimulationAlgorithm.MPSxGate, cfg)
         assert state.is_valid()
-        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)  # noqa: SLF001
+        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
         assert state.get_fidelity() == 1.0
 
 
@@ -83,7 +83,7 @@ def test_circuit_with_clexpr_ii() -> None:
         cfg = Config()
         state = simulate(libhandle, circ, SimulationAlgorithm.MPSxGate, cfg)
         assert state.is_valid()
-        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)  # noqa: SLF001
+        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
         assert state.get_fidelity() == 1.0
 
 
@@ -113,7 +113,7 @@ def test_circuit_with_clexpr_iii() -> None:
         cfg = Config()
         state = simulate(libhandle, circ, SimulationAlgorithm.MPSxGate, cfg)
         assert state.is_valid()
-        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)  # noqa: SLF001
+        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
         assert state.get_fidelity() == 1.0
 
 
@@ -128,7 +128,7 @@ def test_circuit_with_conditional_gate_i() -> None:
         cfg = Config()
         state = simulate(libhandle, circ, SimulationAlgorithm.MPSxGate, cfg)
         assert state.is_valid()
-        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)  # noqa: SLF001
+        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
         assert state.get_fidelity() == 1.0
 
 
@@ -143,7 +143,7 @@ def test_circuit_with_conditional_gate_ii() -> None:
         cfg = Config()
         state = simulate(libhandle, circ, SimulationAlgorithm.MPSxGate, cfg)
         assert state.is_valid()
-        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)  # noqa: SLF001
+        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
         assert state.get_fidelity() == 1.0
 
 
@@ -160,7 +160,7 @@ def test_pcircuit_with_conditional_gate_iii() -> None:
         cfg = Config()
         state = simulate(libhandle, circ, SimulationAlgorithm.MPSxGate, cfg)
         assert state.is_valid()
-        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)  # noqa: SLF001
+        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
         assert state.get_fidelity() == 1.0
 
 
@@ -180,7 +180,7 @@ def test_circuit_with_conditional_gate_iv() -> None:
         cfg = Config()
         state = simulate(libhandle, circ, SimulationAlgorithm.MPSxGate, cfg)
         assert state.is_valid()
-        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)  # noqa: SLF001
+        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
         assert state.get_fidelity() == 1.0
 
 
@@ -199,7 +199,7 @@ def test_pytket_basic_conditional_i() -> None:
         cfg = Config()
         state = simulate(libhandle, c, SimulationAlgorithm.MPSxGate, cfg)
         assert state.is_valid()
-        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)  # noqa: SLF001
+        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
         assert state.get_fidelity() == 1.0
 
 
@@ -218,7 +218,7 @@ def test_pytket_basic_conditional_ii() -> None:
         cfg = Config()
         state = simulate(libhandle, c, SimulationAlgorithm.MPSxGate, cfg)
         assert state.is_valid()
-        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)  # noqa: SLF001
+        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
         assert state.get_fidelity() == 1.0
 
 
@@ -244,7 +244,7 @@ def test_pytket_basic_conditional_iii_clexpr() -> None:
         cfg = Config()
         state = simulate(libhandle, d, SimulationAlgorithm.MPSxGate, cfg)
         assert state.is_valid()
-        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)  # noqa: SLF001
+        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
         assert state.get_fidelity() == 1.0
 
 
@@ -262,7 +262,7 @@ def test_circuit_with_conditional_gate_v() -> None:
         cfg = Config()
         state = simulate(libhandle, circ, SimulationAlgorithm.MPSxGate, cfg)
         assert state.is_valid()
-        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)  # noqa: SLF001
+        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
         assert state.get_fidelity() == 1.0
 
 
@@ -284,7 +284,7 @@ def test_correctness_reset_bits() -> None:
         for _ in range(n_shots):
             state = simulate(libhandle, circ, SimulationAlgorithm.MPSxGate, cfg)
             assert state.is_valid()
-            assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)  # noqa: SLF001
+            assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
             assert state.get_fidelity() == 1.0
             # The outcome is the |00> state
             assert np.isclose(abs(state.get_amplitude(0)), 1.0)
@@ -328,7 +328,7 @@ def test_correctness_reset_register() -> None:
         for _ in range(n_shots):
             state = simulate(libhandle, circ, SimulationAlgorithm.MPSxGate, cfg)
             assert state.is_valid()
-            assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)  # noqa: SLF001
+            assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
             assert state.get_fidelity() == 1.0
             # The outcome is the |000> state
             assert np.isclose(abs(state.get_amplitude(0)), 1.0)
@@ -386,7 +386,7 @@ def test_correctness_teleportation_bit() -> None:
         for _ in range(n_shots):
             state = simulate(libhandle, circ, SimulationAlgorithm.MPSxGate, cfg)
             assert state.is_valid()
-            assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)  # noqa: SLF001
+            assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
             assert state.get_fidelity() == 1.0
             # The outcome is cos(0.42*pi/2) |000> - j*sin2(0.42*pi/2) |001>
             assert np.isclose(abs(state.get_amplitude(0)) ** 2, 0.6243, atol=1e-4)
@@ -424,7 +424,7 @@ def test_repeat_until_success_i() -> None:
 
         state = simulate(libhandle, circ, SimulationAlgorithm.MPSxGate, cfg)
         assert state.is_valid()
-        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)  # noqa: SLF001
+        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
         assert state.get_fidelity() == 1.0
 
         # The flag bit should have turned False
@@ -502,7 +502,7 @@ def test_repeat_until_success_ii_clexpr() -> None:
 
         state = simulate(libhandle, circ, SimulationAlgorithm.MPSxGate, cfg)
         assert state.is_valid()
-        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)  # noqa: SLF001
+        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
         assert state.get_fidelity() == 1.0
 
         # All of the flag bits should have turned False
@@ -541,7 +541,7 @@ def test_clexpr_on_regs() -> None:
 
         state = simulate(libhandle, circ, SimulationAlgorithm.MPSxGate, cfg)
         assert state.is_valid()
-        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)  # noqa: SLF001
+        assert np.isclose(state.vdot(state), 1.0, atol=cfg._atol)
         assert state.get_fidelity() == 1.0
 
         # Check the bits

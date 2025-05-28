@@ -28,7 +28,7 @@ from pytket.circuit import (
     OpType,
     Qubit,
 )
-from pytket.pauli import QubitPauliString  # noqa: TC001
+from pytket.pauli import QubitPauliString
 
 try:
     import cupy as cp  # type: ignore
@@ -208,7 +208,8 @@ class StructuredState(ABC):
         """Apply the command to the `StructuredState`.
 
         Note:
-            Only one-qubit gates and two-qubit gates are supported.
+            All one-qubit gates and two-qubit gates are supported.
+            Multi-qubit `CnX` and `PauliExpBox` gates are supported for `MPSxGate`.
 
         Args:
             gate: The command to be applied.
@@ -226,7 +227,7 @@ class StructuredState(ABC):
 
         return self
 
-    def _apply_command(
+    def _apply_command(  # noqa: PLR0912
         self, op: Op, qubits: list[Qubit], bits: list[Bit], args: list[Any]
     ) -> None:
         """The implementation of `apply_gate`, acting on the unwrapped Command info."""
@@ -243,7 +244,24 @@ class StructuredState(ABC):
             if outcome_1:
                 self._apply_command(Op.create(OpType.X), [q], [], [q])
 
+        elif op.type == OpType.CnX:
+            self.apply_cnx(qubits[:-1], qubits[-1])
+
+        elif op.type == OpType.PauliExpBox:
+            angle = op.get_phase()  # type: ignore
+            if not isinstance(angle, float):
+                raise ValueError("PauliExpBox with Expr as phase are not supported")
+
+            paulis = op.get_paulis()  # type: ignore
+            assert len(qubits) == len(paulis)
+            self.apply_pauli_gadget(QubitPauliString(qubits, paulis), angle)
+
         elif op.is_gate():  # Either a unitary gate or a not supported "gate"
+            if len(op.free_symbols()) > 0:
+                raise ValueError(
+                    "Parameterised gates not supported."
+                    f"Please substitute symbols: {op.free_symbols()}."
+                )
             try:
                 unitary = op.get_unitary()
             except:  # noqa: E722
@@ -302,6 +320,34 @@ class StructuredState(ABC):
             ValueError: If the number of qubits provided is not one or two.
             ValueError: If the size of the matrix does not match with the number of
                 qubits provided.
+        """
+        raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
+
+    @abstractmethod
+    def apply_cnx(self, controls: list[Qubit], target: Qubit) -> StructuredState:
+        """Applies a CnX gate to the StructuredState.
+
+        Args:
+            controls: The control qubits
+            target: The target qubit
+
+        Returns:
+            ``self``, to allow for method chaining.
+        """
+        raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
+
+    @abstractmethod
+    def apply_pauli_gadget(
+        self, pauli_str: QubitPauliString, angle: float
+    ) -> StructuredState:
+        """Applies the Pauli gadget to the StructuredState.
+
+        Args:
+            pauli_str: The Pauli string of the Pauli gadget
+            angle: The angle in half turns
+
+        Returns:
+            ``self``, to allow for method chaining.
         """
         raise NotImplementedError(f"Method not implemented in {type(self).__name__}.")
 
