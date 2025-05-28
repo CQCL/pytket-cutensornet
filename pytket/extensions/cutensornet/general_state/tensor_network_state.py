@@ -29,6 +29,7 @@ from sympy import Expr, Symbol  # type: ignore
 from pytket.backends.backendresult import BackendResult
 from pytket.circuit import Bit, Circuit, Op, OpType, Qubit
 from pytket.extensions.cutensornet.general import set_logger
+from pytket.pauli import Pauli
 from pytket.utils import OutcomeArray
 from pytket.utils.operators import QubitPauliOperator  # noqa: TC001
 
@@ -227,7 +228,7 @@ class GeneralState:
 
         self._logger.debug("(Expectation value) converting operator to NetworkOperator")
 
-        paulis = ["I", "X", "Y", "Z"]
+        paulis = {Pauli.I: "I", Pauli.X: "X", Pauli.Y: "Y", Pauli.Z: "Z"}
         pauli_strs = dict()  # noqa: C408
         for pstr, coeff in operator.get_dict().items():
             # Raise an error if the operator acts on qubits that are not in the circuit
@@ -524,7 +525,7 @@ class GeneralBraOpKet:
         """
         _update_tensors(self.tn, self._symbolic_ops, symbol_map)
 
-        paulis = ["I", "X", "Y", "Z"]
+        paulis = {Pauli.I: "I", Pauli.X: "X", Pauli.Y: "Y", Pauli.Z: "Z"}
         pauli_matrix = {
             "I": np.identity(2),
             "X": Op.create(OpType.X).get_unitary(),
