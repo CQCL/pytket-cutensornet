@@ -57,6 +57,7 @@ Classes
 
     .. automethod:: __init__
     .. automethod:: add_qubit
+    .. automethod:: get_entanglement_entropy
 
 .. autoclass:: pytket.extensions.cutensornet.structured_state.MPSxMPO()
 
