@@ -195,7 +195,9 @@ def test_sv_generalised_toffoli_box(n_qubits: int) -> None:
         ),
     ],
 )
-def test_expectation_value(request: Any, circname: str, observable: QubitPauliOperator) -> None:
+def test_expectation_value(
+    request: Any, circname: str, observable: QubitPauliOperator
+) -> None:
     circuit = request.getfixturevalue(circname)
     # Note: not all qubits are acted on by the observable. The remaining qubits are
     # interpreted to have I (identity) operators on them both by pytket and cutensornet.
@@ -299,7 +301,9 @@ def test_sampler(request: Any, circname: str, measure_all: bool) -> None:
         {Symbol("a"): 5.3, Symbol("b"): 1.42, Symbol("c"): -0.07, Symbol("d"): 0.53},
     ],
 )
-def test_parameterised(request: Any, circname: str, symbol_map: dict[Symbol, float]) -> None:
+def test_parameterised(
+    request: Any, circname: str, symbol_map: dict[Symbol, float]
+) -> None:
     circuit = request.getfixturevalue(circname)
     state = GeneralState(circuit)
     sv = state.get_statevector(symbol_map)

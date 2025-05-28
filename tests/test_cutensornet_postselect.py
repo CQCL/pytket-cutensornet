@@ -35,7 +35,9 @@ from pytket.utils import QubitPauliOperator
     ],
 )
 @pytest.mark.parametrize("postselect_dict", [{Qubit("q", 0): 0}, {Qubit("q", 0): 1}])
-def test_postselect_qubits_state_2q(request: Any, circname: str, postselect_dict: dict) -> None:
+def test_postselect_qubits_state_2q(
+    request: Any, circname: str, postselect_dict: dict
+) -> None:
     circuit_2q = request.getfixturevalue(circname)
     sv = circuit_statevector_postselect(circuit_2q, postselect_dict)
     tn = TensorNetwork(circuit_2q)
@@ -61,7 +63,9 @@ def test_postselect_qubits_state_2q(request: Any, circname: str, postselect_dict
         {Qubit("q", 0): 1, Qubit("q", 1): 1},
     ],
 )
-def test_postselect_qubits_state(request: Any, circname: str, postselect_dict: dict) -> None:
+def test_postselect_qubits_state(
+    request: Any, circname: str, postselect_dict: dict
+) -> None:
     circuit = request.getfixturevalue(circname)
     sv = circuit_statevector_postselect(circuit, postselect_dict.copy())
     tn = TensorNetwork(circuit)
@@ -85,7 +89,9 @@ def test_postselect_qubits_state(request: Any, circname: str, postselect_dict: d
     ],
 )
 @pytest.mark.parametrize("postselect_dict", [{Qubit("q", 1): 0}, {Qubit("q", 1): 1}])
-def test_expectation_value_postselect_2q(request: Any, circname: str, postselect_dict: dict) -> None:
+def test_expectation_value_postselect_2q(
+    request: Any, circname: str, postselect_dict: dict
+) -> None:
     circuit_2q = request.getfixturevalue(circname)
     op = QubitPauliOperator(
         {

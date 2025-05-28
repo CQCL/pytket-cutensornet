@@ -297,7 +297,9 @@ def test_entanglement_entropy() -> None:
         SimulationAlgorithm.TTNxGate,
     ],
 )
-def test_exact_circ_sim(request: Any, circname: str, algorithm: SimulationAlgorithm) -> None:
+def test_exact_circ_sim(
+    request: Any, circname: str, algorithm: SimulationAlgorithm
+) -> None:
     circuit = request.getfixturevalue(circname)
     n_qubits = len(circuit.qubits)
     state_vec = circuit.get_statevector()
@@ -345,7 +347,9 @@ def test_exact_circ_sim(request: Any, circname: str, algorithm: SimulationAlgori
         SimulationAlgorithm.MPSxMPO,
     ],
 )
-def test_prepare_circuit_mps(request: Any, circname: str, algorithm: SimulationAlgorithm) -> None:
+def test_prepare_circuit_mps(
+    request: Any, circname: str, algorithm: SimulationAlgorithm
+) -> None:
     circuit = request.getfixturevalue(circname)
     state_vec = circuit.get_statevector()
     n_qubits = len(circuit.qubits)
@@ -444,7 +448,9 @@ def test_approx_circ_sim_gate_fid(
         SimulationAlgorithm.TTNxGate,
     ],
 )
-def test_kill_threshold(request: Any, circname: str, algorithm: SimulationAlgorithm) -> None:
+def test_kill_threshold(
+    request: Any, circname: str, algorithm: SimulationAlgorithm
+) -> None:
     circuit = request.getfixturevalue(circname)
     with CuTensorNetHandle() as libhandle:
         cfg = Config(truncation_fidelity=0.99, kill_threshold=0.9999, leaf_size=2)
@@ -489,7 +495,9 @@ def test_kill_threshold(request: Any, circname: str, algorithm: SimulationAlgori
         SimulationAlgorithm.TTNxGate,
     ],
 )
-def test_approx_circ_sim_chi(request: Any, circname: str, algorithm: SimulationAlgorithm) -> None:
+def test_approx_circ_sim_chi(
+    request: Any, circname: str, algorithm: SimulationAlgorithm
+) -> None:
     circuit = request.getfixturevalue(circname)
     with CuTensorNetHandle() as libhandle:
         cfg = Config(chi=4, leaf_size=2)
@@ -746,7 +754,9 @@ def test_postselect_circ(request: Any, circname: str, postselect_dict: dict) -> 
         QubitPauliString({Qubit(0): Pauli.X, Qubit(1): Pauli.Z}),
     ],
 )
-def test_expectation_value(request: Any, circname: str, observable: QubitPauliString) -> None:
+def test_expectation_value(
+    request: Any, circname: str, observable: QubitPauliString
+) -> None:
     circuit = request.getfixturevalue(circname)
     pauli_to_optype = {Pauli.Z: OpType.Z, Pauli.Y: OpType.Z, Pauli.X: OpType.X}
 
