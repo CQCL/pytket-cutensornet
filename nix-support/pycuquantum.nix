@@ -17,7 +17,7 @@ buildPythonPackage{
     owner = "NVIDIA";
     repo = "cuQuantum";
     rev = "v25.03.0";
-    sha256 = ;
+    sha256 = "";
   };
   patches = [
     (substituteAll {
