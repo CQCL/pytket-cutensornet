@@ -17,7 +17,7 @@ let
       };
       "12" = fetchzip {
         url = "https://developer.download.nvidia.com/compute/cuquantum/redist/cuquantum/linux-x86_64/cuquantum-linux-x86_64-${version}_cuda12-archive.tar.xz";
-        sha256 = sha256:rqvQHotDBVhp8VHsqC9w+EyJD1WfharMAJP5SZc+aSY=;
+        sha256 = sha256:lDXJN9CmYNo1poMBLWgA3mOjkQCDAiPsDqAvmx6lZp4=;
       };
     };
     aarch64-linux = {
