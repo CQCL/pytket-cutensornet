@@ -255,9 +255,9 @@ def test_entanglement_entropy() -> None:
         mps = simulate(libhandle, circ, SimulationAlgorithm.MPSxGate, Config())
         assert isinstance(mps, MPSxGate)
 
-        assert np.isclose(mps.get_entanglement_entropy(0), -np.log(0.5))  # type: ignore
-        assert np.isclose(mps.get_entanglement_entropy(1), 0)  # type: ignore
-        assert np.isclose(mps.get_entanglement_entropy(2), 0.4165, atol=0.0001)  # type: ignore
+        assert np.isclose(mps.get_entanglement_entropy(0), -np.log(0.5))
+        assert np.isclose(mps.get_entanglement_entropy(1), 0)
+        assert np.isclose(mps.get_entanglement_entropy(2), 0.4165, atol=0.0001)
 
 
 @pytest.mark.parametrize(
