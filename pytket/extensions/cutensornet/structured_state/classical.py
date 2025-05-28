@@ -20,14 +20,11 @@ from pytket.circuit import (  # type: ignore
     BitRegister,
     ClExprOp,
     CopyBitsOp,
-    LogicExp,
     Op,
     OpType,
     RangePredicateOp,
     SetBitsOp,
 )
-
-ExtendedLogicExp = Union[LogicExp, Bit, BitRegister, int]  # noqa: UP007
 
 
 def apply_classical_command(
