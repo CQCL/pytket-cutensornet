@@ -502,8 +502,8 @@ class MPS(StructuredState):
                 )
         if self.qubit_position != other.qubit_position:
             raise RuntimeError(
-                "The qubit labels or their position on the MPS do not match. " \
-                "NOTE: the current implementation of vdot is not compatible with " \
+                "The qubit labels or their position on the MPS do not match. "
+                "NOTE: the current implementation of vdot is not compatible with "
                 "prepare_circuit_mps."
             )
         if len(self) == 0:
