@@ -13,7 +13,7 @@ let
     x86_64-linux = {
       "11" = fetchzip {
         url = "https://developer.download.nvidia.com/compute/cuquantum/redist/cuquantum/linux-x86_64/cuquantum-linux-x86_64-${version}_cuda11-archive.tar.xz";
-        sha256 = "";
+        sha256 = sha256:TOQX8e2MgefF+FWm0FvAMo7aFlz9S/aPEveeM4eK1Qs=;
       };
       "12" = fetchzip {
         url = "https://developer.download.nvidia.com/compute/cuquantum/redist/cuquantum/linux-x86_64/cuquantum-linux-x86_64-${version}_cuda12-archive.tar.xz";
