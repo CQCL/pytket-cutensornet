@@ -44,7 +44,7 @@ setup(
     packages=find_namespace_packages(include=["pytket.*"]),
     include_package_data=True,
     install_requires=[
-        "pytket >= 2.0.1",
+        "pytket >= 2.4.1",
         "networkx >= 2.8.8",
     ],
     classifiers=[
