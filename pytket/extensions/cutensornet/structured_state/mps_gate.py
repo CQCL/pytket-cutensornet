@@ -16,8 +16,6 @@ from __future__ import annotations  # type: ignore
 import logging
 import warnings
 
-import numpy as np  # type: ignore
-
 try:
     import cupy as cp  # type: ignore
 except ImportError:
@@ -29,8 +27,9 @@ try:
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)  # noqa: B028
 
-from pytket.circuit import Qubit, Op, OpType  # noqa: TC001
+from pytket.circuit import Op, OpType, Qubit
 from pytket.pauli import Pauli, QubitPauliString
+
 from .mps import MPS, DirMPS
 
 

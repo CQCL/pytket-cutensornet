@@ -178,7 +178,7 @@ class TTN(StructuredState):
                 # end for the parent (dim=1)
                 shape = tuple([2] * len(qubits) + [1])
                 # Initialise the tensor of this group of qubits to |0>
-                tensor = cp.zeros(shape=shape, dtype=self._cfg._complex_t)  # noqa: SLF001
+                tensor = cp.zeros(shape=shape, dtype=self._cfg._complex_t)
                 ket_zero_entry = tuple(0 for _ in shape)  # Index 0 on all bonds
                 tensor[ket_zero_entry] = 1  # Amplitude of |0> set to 1
 
@@ -191,11 +191,11 @@ class TTN(StructuredState):
             for _ in range(n_levels):
                 # Create the TreeNode at this path
                 for p in paths:
-                    tensor = cp.ones(shape=(1, 1, 1), dtype=self._cfg._complex_t)  # noqa: SLF001
+                    tensor = cp.ones(shape=(1, 1, 1), dtype=self._cfg._complex_t)
                     self.nodes[tuple(p)] = TreeNode(tensor)
                 # Generate the paths for the next level
                 paths = [
-                    p + [direction]  # noqa: RUF005
+                    p + [direction]
                     for p in paths
                     for direction in [DirTTN.LEFT, DirTTN.RIGHT]
                 ]
@@ -266,7 +266,7 @@ class TTN(StructuredState):
             ValueError: If the size of the matrix does not match with the number of
                 qubits provided.
         """
-        if self._lib._is_destroyed:  # noqa: SLF001
+        if self._lib._is_destroyed:
             raise RuntimeError(
                 "The cuTensorNet library handle is out of scope.",
                 "See the documentation of update_libhandle and CuTensorNetHandle.",
@@ -274,8 +274,8 @@ class TTN(StructuredState):
 
         if not isinstance(unitary, cp.ndarray):
             # Load the gate's unitary to the GPU memory
-            unitary = unitary.astype(dtype=self._cfg._complex_t, copy=False)  # noqa: SLF001
-            unitary = cp.asarray(unitary, dtype=self._cfg._complex_t)  # noqa: SLF001
+            unitary = unitary.astype(dtype=self._cfg._complex_t, copy=False)
+            unitary = cp.asarray(unitary, dtype=self._cfg._complex_t)
 
         self._logger.debug(f"Applying unitary {unitary} on {qubits}.")  # noqa: G004
 
@@ -513,7 +513,7 @@ class TTN(StructuredState):
             )
 
             # If the child bond is not the center yet, contract R with child node
-            child_path = tuple(list(path) + [target_direction])  # noqa: RUF005
+            child_path = tuple(list(path) + [target_direction])
             if child_path != target_path:
                 child_node = self.nodes[child_path]
 
@@ -612,7 +612,7 @@ class TTN(StructuredState):
             RuntimeError: If the two TTNs do not have the same qubits.
             RuntimeError: If the ``CuTensorNetHandle`` is out of scope.
         """
-        if self._lib._is_destroyed:  # noqa: SLF001
+        if self._lib._is_destroyed:
             raise RuntimeError(
                 "The cuTensorNet library handle is out of scope.",
                 "See the documentation of update_libhandle and CuTensorNetHandle.",
@@ -772,7 +772,7 @@ class TTN(StructuredState):
         for i, q in enumerate(ilo_qubits):
             # Create the tensors for each qubit in ``state``
             bitvalue = 1 if state & 2 ** (len(ilo_qubits) - i - 1) else 0
-            tensor = cp.zeros(shape=(2,), dtype=self._cfg._complex_t)  # noqa: SLF001
+            tensor = cp.zeros(shape=(2,), dtype=self._cfg._complex_t)
             tensor[bitvalue] = 1
             # Append it to the interleaved representation
             interleaved_rep.append(tensor)

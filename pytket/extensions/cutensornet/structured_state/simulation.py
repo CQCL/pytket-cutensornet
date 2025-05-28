@@ -139,7 +139,7 @@ def simulate(
         logger.info(f"Progress... {(100 * i) // len(commands)}%")  # noqa: G004
 
     # Apply the batched operations that are left (if any)
-    state._flush()  # noqa: SLF001
+    state._flush()
 
     # Apply the circuit's phase to the state
     state.apply_scalar(np.exp(1j * np.pi * circuit.phase))

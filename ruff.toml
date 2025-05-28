@@ -78,6 +78,8 @@ lint.ignore = [
     "F403", # Allow wildcard imports in init files
     "COM812", # flake8-commas "Trailing comma missing"
     "T201", # allow prints
+    "SLF001", # Private member accessed: `_complex_t`
+    "RUF005", # Consider `[*list, element]` instead of concatenation (list + [element])
 ]
 
 [lint.per-file-ignores]

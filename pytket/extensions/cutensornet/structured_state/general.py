@@ -28,7 +28,7 @@ from pytket.circuit import (
     OpType,
     Qubit,
 )
-from pytket.pauli import QubitPauliString  # noqa: TC001
+from pytket.pauli import QubitPauliString
 
 try:
     import cupy as cp  # type: ignore
@@ -226,7 +226,7 @@ class StructuredState(ABC):
 
         return self
 
-    def _apply_command(
+    def _apply_command(  # noqa: PLR0912
         self, op: Op, qubits: list[Qubit], bits: list[Bit], args: list[Any]
     ) -> None:
         """The implementation of `apply_gate`, acting on the unwrapped Command info."""
@@ -249,7 +249,7 @@ class StructuredState(ABC):
         elif op.type == OpType.PauliExpBox:
             angle = op.get_phase()  # type: ignore
             if not isinstance(angle, float):
-                raise ValueError(f"PauliExpBox with Expr as phase are not supported")
+                raise ValueError("PauliExpBox with Expr as phase are not supported")
 
             paulis = op.get_paulis()  # type: ignore
             assert len(qubits) == len(paulis)

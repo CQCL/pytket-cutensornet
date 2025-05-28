@@ -229,7 +229,7 @@ class GeneralState:
 
         paulis = ["I", "X", "Y", "Z"]
         pauli_strs = dict()  # noqa: C408
-        for pstr, coeff in operator._dict.items():  # noqa: SLF001
+        for pstr, coeff in operator._dict.items():
             # Raise an error if the operator acts on qubits that are not in the circuit
             if any(q not in self._qubit_idx_map.keys() for q in pstr.map.keys()):  # noqa: SIM118
                 raise ValueError(
@@ -538,7 +538,7 @@ class GeneralBraOpKet:
         if operator is None:
             pauli_strs = {"".join("I" for _ in range(self.n_qubits)): complex(1.0)}
         else:
-            for tk_pstr, coeff in operator._dict.items():  # noqa: SLF001
+            for tk_pstr, coeff in operator._dict.items():
                 # Raise an error if the operator acts on qubits missing from the circuit
                 if any(q not in self._qubit_idx_map.keys() for q in tk_pstr.map.keys()):  # noqa: SIM118
                     raise ValueError(
