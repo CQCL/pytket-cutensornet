@@ -1,3 +1,5 @@
+from typing import Any
+
 import numpy as np
 import pytest
 
@@ -174,27 +176,28 @@ def test_invalid_measures() -> None:
 
 
 @pytest.mark.parametrize(
-    "circuit",
+    "circname",
     [
-        pytest.lazy_fixture("q2_x0"),  # type: ignore
-        pytest.lazy_fixture("q2_x1"),  # type: ignore
-        pytest.lazy_fixture("q2_v0"),  # type: ignore
-        pytest.lazy_fixture("q2_x0cx01"),  # type: ignore
-        pytest.lazy_fixture("q2_x1cx10x1"),  # type: ignore
-        pytest.lazy_fixture("q2_x0cx01cx10"),  # type: ignore
-        pytest.lazy_fixture("q2_v0cx01cx10"),  # type: ignore
-        pytest.lazy_fixture("q2_hadamard_test"),  # type: ignore
-        pytest.lazy_fixture("q2_lcu1"),  # type: ignore
-        pytest.lazy_fixture("q2_lcu2"),  # type: ignore
-        pytest.lazy_fixture("q2_lcu3"),  # type: ignore
-        pytest.lazy_fixture("q3_v0cx02"),  # type: ignore
-        pytest.lazy_fixture("q3_cx01cz12x1rx0"),  # type: ignore
-        pytest.lazy_fixture("q4_lcu1"),  # type: ignore
-        pytest.lazy_fixture("q4_multicontrols"),  # type: ignore
-        pytest.lazy_fixture("q4_with_creates"),  # type: ignore
+        "q2_x0",
+        "q2_x1",
+        "q2_v0",
+        "q2_x0cx01",
+        "q2_x1cx10x1",
+        "q2_x0cx01cx10",
+        "q2_v0cx01cx10",
+        "q2_hadamard_test",
+        "q2_lcu1",
+        "q2_lcu2",
+        "q2_lcu3",
+        "q3_v0cx02",
+        "q3_cx01cz12x1rx0",
+        "q4_lcu1",
+        "q4_multicontrols",
+        "q4_with_creates",
     ],
 )
-def test_compile_convert_statevec(circuit: Circuit) -> None:
+def test_compile_convert_statevec(request: Any, circname: str) -> None:
+    circuit = request.getfixturevalue(circname)
     b = CuTensorNetStateBackend()
     c = b.get_compiled_circuit(circuit)
     h = b.process_circuit(c)
