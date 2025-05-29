@@ -46,7 +46,7 @@ def quantum_volume_circuit(n_qubits: int) -> Circuit:
             # Generate random 4x4 unitary matrix.
             SU4 = unitary_group.rvs(4)  # random unitary in SU4
             SU4 = SU4 / (np.linalg.det(SU4) ** 0.25)
-            SU4 = np.matrix(SU4)
+            SU4 = np.asarray(SU4)
             c.add_unitary2qbox(Unitary2qBox(SU4), *pair)
 
     DecomposeBoxes().apply(c)

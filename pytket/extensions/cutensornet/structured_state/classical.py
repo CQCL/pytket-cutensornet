@@ -12,22 +12,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Any, Union
+from typing import Any
 
 from pytket._tket.circuit import ClBitVar, ClExpr, ClOp, ClRegVar
 from pytket.circuit import (  # type: ignore
     Bit,
-    BitRegister,
     ClExprOp,
     CopyBitsOp,
-    LogicExp,
     Op,
     OpType,
     RangePredicateOp,
     SetBitsOp,
 )
-
-ExtendedLogicExp = Union[LogicExp, Bit, BitRegister, int]  # noqa: UP007
 
 
 def apply_classical_command(

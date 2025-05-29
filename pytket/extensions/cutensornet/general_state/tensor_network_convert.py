@@ -17,7 +17,7 @@
 import warnings
 
 try:
-    import cuquantum as cq  # type: ignore
+    from cuquantum.tensornet import contract  # type: ignore
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)  # noqa: B028
 
@@ -731,7 +731,7 @@ def get_operator_expectation_value(
             numeric_coeff = complex(coeff.evalf())  # type: ignore
         else:
             numeric_coeff = complex(coeff)  # type: ignore
-        expectation_term = numeric_coeff * cq.contract(
+        expectation_term = numeric_coeff * contract(
             *expectation_value_network.cuquantum_interleaved
         )
         expectation += expectation_term
@@ -756,5 +756,5 @@ def get_circuit_overlap(
 
     ket_net = TensorNetwork(circuit_ket)
     overlap_net_interleaved = ket_net.vdot(TensorNetwork(circuit_bra))
-    overlap: float = cq.contract(*overlap_net_interleaved)
+    overlap: float = contract(*overlap_net_interleaved)
     return overlap

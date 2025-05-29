@@ -20,9 +20,8 @@ try:
 except ImportError:
     warnings.warn("local settings failed to import cupy", ImportWarning)  # noqa: B028
 try:
-    import cuquantum as cq  # type: ignore
-    from cuquantum.cutensornet import tensor  # type: ignore
-    from cuquantum.cutensornet.experimental import contract_decompose  # type: ignore
+    from cuquantum.tensornet import contract, tensor  # type: ignore
+    from cuquantum.tensornet.experimental import contract_decompose  # type: ignore
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)  # noqa: B028
 
@@ -66,7 +65,7 @@ class TTNxGate(TTN):
         result_bonds[target] = "o"  # After contraction it matches the output bond
 
         # Contract
-        new_tensor = cq.contract(
+        new_tensor = contract(
             node_tensor,
             node_bonds,
             unitary,
@@ -126,7 +125,7 @@ class TTNxGate(TTN):
             aux_bonds[bond_q1] = "B"
             result_bonds = "".join(aux_bonds) + "p"
 
-            self.nodes[path_q0].tensor = cq.contract(
+            self.nodes[path_q0].tensor = contract(
                 f"{leaf_bonds},{gate_bonds}->{result_bonds}",
                 leaf_node.tensor,
                 gate_tensor,
@@ -348,7 +347,7 @@ class TTNxGate(TTN):
         result_bonds = "".join(aux_bonds) + "P"
 
         # Apply the contraction
-        leaf_node.tensor = cq.contract(
+        leaf_node.tensor = contract(
             f"{leaf_bonds},{V_bonds},{msg_bonds}->{result_bonds}",
             leaf_node.tensor,
             V,
@@ -645,7 +644,7 @@ class TTNxGate(TTN):
             indices = "lrp,sl->srp"
         else:
             indices = "lrp,sr->lsp"
-        self.nodes[bond_address[:-1]].tensor = cq.contract(
+        self.nodes[bond_address[:-1]].tensor = contract(
             indices,
             self.nodes[bond_address[:-1]].tensor,
             V,
@@ -664,7 +663,7 @@ class TTNxGate(TTN):
         result_bonds = node_bonds.copy()
         result_bonds[-1] = "s"
 
-        self.nodes[bond_address].tensor = cq.contract(
+        self.nodes[bond_address].tensor = contract(
             self.nodes[bond_address].tensor,
             node_bonds,
             U,

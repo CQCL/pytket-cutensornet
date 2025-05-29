@@ -25,9 +25,8 @@ try:
 except ImportError:
     warnings.warn("local settings failed to import cupy", ImportWarning)  # noqa: B028
 try:
-    import cuquantum as cq  # type: ignore
-    from cuquantum.cutensornet import tensor  # type: ignore
-    from cuquantum.cutensornet.experimental import contract_decompose  # type: ignore
+    from cuquantum.tensornet import contract, tensor  # type: ignore
+    from cuquantum.tensornet.experimental import contract_decompose  # type: ignore
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)  # noqa: B028
 
@@ -333,7 +332,7 @@ class MPS(StructuredState):
         qubit_tensor = cp.zeros(2, dtype=self._cfg._complex_t)
         qubit_tensor[state] = 1
         # Apply the tensor product
-        new_tensor = cq.contract(
+        new_tensor = contract(
             "lr,p->lrp",
             identity,
             qubit_tensor,
@@ -452,7 +451,7 @@ class MPS(StructuredState):
 
         # Contract R into Tnext
         subscripts = R_bonds + "," + Tnext_bonds + "->" + result_bonds
-        result = cq.contract(
+        result = contract(
             subscripts,
             R,
             Tnext,
@@ -484,6 +483,7 @@ class MPS(StructuredState):
 
         Raises:
             RuntimeError: If number of tensors, dimensions or positions do not match.
+                This may be the case if you used ``prepare_circuit_mps``.
             RuntimeError: If there are no tensors in the MPS.
             RuntimeError: If the ``CuTensorNetHandle`` is out of scope.
         """
@@ -502,7 +502,9 @@ class MPS(StructuredState):
                 )
         if self.qubit_position != other.qubit_position:
             raise RuntimeError(
-                "The qubit labels or their position on the MPS do not match."
+                "The qubit labels or their position on the MPS do not match. "
+                "NOTE: the current implementation of vdot is not compatible with "
+                "prepare_circuit_mps."
             )
         if len(self) == 0:
             raise RuntimeError("There are no tensors in the MPS.")
@@ -532,7 +534,7 @@ class MPS(StructuredState):
             contraction_path.append((end_mps1, end_mps2))  # End of mps1 and ^ outcome
 
         # Apply the contraction
-        result = cq.contract(
+        result = contract(
             *interleaved_rep,
             options={"handle": self._lib.handle, "device_id": self._lib.device_id},
             optimize={"path": contraction_path},
@@ -648,7 +650,7 @@ class MPS(StructuredState):
             # Take the tensor in this position and obtain its prob for |0>.
             # Since the MPS is in canonical form, this corresponds to the probability
             # if we were to take all of the other tensors into account.
-            prob = cq.contract(
+            prob = contract(
                 "lrp,p,lrP,P->",  # No open bonds remain; this is just a scalar
                 self.tensors[pos].conj(),
                 zero_tensor,
@@ -739,7 +741,7 @@ class MPS(StructuredState):
         """Postselect the qubit with the given tensor."""
 
         pos = self.qubit_position[qubit]
-        self.tensors[pos] = cq.contract(
+        self.tensors[pos] = contract(
             "lrp,p->lr",
             self.tensors[pos],
             postselection_tensor,
@@ -758,7 +760,7 @@ class MPS(StructuredState):
             pass
 
         elif pos != 0:  # Contract with next tensor on the left
-            self.tensors[pos - 1] = cq.contract(
+            self.tensors[pos - 1] = contract(
                 "sv,VsP->VvP",
                 self.tensors[pos],
                 self.tensors[pos - 1],
@@ -767,7 +769,7 @@ class MPS(StructuredState):
             )
             self.canonical_form[pos - 1] = None
         else:  # There are no tensors on the left, contract with the one on the right
-            self.tensors[pos + 1] = cq.contract(
+            self.tensors[pos + 1] = contract(
                 "vs,sVP->vVP",
                 self.tensors[pos],
                 self.tensors[pos + 1],
@@ -821,7 +823,7 @@ class MPS(StructuredState):
                 )
 
                 # Contract the Pauli to the MPS tensor of the corresponding qubit
-                mps_copy.tensors[pos] = cq.contract(
+                mps_copy.tensors[pos] = contract(
                     "lrp,Pp->lrP",
                     mps_copy.tensors[pos],
                     pauli_tensor,
@@ -885,7 +887,7 @@ class MPS(StructuredState):
                 end_mps -= 1  # One tensor was removed from the MPS
 
             # Contract
-            result_tensor = cq.contract(
+            result_tensor = contract(
                 *interleaved_rep,
                 options={"handle": self._lib.handle, "device_id": self._lib.device_id},
                 optimize={"path": contraction_path},
@@ -946,7 +948,7 @@ class MPS(StructuredState):
             contraction_path.append((end_rep - 1, end_rep))  # End of mps1 and ^ outcome
 
         # Apply the contraction
-        result = cq.contract(
+        result = contract(
             *interleaved_rep,
             options={"handle": self._lib.handle, "device_id": self._lib.device_id},
             optimize={"samples": 1},

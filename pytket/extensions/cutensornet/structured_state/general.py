@@ -205,11 +205,12 @@ class StructuredState(ABC):
     fidelity: float
 
     def apply_gate(self, gate: Command) -> StructuredState:
-        """Apply the command to the `StructuredState`.
+        """Apply the command to the ``StructuredState``.
 
         Note:
             All one-qubit gates and two-qubit gates are supported.
-            Multi-qubit `CnX` and `PauliExpBox` gates are supported for `MPSxGate`.
+            Multi-qubit ``CnX`` and ``PauliExpBox`` gates are supported
+            for ``MPSxGate``.
 
         Args:
             gate: The command to be applied.
@@ -398,6 +399,8 @@ class StructuredState(ABC):
             The resulting complex number.
 
         Raises:
+            RuntimeError: If number of tensors, dimensions or positions do not match.
+                This may be the case if you used ``prepare_circuit_mps``.
             RuntimeError: If the two states do not have the same qubits.
             RuntimeError: If the ``CuTensorNetHandle`` is out of scope.
         """

@@ -23,7 +23,7 @@ try:
 except ImportError:
     warnings.warn("local settings failed to import cupy", ImportWarning)  # noqa: B028
 try:
-    import cuquantum.cutensornet as cutn  # type: ignore
+    import cuquantum.bindings.cutensornet as cutn  # type: ignore
 except ImportError:
     warnings.warn("local settings failed to import cutensornet", ImportWarning)  # noqa: B028
 
