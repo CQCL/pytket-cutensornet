@@ -347,8 +347,8 @@ class GeneralBraOpKet:
         The operator is provided when ``contract`` is called.
 
     Args:
-        bra: A pytket circuit describing the |bra> state.
-        ket: A pytket circuit describing the |ket> state.
+        bra: A pytket circuit describing the ``|bra>`` state.
+        ket: A pytket circuit describing the ``|ket>`` state.
         attributes: Optional. A dict of cuTensorNet ``TNConfig`` keys and
             their values.
         scratch_fraction: Optional. Fraction of free memory on GPU to allocate as

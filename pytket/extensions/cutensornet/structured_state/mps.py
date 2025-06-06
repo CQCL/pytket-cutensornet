@@ -53,7 +53,7 @@ class MPS(StructuredState):
     """Represents a state as a Matrix Product State.
 
     Attributes:
-        tensors (list[Tensor]): A list of tensors in the MPS; ``tensors[0]`` is
+        tensors (list[Any]): A list of tensors in the MPS; ``tensors[0]`` is
             the leftmost and ``tensors[len(self)-1]`` is the rightmost; ``tensors[i]``
             and ``tensors[i+1]`` are connected in the MPS via a bond. All of the
             tensors are rank three, with the dimensions listed in ``.shape`` matching
@@ -61,7 +61,7 @@ class MPS(StructuredState):
         canonical_form (dict[int, Optional[DirMPS]]): A dictionary mapping
             positions to the canonical form direction of the corresponding tensor,
             or ``None`` if it the tensor is not canonicalised.
-        qubit_position (dict[pytket.circuit.Qubit, int]): A dictionary mapping circuit
+        qubit_position (dict[pytket._tket.unit_id.Qubit, int]): A dictionary mapping circuit
             qubits to the position its tensor is at in the MPS.
         fidelity (float): A lower bound of the fidelity, obtained by multiplying
             the fidelities after each contraction. The fidelity of a contraction

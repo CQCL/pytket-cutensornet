@@ -80,9 +80,9 @@ class TTN(StructuredState):
     """Represents a state as a Tree Tensor Network.
 
     Attributes:
-        nodes (dict[RootPath, TreeNode]): A dictionary providing the tree node
+        nodes (dict[tuple[DirTTN, ...], TreeNode]): A dictionary providing the tree node
             of the given root path in the TTN.
-        qubit_position (dict[pytket.circuit.Qubit, tuple[RootPath, int]]): A dictionary
+        qubit_position (dict[pytket._tket.unit_id.Qubit, tuple[tuple[DirTTN, ...], int]]): A dictionary
             mapping circuit qubits to their address in the TTN.
         fidelity (float): A lower bound of the fidelity, obtained by multiplying
             the fidelities after each contraction. The fidelity of a contraction

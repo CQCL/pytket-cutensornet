@@ -6,31 +6,39 @@ Structured state evolution
 Library handle
 ~~~~~~~~~~~~~~
 
-.. autoclass:: pytket.extensions.cutensornet.CuTensorNetHandle
+.. automodule:: pytket.extensions.cutensornet.general
 
-    .. automethod:: destroy
+    .. autofunction:: set_logger
+    
+    .. autoclass:: CuTensorNetHandle
+        :members:
 
 
 Simulation
 ~~~~~~~~~~
 
-.. autofunction:: pytket.extensions.cutensornet.structured_state.simulate
+.. automodule:: pytket.extensions.cutensornet.structured_state.simulation
+.. autofunction:: pytket.extensions.cutensornet.structured_state.simulation.simulate
 
 .. autoenum:: pytket.extensions.cutensornet.structured_state.SimulationAlgorithm()
     :members:
 
-.. autoclass:: pytket.extensions.cutensornet.structured_state.Config()
+.. automodule:: pytket.extensions.cutensornet.structured_state.general
+.. autoclass:: pytket.extensions.cutensornet.structured_state.general.Config()
 
     .. automethod:: __init__
+    .. automethod:: copy
 
 
 Classes
 ~~~~~~~
 
-.. autoclass:: pytket.extensions.cutensornet.structured_state.StructuredState()
+.. autoclass:: pytket.extensions.cutensornet.structured_state.general.StructuredState()
 
     .. automethod:: is_valid
     .. automethod:: apply_gate
+    .. automethod:: apply_cnx
+    .. automethod:: apply_pauli_gadget
     .. automethod:: apply_unitary
     .. automethod:: apply_scalar
     .. automethod:: apply_qubit_relabelling
@@ -49,23 +57,55 @@ Classes
     .. automethod:: update_libhandle
     .. automethod:: copy
 
+.. automodule:: pytket.extensions.cutensornet.structured_state.mps
+.. autoclass:: pytket.extensions.cutensornet.structured_state.mps.MPS
+    :members:
+
+.. autoclass:: pytket.extensions.cutensornet.structured_state.DirMPS
+    :members:
+
+.. automodule:: pytket.extensions.cutensornet.structured_state.ttn_gate
 .. autoclass:: pytket.extensions.cutensornet.structured_state.TTNxGate()
 
     .. automethod:: __init__
 
-.. autoclass:: pytket.extensions.cutensornet.structured_state.MPSxGate()
+.. automodule:: pytket.extensions.cutensornet.structured_state.mps_gate
+.. autoclass:: pytket.extensions.cutensornet.structured_state.mps_gate.MPSxGate()
 
     .. automethod:: __init__
     .. automethod:: add_qubit
     .. automethod:: get_entanglement_entropy
+    .. automethod:: apply_cnx
+    .. automethod:: apply_pauli_gadget
+    .. automethod:: measure_pauli_string
 
-.. autoclass:: pytket.extensions.cutensornet.structured_state.MPSxMPO()
+.. automodule:: pytket.extensions.cutensornet.structured_state.mps_mpo
+.. autoclass:: pytket.extensions.cutensornet.structured_state.mps_mpo.MPSxMPO()
 
     .. automethod:: __init__
+    .. automethod:: add_qubit
+    .. automethod:: apply_qubit_relabelling
+    .. automethod:: get_physical_dimension
+    .. automethod:: update_libhandle
 
+.. automodule:: pytket.extensions.cutensornet.structured_state.ttn
+.. autoclass:: pytket.extensions.cutensornet.structured_state.ttn.TTN
+    :members:
+
+.. autoclass:: pytket.extensions.cutensornet.structured_state.ttn.DirTTN
+    :members:
+
+.. autoclass:: pytket.extensions.cutensornet.structured_state.ttn.TreeNode
+    
+    .. automethod:: copy
 
 Miscellaneous
 ~~~~~~~~~~~~~
 
-.. autofunction:: pytket.extensions.cutensornet.structured_state.prepare_circuit_mps
-.. autoclass:: pytket.extensions.cutensornet.structured_state.LowFidelityException
+.. autofunction:: pytket.extensions.cutensornet.structured_state.simulation.prepare_circuit_mps
+.. automodule:: pytket.extensions.cutensornet.structured_state.classical
+.. autofunction:: pytket.extensions.cutensornet.structured_state.classical.apply_classical_command
+.. autofunction:: pytket.extensions.cutensornet.structured_state.classical.evaluate_clexpr
+.. autofunction:: pytket.extensions.cutensornet.structured_state.classical.from_little_endian
+.. autoexception:: pytket.extensions.cutensornet.structured_state.LowFidelityException
+.. automodule:: pytket.extensions.cutensornet._metadata
